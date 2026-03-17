@@ -3,7 +3,7 @@ dist/
 reboot.ts
 /database/
 cache/
-
+.idea/
 # Node
 node_modules/
 package-lock.json

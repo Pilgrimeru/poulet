@@ -3,7 +3,7 @@ import { startStatsReportScheduler } from "@/discord/components";
 import { bot } from "@/app/runtime";
 import { Event } from "@/discord/types";
 
-export default new Event("ready", () => {
+export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
