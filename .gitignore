@@ -1,0 +1,14 @@
+config.env
+dist/
+reboot.ts
+/database/
+cache/
+
+# Node
+node_modules/
+package-lock.json
+bun.lockb
+database/database.sqlite
+cache/
+.yarn
+.vscode

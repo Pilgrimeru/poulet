@@ -1,0 +1,21 @@
+node_modules
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
+config.env.example
+dist
+database
+dist
+database
+cache
+
+# Node
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
+.yarn
+.vscode

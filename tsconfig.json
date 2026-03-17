@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "module": "Preserve",
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "useUnknownInCatchVariables": true,
+    "allowUnreachableCode": false,
+    "esModuleInterop": true,
+    "importHelpers": true,
+    "types": ["bun-types", "node"],
+    "sourceMap": true,
+    "strictPropertyInitialization": false,
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Some stricter flags
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noPropertyAccessFromIndexSignature": true
+  },
+  "include": ["src/**/*", "src/app/locales/*.json"],
+  "exclude": [".github", "dist", "node_modules"]
+}

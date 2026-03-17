@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  sentibot:
+    build: .
+    container_name: sentibot
+    volumes:
+      - sentibot-db:/app/database
+    restart: always
+volumes:
+  sentibot-db:

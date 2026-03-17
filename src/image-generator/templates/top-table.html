@@ -1,0 +1,40 @@
+<div
+  style="display: flex; width: 850px; height: {{canvasHeight}}px; background-color: #1A1A1E; padding: 10px; box-sizing: border-box; font-family: sans-serif;"
+>
+  <div
+    style="display: flex; flex-direction: column; width: 100%; border-radius: 16px; background-color: #2b2d31; overflow: hidden;"
+  >
+    <!-- HEADER -->
+    <div
+      style="display: flex; height: 60px; background-color: #232428; align-items: center; border-bottom: 2px solid #1A1A1E; color: #949ba4; font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;"
+    >
+      <div style="display: flex; width: 80px; justify-content: center;">#</div>
+      <div style="display: flex; width: 350px; padding-left: 20px;">Membre</div>
+      <div style="display: flex; width: 180px; justify-content: flex-end;">Temps Vocal</div>
+      <div style="display: flex; width: 180px; justify-content: flex-end; padding-right: 30px;">Messages</div>
+    </div>
+
+    <!-- ROWS CONTAINER -->
+    <div style="display: flex; flex-direction: column;">
+      {{rowsHtml}}
+    </div>
+
+    <!-- FOOTER -->
+    <div
+      style="display: flex; height: 60px; background-color: #232428; align-items: center; border-top: 2px solid #1A1A1E;"
+    >
+      <div style="display: flex; width: 80px; justify-content: center; align-items: center; font-size: 22px;">
+        📊
+      </div>
+      <div style="display: flex; width: 350px; padding-left: 20px; align-items: center; color: #949ba4; font-weight: 800; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">
+        TOTAL SERVEUR
+      </div>
+      <div style="display: flex; width: 180px; justify-content: flex-end; color: #23a559; font-weight: 700; font-size: 16px;">
+        {{totalVocal}}
+      </div>
+      <div style="display: flex; width: 180px; justify-content: flex-end; color: #00a8fc; font-weight: 700; font-size: 16px; align-items: center; padding-right: 30px;">
+        {{totalMessages}}
+      </div>
+    </div>
+  </div>
+</div>

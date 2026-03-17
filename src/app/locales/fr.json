@@ -1,0 +1,25 @@
+{
+  "help": {
+    "description": "Affiche toutes les commandes et leurs descriptions.",
+    "embedTitle": "Aide {botname}",
+    "embedDescription": "Liste de toutes les commandes."
+  },
+  "ping": {
+    "description": "Affiche le ping du bot.",
+    "result": "📈 Ping vers l'API : {ping} ms."
+  },
+  "uptime": {
+    "description": "Vérifie le temps de fonctionnement du bot.",
+    "result": "Temps de fonctionnement : `{days} jour(s), {hours} heures, {minutes} minutes, {seconds} secondes`"
+  },
+  "common": {
+    "on": "**activé**",
+    "off": "**désactivé**",
+    "enabled": "**activé**",
+    "disabled": "**désactivé**",
+    "loading": "⏳ Chargement..."
+  },
+  "errors": {
+    "command": "Une erreur s'est produite lors de l'exécution de cette commande."
+  }
+}
