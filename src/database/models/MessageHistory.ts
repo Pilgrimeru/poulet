@@ -6,6 +6,7 @@ export interface MessageHistoryAttributes {
   date: number;
   channelID: string;
   guildID: string;
+  messageID: string;
 }
 
 class MessageHistory extends Model<MessageHistoryAttributes> {
@@ -13,6 +14,7 @@ class MessageHistory extends Model<MessageHistoryAttributes> {
   declare date: number;
   declare channelID: string;
   declare guildID: string;
+  declare messageID: string;
 }
 
 MessageHistory.init(
@@ -32,6 +34,11 @@ MessageHistory.init(
     guildID: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    messageID: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "",
     },
   },
   {

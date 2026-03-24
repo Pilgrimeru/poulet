@@ -14,6 +14,7 @@ export async function renderHome(ids: ScopedSettingsIds) {
     .addOptions([
       { label: "Anti Spam", description: "Creer et modifier plusieurs filtres", value: "anti_spam" },
       { label: "Stats", description: "Configurer exclusions et vocal casque coupe", value: "stats" },
+      { label: "Regles par salon", description: "Reactions, threads auto, limite de messages", value: "channel_rules" },
     ]);
 
   return {

@@ -1,10 +1,28 @@
-import { col, fn, Op } from "sequelize";
+import { col, DataTypes, fn, Op } from "sequelize";
 import { MessageHistory, MessageHistoryAttributes } from "@/database/models";
+import { sequelize } from "@/database/sequelize";
 
 class MessageHistoryService {
+  private schemaReady = false;
+
+  private async ensureColumns(): Promise<void> {
+    if (this.schemaReady) return;
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDefinition = await queryInterface.describeTable("MessageHistories");
+    if (!tableDefinition["messageID"]) {
+      await queryInterface.addColumn("MessageHistories", "messageID", {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: "",
+      });
+    }
+    this.schemaReady = true;
+  }
+
   async createMessageHistory(
     data: MessageHistoryAttributes,
   ): Promise<MessageHistory> {
+    await this.ensureColumns();
     return await MessageHistory.create(data);
   }
 
@@ -27,6 +45,14 @@ class MessageHistoryService {
         userID,
         date,
       },
+    });
+  }
+
+  async getLatestByUserInChannel(guildID: string, userID: string, channelID: string): Promise<MessageHistory | null> {
+    await this.ensureColumns();
+    return await MessageHistory.findOne({
+      where: { guildID, userID, channelID },
+      order: [["date", "DESC"]],
     });
   }
 

@@ -286,7 +286,11 @@ export async function onMainMenuSelection(
   if (value.startsWith("as:edit:")) {
     const ruleID = value.slice("as:edit:".length);
     await interaction.update(await renderRuleEditor(guildID, ruleID, ids));
+    return;
   }
+  // Channel rules navigation (delegated from main menu)
+  const { onChannelRulesMenuSelection } = await import("@/discord/commands/settings/channelRules");
+  await onChannelRulesMenuSelection(interaction, guildID, ids);
 }
 
 // Lazy imports to avoid circular dependency

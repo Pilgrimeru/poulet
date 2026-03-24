@@ -1,3 +1,4 @@
+export { channelRuleService } from "./channelRuleService";
 export { deafSessionService } from "./deafSessionService";
 export { guildSettingsService } from "./guildSettingsService";
 export { messageHistoryService } from "./messageHistoryService";

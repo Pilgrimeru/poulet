@@ -1,3 +1,5 @@
+export { ChannelRule } from "./ChannelRule";
+export type { ChannelRuleAttributes, ChannelRuleMessageFilter } from "./ChannelRule";
 export { DeafSession } from "./DeafSession";
 export { GuildSettings } from "./GuildSettings";
 export type { GuildSettingsAttributes } from "./GuildSettings";

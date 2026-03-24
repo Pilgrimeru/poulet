@@ -1,8 +1,7 @@
-import { componentRouter } from "@/discord/interactions";
-import { Command } from "@/discord/types";
 import { onMainMenuSelection, onRuleAction, onRuleChannels } from "@/discord/commands/settings/antiSpam";
+import { onChannelRuleAction, onChannelRuleFilter, onChannelSelect } from "@/discord/commands/settings/channelRules";
 import { renderHome } from "@/discord/commands/settings/home";
-import { scopeIds, ScopedSettingsIds } from "@/discord/commands/settings/ids";
+import { ScopedSettingsIds, scopeIds } from "@/discord/commands/settings/ids";
 import {
   onStatsAction,
   onStatsChannels,
@@ -12,6 +11,8 @@ import {
   onStatsReportChannel,
   onStatsToggleDeaf,
 } from "@/discord/commands/settings/stats";
+import { componentRouter } from "@/discord/interactions";
+import { Command } from "@/discord/types";
 import { ChatInputCommandInteraction, MessageFlags } from "discord.js";
 
 const SETTINGS_TTL = 10 * 60 * 1000;
@@ -100,6 +101,26 @@ export default class SettingsCommand extends Command {
       if (!ruleID) return;
       return onRuleChannels(i, guildID, ruleID, ids);
     });
+
+    // Channel rules handlers
+    componentRouter.register(ids.CR_CHANNEL_SELECT, (i) => {
+      if (!i.isChannelSelectMenu()) return;
+      return onChannelSelect(i, guildID, ids);
+    });
+
+    componentRouter.registerPrefix(ids.CR_ACTIONS_PREFIX, (i) => {
+      if (!i.isStringSelectMenu()) return;
+      const channelID = i.customId.slice(ids.CR_ACTIONS_PREFIX.length);
+      if (!channelID) return;
+      return onChannelRuleAction(i, guildID, channelID, ids);
+    });
+
+    componentRouter.registerPrefix(ids.CR_FILTER_PREFIX, (i) => {
+      if (!i.isStringSelectMenu()) return;
+      const channelID = i.customId.slice(ids.CR_FILTER_PREFIX.length);
+      if (!channelID) return;
+      return onChannelRuleFilter(i, guildID, channelID, ids);
+    });
   }
 
   private unregisterHandlers(ids: ScopedSettingsIds): void {
@@ -113,5 +134,8 @@ export default class SettingsCommand extends Command {
     componentRouter.unregister(ids.STATS_TOGGLE_DEAF);
     componentRouter.unregisterPrefix(ids.AS_ACTIONS_PREFIX);
     componentRouter.unregisterPrefix(ids.AS_CHANNELS_PREFIX);
+    componentRouter.unregister(ids.CR_CHANNEL_SELECT);
+    componentRouter.unregisterPrefix(ids.CR_ACTIONS_PREFIX);
+    componentRouter.unregisterPrefix(ids.CR_FILTER_PREFIX);
   }
 }

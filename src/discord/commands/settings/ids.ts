@@ -26,6 +26,9 @@ export interface ScopedSettingsIds {
   STATS_RANKING: string;
   AS_ACTIONS_PREFIX: string;
   AS_CHANNELS_PREFIX: string;
+  CR_CHANNEL_SELECT: string;
+  CR_ACTIONS_PREFIX: string;
+  CR_FILTER_PREFIX: string;
 }
 
 export function scopeIds(userId: string): ScopedSettingsIds {
@@ -41,5 +44,8 @@ export function scopeIds(userId: string): ScopedSettingsIds {
     STATS_RANKING: `${p}:stats:ranking`,
     AS_ACTIONS_PREFIX: `${p}:as:actions:`,
     AS_CHANNELS_PREFIX: `${p}:as:channels:`,
+    CR_CHANNEL_SELECT: `${p}:cr:channel_select`,
+    CR_ACTIONS_PREFIX: `${p}:cr:actions:`,
+    CR_FILTER_PREFIX: `${p}:cr:filter:`,
   };
 }
