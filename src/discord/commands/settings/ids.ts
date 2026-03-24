@@ -13,3 +13,33 @@ export const SETTINGS_AS_CHANNELS_PREFIX = "settings:as:channels:";
 export const SETTINGS_AS_CREATE_MODAL_ID = "settings:as:modal:create";
 export const SETTINGS_AS_META_MODAL_PREFIX = "settings:as:modal:meta:";
 export const SETTINGS_AS_THRESHOLDS_MODAL_PREFIX = "settings:as:modal:thresholds:";
+
+// Scoped IDs embed the userId so only the original invoker's interactions are routed
+export interface ScopedSettingsIds {
+  MENU: string;
+  STATS_ACTIONS: string;
+  STATS_REPORT_ACTIONS: string;
+  STATS_TOGGLE_DEAF: string;
+  STATS_CHANNELS: string;
+  STATS_REPORT_CHANNEL: string;
+  STATS_FREQUENCY: string;
+  STATS_RANKING: string;
+  AS_ACTIONS_PREFIX: string;
+  AS_CHANNELS_PREFIX: string;
+}
+
+export function scopeIds(userId: string): ScopedSettingsIds {
+  const p = `settings:${userId}`;
+  return {
+    MENU: `${p}:menu`,
+    STATS_ACTIONS: `${p}:stats:actions`,
+    STATS_REPORT_ACTIONS: `${p}:stats:report:actions`,
+    STATS_TOGGLE_DEAF: `${p}:stats:toggle_deaf`,
+    STATS_CHANNELS: `${p}:stats:channels`,
+    STATS_REPORT_CHANNEL: `${p}:stats:report_channel`,
+    STATS_FREQUENCY: `${p}:stats:frequency`,
+    STATS_RANKING: `${p}:stats:ranking`,
+    AS_ACTIONS_PREFIX: `${p}:as:actions:`,
+    AS_CHANNELS_PREFIX: `${p}:as:channels:`,
+  };
+}

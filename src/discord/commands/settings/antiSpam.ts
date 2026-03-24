@@ -1,12 +1,10 @@
 import { config } from "@/app";
 import { spamFilterRuleService } from "@/database/services";
 import {
-  SETTINGS_AS_ACTIONS_PREFIX,
-  SETTINGS_AS_CHANNELS_PREFIX,
   SETTINGS_AS_CREATE_MODAL_ID,
   SETTINGS_AS_META_MODAL_PREFIX,
   SETTINGS_AS_THRESHOLDS_MODAL_PREFIX,
-  SETTINGS_MENU_ID,
+  ScopedSettingsIds,
 } from "@/discord/commands/settings/ids";
 import { isPositiveInt } from "@/discord/commands/settings/utils";
 import { invalidateSpamCheckers } from "@/discord/components";
@@ -24,7 +22,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 
-export async function renderAntiSpamHome(guildID: string) {
+export async function renderAntiSpamHome(guildID: string, ids: ScopedSettingsIds) {
   const rules = await spamFilterRuleService.getRulesByGuildID(guildID);
   const embed = new EmbedBuilder()
     .setColor(config.COLORS.MAIN)
@@ -37,28 +35,17 @@ export async function renderAntiSpamHome(guildID: string) {
     );
 
   const options = [
-    {
-      label: "Nouveau filtre",
-      description: "Creer un filtre anti-spam",
-      value: "as:create",
-    },
+    { label: "Nouveau filtre", description: "Creer un filtre anti-spam", value: "as:create" },
     ...rules.slice(0, 20).map((rule) => ({
       label: `${rule.enabled ? "ON" : "OFF"} - ${rule.name}`.slice(0, 100),
-      description: `${rule.mode} | ${rule.messageLimit} msg/${rule.intervalInSec}s`.slice(
-        0,
-        100,
-      ),
+      description: `${rule.mode} | ${rule.messageLimit} msg/${rule.intervalInSec}s`.slice(0, 100),
       value: `as:edit:${rule.id}`,
     })),
-    {
-      label: "Retour accueil",
-      description: "Revenir au menu principal",
-      value: "nav:home",
-    },
+    { label: "Retour accueil", description: "Revenir au menu principal", value: "nav:home" },
   ];
 
   const menu = new StringSelectMenuBuilder()
-    .setCustomId(SETTINGS_MENU_ID)
+    .setCustomId(ids.MENU)
     .setPlaceholder("Anti-spam")
     .addOptions(options);
 
@@ -68,9 +55,9 @@ export async function renderAntiSpamHome(guildID: string) {
   };
 }
 
-export async function renderRuleEditor(guildID: string, ruleID: string) {
+export async function renderRuleEditor(guildID: string, ruleID: string, ids: ScopedSettingsIds) {
   const rule = await spamFilterRuleService.getRuleByID(guildID, ruleID);
-  if (!rule) return renderAntiSpamHome(guildID);
+  if (!rule) return renderAntiSpamHome(guildID, ids);
 
   const embed = new EmbedBuilder()
     .setColor(config.COLORS.MAIN)
@@ -87,45 +74,20 @@ export async function renderRuleEditor(guildID: string, ruleID: string) {
     );
 
   const actionMenu = new StringSelectMenuBuilder()
-    .setCustomId(`${SETTINGS_AS_ACTIONS_PREFIX}${rule.id}`)
+    .setCustomId(`${ids.AS_ACTIONS_PREFIX}${rule.id}`)
     .setPlaceholder("Actions sur le filtre")
     .addOptions([
-      {
-        label: "Modifier nom/description/mode",
-        description: "Popup de configuration du filtre",
-        value: "meta",
-      },
-      {
-        label: "Modifier seuil anti-spam",
-        description: "Limiter messages, fenetre et duree de sanction",
-        value: "thresholds",
-      },
-      {
-        label: rule.enabled ? "Desactiver le filtre" : "Activer le filtre",
-        description: "Toggle actif/inactif",
-        value: "toggle",
-      },
-      {
-        label: "Supprimer le filtre",
-        description: "Suppression definitive",
-        value: "delete",
-      },
-      {
-        label: "Retour a la liste",
-        description: "Revenir aux filtres anti-spam",
-        value: "back",
-      },
+      { label: "Modifier nom/description/mode", description: "Popup de configuration du filtre", value: "meta" },
+      { label: "Modifier seuil anti-spam", description: "Limiter messages, fenetre et duree de sanction", value: "thresholds" },
+      { label: rule.enabled ? "Desactiver le filtre" : "Activer le filtre", description: "Toggle actif/inactif", value: "toggle" },
+      { label: "Supprimer le filtre", description: "Suppression definitive", value: "delete" },
+      { label: "Retour a la liste", description: "Revenir aux filtres anti-spam", value: "back" },
     ]);
 
   const channelMenu = new ChannelSelectMenuBuilder()
-    .setCustomId(`${SETTINGS_AS_CHANNELS_PREFIX}${rule.id}`)
+    .setCustomId(`${ids.AS_CHANNELS_PREFIX}${rule.id}`)
     .setPlaceholder("Choisir les salons du filtre")
-    .setChannelTypes([
-      ChannelType.GuildText,
-      ChannelType.GuildAnnouncement,
-      ChannelType.GuildVoice,
-      ChannelType.GuildForum,
-    ])
+    .setChannelTypes([ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildVoice, ChannelType.GuildForum])
     .setMinValues(0)
     .setMaxValues(25);
 
@@ -138,75 +100,40 @@ export async function renderRuleEditor(guildID: string, ruleID: string) {
   };
 }
 
-async function openCreateRuleModal(interaction: StringSelectMenuInteraction, guildID: string) {
-  const modal = new ModalBuilder()
-    .setCustomId(SETTINGS_AS_CREATE_MODAL_ID)
-    .setTitle("Nouveau filtre anti-spam");
-
-  const name = new TextInputBuilder()
-    .setCustomId("name")
-    .setLabel("Nom du filtre")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("Ex: Filtre general");
-  const mode = new TextInputBuilder()
-    .setCustomId("mode")
-    .setLabel("Mode (whitelist ou blacklist)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("blacklist");
-  const messageLimit = new TextInputBuilder()
-    .setCustomId("message_limit")
-    .setLabel("Nombre max de messages")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("Ex: 3");
-  const interval = new TextInputBuilder()
-    .setCustomId("interval_sec")
-    .setLabel("Fenetre de temps (secondes)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("Ex: 3");
-  const timeout = new TextInputBuilder()
-    .setCustomId("timeout_sec")
-    .setLabel("Duree du timeout (secondes)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setPlaceholder("Ex: 300");
-
+async function openCreateRuleModal(interaction: StringSelectMenuInteraction, guildID: string, ids: ScopedSettingsIds) {
+  const modal = new ModalBuilder().setCustomId(SETTINGS_AS_CREATE_MODAL_ID).setTitle("Nouveau filtre anti-spam");
   modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(name),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(mode),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(messageLimit),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(interval),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(timeout),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("name").setLabel("Nom du filtre").setRequired(true).setStyle(TextInputStyle.Short).setPlaceholder("Ex: Filtre general"),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("mode").setLabel("Mode (whitelist ou blacklist)").setRequired(true).setStyle(TextInputStyle.Short).setPlaceholder("blacklist"),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("message_limit").setLabel("Nombre max de messages").setRequired(true).setStyle(TextInputStyle.Short).setPlaceholder("Ex: 3"),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("interval_sec").setLabel("Fenetre de temps (secondes)").setRequired(true).setStyle(TextInputStyle.Short).setPlaceholder("Ex: 3"),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("timeout_sec").setLabel("Duree du timeout (secondes)").setRequired(true).setStyle(TextInputStyle.Short).setPlaceholder("Ex: 300"),
+    ),
   );
 
   await interaction.showModal(modal);
-  const submitted = await interaction
-    .awaitModalSubmit({
-      time: 120000,
-      filter: (i) =>
-        i.customId === SETTINGS_AS_CREATE_MODAL_ID && i.user.id === interaction.user.id,
-    })
-    .catch(() => undefined);
+  const submitted = await interaction.awaitModalSubmit({
+    time: 120000,
+    filter: (i) => i.customId === SETTINGS_AS_CREATE_MODAL_ID && i.user.id === interaction.user.id,
+  }).catch(() => undefined);
   if (!submitted) return;
 
   const rawMode = submitted.fields.getTextInputValue("mode").trim().toLowerCase();
   const messageLimitRaw = submitted.fields.getTextInputValue("message_limit").trim();
   const intervalRaw = submitted.fields.getTextInputValue("interval_sec").trim();
   const timeoutRaw = submitted.fields.getTextInputValue("timeout_sec").trim();
-  if (
-    (rawMode !== "whitelist" && rawMode !== "blacklist") ||
-    !isPositiveInt(messageLimitRaw) ||
-    !isPositiveInt(intervalRaw) ||
-    !isPositiveInt(timeoutRaw)
-  ) {
-    await submitted.reply({
-      content:
-        "Valeurs invalides. Mode: whitelist/blacklist. Les 3 champs de seuil attendent des entiers positifs (secondes pour les durees).",
-      flags: MessageFlags.Ephemeral,
-    });
+
+  if ((rawMode !== "whitelist" && rawMode !== "blacklist") || !isPositiveInt(messageLimitRaw) || !isPositiveInt(intervalRaw) || !isPositiveInt(timeoutRaw)) {
+    await submitted.reply({ content: "Valeurs invalides. Mode: whitelist/blacklist. Les 3 champs de seuil attendent des entiers positifs (secondes pour les durees).", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -222,64 +149,37 @@ async function openCreateRuleModal(interaction: StringSelectMenuInteraction, gui
     punishmentDurationInSec: Number(timeoutRaw),
   });
   invalidateSpamCheckers(guildID);
-  await submitted.reply({
-    content: "Filtre cree. Tu peux maintenant lui associer des salons.",
-    flags: MessageFlags.Ephemeral,
-  });
-
-  await interaction.editReply(await renderRuleEditor(guildID, created.id));
+  await submitted.reply({ content: "Filtre cree. Tu peux maintenant lui associer des salons.", flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await renderRuleEditor(guildID, created.id, ids));
 }
 
-async function openMetaModal(interaction: StringSelectMenuInteraction, guildID: string, ruleID: string) {
+async function openMetaModal(interaction: StringSelectMenuInteraction, guildID: string, ruleID: string, ids: ScopedSettingsIds) {
   const rule = await spamFilterRuleService.getRuleByID(guildID, ruleID);
   if (!rule) return;
 
-  const modal = new ModalBuilder()
-    .setCustomId(`${SETTINGS_AS_META_MODAL_PREFIX}${ruleID}`)
-    .setTitle("Modifier le filtre");
-
-  const name = new TextInputBuilder()
-    .setCustomId("name")
-    .setLabel("Nom du filtre")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setValue(rule.name);
-  const description = new TextInputBuilder()
-    .setCustomId("description")
-    .setLabel("Description")
-    .setRequired(false)
-    .setStyle(TextInputStyle.Short)
-    .setValue(rule.description || "");
-  const mode = new TextInputBuilder()
-    .setCustomId("mode")
-    .setLabel("Mode (whitelist ou blacklist)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setValue(rule.mode);
-
+  const modal = new ModalBuilder().setCustomId(`${SETTINGS_AS_META_MODAL_PREFIX}${ruleID}`).setTitle("Modifier le filtre");
   modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(name),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(description),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(mode),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("name").setLabel("Nom du filtre").setRequired(true).setStyle(TextInputStyle.Short).setValue(rule.name),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("description").setLabel("Description").setRequired(false).setStyle(TextInputStyle.Short).setValue(rule.description || ""),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("mode").setLabel("Mode (whitelist ou blacklist)").setRequired(true).setStyle(TextInputStyle.Short).setValue(rule.mode),
+    ),
   );
 
   await interaction.showModal(modal);
-  const submitted = await interaction
-    .awaitModalSubmit({
-      time: 120000,
-      filter: (i) =>
-        i.customId === `${SETTINGS_AS_META_MODAL_PREFIX}${ruleID}` &&
-        i.user.id === interaction.user.id,
-    })
-    .catch(() => undefined);
+  const submitted = await interaction.awaitModalSubmit({
+    time: 120000,
+    filter: (i) => i.customId === `${SETTINGS_AS_META_MODAL_PREFIX}${ruleID}` && i.user.id === interaction.user.id,
+  }).catch(() => undefined);
   if (!submitted) return;
 
   const rawMode = submitted.fields.getTextInputValue("mode").trim().toLowerCase();
   if (rawMode !== "whitelist" && rawMode !== "blacklist") {
-    await submitted.reply({
-      content: "Mode invalide. Valeurs autorisees: whitelist ou blacklist.",
-      flags: MessageFlags.Ephemeral,
-    });
+    await submitted.reply({ content: "Mode invalide. Valeurs autorisees: whitelist ou blacklist.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -289,72 +189,40 @@ async function openMetaModal(interaction: StringSelectMenuInteraction, guildID: 
     mode: rawMode,
   });
   invalidateSpamCheckers(guildID);
-  await submitted.reply({
-    content: "Filtre mis a jour.",
-    flags: MessageFlags.Ephemeral,
-  });
-  await interaction.editReply(await renderRuleEditor(guildID, ruleID));
+  await submitted.reply({ content: "Filtre mis a jour.", flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await renderRuleEditor(guildID, ruleID, ids));
 }
 
-async function openThresholdModal(
-  interaction: StringSelectMenuInteraction,
-  guildID: string,
-  ruleID: string,
-) {
+async function openThresholdModal(interaction: StringSelectMenuInteraction, guildID: string, ruleID: string, ids: ScopedSettingsIds) {
   const rule = await spamFilterRuleService.getRuleByID(guildID, ruleID);
   if (!rule) return;
 
-  const modal = new ModalBuilder()
-    .setCustomId(`${SETTINGS_AS_THRESHOLDS_MODAL_PREFIX}${ruleID}`)
-    .setTitle("Modifier les seuils anti-spam");
-  const messageLimit = new TextInputBuilder()
-    .setCustomId("message_limit")
-    .setLabel("Nombre max de messages")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(rule.messageLimit));
-  const interval = new TextInputBuilder()
-    .setCustomId("interval_sec")
-    .setLabel("Fenetre de temps (secondes)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(rule.intervalInSec));
-  const timeout = new TextInputBuilder()
-    .setCustomId("timeout_sec")
-    .setLabel("Duree du timeout (secondes)")
-    .setRequired(true)
-    .setStyle(TextInputStyle.Short)
-    .setValue(String(rule.punishmentDurationInSec));
+  const modal = new ModalBuilder().setCustomId(`${SETTINGS_AS_THRESHOLDS_MODAL_PREFIX}${ruleID}`).setTitle("Modifier les seuils anti-spam");
   modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(messageLimit),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(interval),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(timeout),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("message_limit").setLabel("Nombre max de messages").setRequired(true).setStyle(TextInputStyle.Short).setValue(String(rule.messageLimit)),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("interval_sec").setLabel("Fenetre de temps (secondes)").setRequired(true).setStyle(TextInputStyle.Short).setValue(String(rule.intervalInSec)),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("timeout_sec").setLabel("Duree du timeout (secondes)").setRequired(true).setStyle(TextInputStyle.Short).setValue(String(rule.punishmentDurationInSec)),
+    ),
   );
 
   await interaction.showModal(modal);
-  const submitted = await interaction
-    .awaitModalSubmit({
-      time: 120000,
-      filter: (i) =>
-        i.customId === `${SETTINGS_AS_THRESHOLDS_MODAL_PREFIX}${ruleID}` &&
-        i.user.id === interaction.user.id,
-    })
-    .catch(() => undefined);
+  const submitted = await interaction.awaitModalSubmit({
+    time: 120000,
+    filter: (i) => i.customId === `${SETTINGS_AS_THRESHOLDS_MODAL_PREFIX}${ruleID}` && i.user.id === interaction.user.id,
+  }).catch(() => undefined);
   if (!submitted) return;
 
   const messageLimitRaw = submitted.fields.getTextInputValue("message_limit").trim();
   const intervalRaw = submitted.fields.getTextInputValue("interval_sec").trim();
   const timeoutRaw = submitted.fields.getTextInputValue("timeout_sec").trim();
-  if (
-    !isPositiveInt(messageLimitRaw) ||
-    !isPositiveInt(intervalRaw) ||
-    !isPositiveInt(timeoutRaw)
-  ) {
-    await submitted.reply({
-      content:
-        "Valeurs invalides. Les 3 champs attendent des entiers positifs (secondes pour les durees).",
-      flags: MessageFlags.Ephemeral,
-    });
+
+  if (!isPositiveInt(messageLimitRaw) || !isPositiveInt(intervalRaw) || !isPositiveInt(timeoutRaw)) {
+    await submitted.reply({ content: "Valeurs invalides. Les 3 champs attendent des entiers positifs (secondes pour les durees).", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -364,86 +232,70 @@ async function openThresholdModal(
     punishmentDurationInSec: Number(timeoutRaw),
   });
   invalidateSpamCheckers(guildID);
-  await submitted.reply({
-    content: "Seuil mis a jour.",
-    flags: MessageFlags.Ephemeral,
-  });
-  await interaction.editReply(await renderRuleEditor(guildID, ruleID));
+  await submitted.reply({ content: "Seuil mis a jour.", flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await renderRuleEditor(guildID, ruleID, ids));
 }
 
 export async function onRuleAction(
   interaction: StringSelectMenuInteraction,
   guildID: string,
   ruleID: string,
+  ids: ScopedSettingsIds,
 ) {
   const action = interaction.values[0];
-
-  if (action === "meta") {
-    await openMetaModal(interaction, guildID, ruleID);
-    return;
-  }
-  if (action === "thresholds") {
-    await openThresholdModal(interaction, guildID, ruleID);
-    return;
-  }
+  if (action === "meta") { await openMetaModal(interaction, guildID, ruleID, ids); return; }
+  if (action === "thresholds") { await openThresholdModal(interaction, guildID, ruleID, ids); return; }
   if (action === "toggle") {
     const rule = await spamFilterRuleService.getRuleByID(guildID, ruleID);
     if (!rule) return;
-    await spamFilterRuleService.updateRule(guildID, ruleID, {
-      enabled: !rule.enabled,
-    });
+    await spamFilterRuleService.updateRule(guildID, ruleID, { enabled: !rule.enabled });
     invalidateSpamCheckers(guildID);
-    await interaction.update(await renderRuleEditor(guildID, ruleID));
+    await interaction.update(await renderRuleEditor(guildID, ruleID, ids));
     return;
   }
   if (action === "delete") {
     await spamFilterRuleService.deleteRule(guildID, ruleID);
     invalidateSpamCheckers(guildID);
-    await interaction.update(await renderAntiSpamHome(guildID));
+    await interaction.update(await renderAntiSpamHome(guildID, ids));
     return;
   }
-
-  await interaction.update(await renderAntiSpamHome(guildID));
+  await interaction.update(await renderAntiSpamHome(guildID, ids));
 }
 
 export async function onRuleChannels(
   interaction: ChannelSelectMenuInteraction,
   guildID: string,
   ruleID: string,
+  ids: ScopedSettingsIds,
 ) {
-  await spamFilterRuleService.updateRule(guildID, ruleID, {
-    channelIDs: interaction.values,
-  });
+  await spamFilterRuleService.updateRule(guildID, ruleID, { channelIDs: interaction.values });
   invalidateSpamCheckers(guildID);
-  await interaction.update(await renderRuleEditor(guildID, ruleID));
+  await interaction.update(await renderRuleEditor(guildID, ruleID, ids));
 }
 
 export async function onMainMenuSelection(
   interaction: StringSelectMenuInteraction,
   guildID: string,
-  onOpenHome: () => Promise<void>,
-  onOpenStatsHome: () => Promise<void>,
+  ids: ScopedSettingsIds,
 ) {
   const value = interaction.values[0];
-
-  if (value === "anti_spam") {
-    await interaction.update(await renderAntiSpamHome(guildID));
-    return;
-  }
-  if (value === "stats") {
-    await onOpenStatsHome();
-    return;
-  }
-  if (value === "nav:home") {
-    await onOpenHome();
-    return;
-  }
-  if (value === "as:create") {
-    await openCreateRuleModal(interaction, guildID);
-    return;
-  }
+  if (value === "anti_spam") { await interaction.update(await renderAntiSpamHome(guildID, ids)); return; }
+  if (value === "stats") { await interaction.update(await renderStatsHomeImport(guildID, ids)); return; }
+  if (value === "nav:home") { await interaction.update(await renderHomeImport(ids)); return; }
+  if (value === "as:create") { await openCreateRuleModal(interaction, guildID, ids); return; }
   if (value.startsWith("as:edit:")) {
     const ruleID = value.slice("as:edit:".length);
-    await interaction.update(await renderRuleEditor(guildID, ruleID));
+    await interaction.update(await renderRuleEditor(guildID, ruleID, ids));
   }
+}
+
+// Lazy imports to avoid circular dependency
+async function renderStatsHomeImport(guildID: string, ids: ScopedSettingsIds) {
+  const { renderStatsHome } = await import("@/discord/commands/settings/stats");
+  return renderStatsHome(guildID, ids);
+}
+
+async function renderHomeImport(ids: ScopedSettingsIds) {
+  const { renderHome } = await import("@/discord/commands/settings/home");
+  return renderHome(ids);
 }

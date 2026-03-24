@@ -1,61 +1,34 @@
 import { i18n } from "@/app";
 import { bot } from "@/app/runtime";
-import { pollManager } from "@/discord/components";
+import { componentRouter } from "@/discord/interactions";
 import { Event } from "@/discord/types";
 import { autoDelete } from "@/discord/utils";
-import {
-  ButtonInteraction,
-  ChatInputCommandInteraction,
-  PermissionsBitField,
-} from "discord.js";
+import { ChatInputCommandInteraction, PermissionsBitField } from "discord.js";
 
 export default new Event("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
-    processChatInput(interaction);
-  } else if (interaction.isButton()) {
-    await processButtons(interaction);
+    await processChatInput(interaction);
+  } else if (interaction.isMessageComponent()) {
+    await componentRouter.dispatch(interaction);
   }
 });
 
-async function processButtons(interaction: ButtonInteraction) {
-  if (interaction.customId.startsWith("v:")) {
-    const userId = interaction.user.id;
-    const [_, pollId, optionSelected] = interaction.customId.split(":");
-    const optionIndex = Number.parseInt(optionSelected, 10);
-    const poll = await pollManager.getPoll(pollId);
-    if (!poll) return interaction.deferUpdate();
-
-    if (!pollManager.expirationQueue.has(pollId)) {
-      await pollManager.activateExpiration(poll, interaction.message);
-    }
-    await pollManager.userVoteInteraction(poll, userId, optionIndex);
-    const embed = await pollManager.updateEmbed(poll);
-    if (embed) {
-      await interaction.message.edit({ embeds: [embed] });
-    }
-    await interaction.deferUpdate();
-  }
-}
-
-function processChatInput(interaction: ChatInputCommandInteraction) {
+async function processChatInput(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildBot = interaction.guild!.members.cache.get(bot.user!.id)!;
-  const interactionChannel = interaction.guild!.channels.resolve(
-    interaction.channelId,
-  );
+  const interactionChannel = interaction.guild!.channels.resolve(interaction.channelId);
   if (!interactionChannel) return;
-  const canView = interactionChannel
-    .permissionsFor(guildBot)
-    .has(PermissionsBitField.Flags.ViewChannel);
-  const canSendMsg = interactionChannel
-    .permissionsFor(guildBot)
-    .has(PermissionsBitField.Flags.SendMessages);
-  if (!canView || !canSendMsg) return;
+
+  const perms = interactionChannel.permissionsFor(guildBot);
+  if (
+    !perms.has(PermissionsBitField.Flags.ViewChannel) ||
+    !perms.has(PermissionsBitField.Flags.SendMessages)
+  ) return;
 
   const command = bot.commands.get(interaction.commandName);
   if (!command) return;
 
   try {
-    command.execute(interaction);
+    await command.execute(interaction);
   } catch (error) {
     interaction.reply(i18n.__("errors.command")).then(autoDelete);
     console.error(error);
