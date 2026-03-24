@@ -37,23 +37,23 @@ interface ProcessedOptions {
   rankingPreference: "voice" | "messages";
 }
 
-export class DataFactory {
+export class StatsTableBuilder {
   public static async createTopTableData(
     start: number,
     end: number,
     guild: Guild,
     options?: Partial<FilterOptions>,
   ): Promise<TopTableData> {
-    const processedOptions = await DataFactory.processOptions(
+    const processedOptions = await StatsTableBuilder.processOptions(
       start,
       end,
       guild,
       options,
     );
 
-    const voiceMap = await DataFactory.createVoiceTotalMap(processedOptions);
+    const voiceMap = await StatsTableBuilder.createVoiceTotalMap(processedOptions);
     const messagesMap =
-      await DataFactory.createMessagesTotalMap(processedOptions);
+      await StatsTableBuilder.createMessagesTotalMap(processedOptions);
 
     let totalVocalTime = 0;
     let totalMessages = 0;
@@ -163,7 +163,7 @@ export class DataFactory {
   }
 
   private static async createVoiceTotalMap(options: ProcessedOptions) {
-    const rawVoiceTime = await DataFactory.createSessionTotalMap(
+    const rawVoiceTime = await StatsTableBuilder.createSessionTotalMap(
       options,
       voiceSessionService,
       voiceSessionManager,
@@ -171,7 +171,7 @@ export class DataFactory {
     if (options.allowDeaf) {
       return rawVoiceTime;
     }
-    const deafTime = await DataFactory.createSessionTotalMap(
+    const deafTime = await StatsTableBuilder.createSessionTotalMap(
       options,
       deafSessionService,
       deafSessionManager,

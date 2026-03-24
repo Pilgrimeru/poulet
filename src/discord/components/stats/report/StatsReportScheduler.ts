@@ -3,7 +3,7 @@ import {
   guildSettingsService,
   statsReportMessageStateService,
 } from "@/database/services";
-import { DataFactory } from "@/discord/components";
+import { StatsTableBuilder } from "@/discord/components";
 import { TopTableData } from "@/discord/types";
 import { TableImageGenerator } from "@/image-generator";
 import { Guild, TextBasedChannel } from "discord.js";
@@ -34,7 +34,7 @@ async function sendStatsReportForTarget(guildID: string) {
   if (!channel?.isTextBased()) return;
 
   const [start, end] = calculateDateRange(guildSettings.statsAutoFrequency);
-  const tableData = await DataFactory.createTopTableData(start, end, guild, {
+  const tableData = await StatsTableBuilder.createTopTableData(start, end, guild, {
     blacklistChannel: guildSettings.statsBlacklistChannelIDs,
     allowDeaf: guildSettings.statsCountDeafTime,
     rankingPreference: guildSettings.statsRankingPreference,

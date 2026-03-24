@@ -1,13 +1,13 @@
+import { i18n } from "@/app";
+import { bot } from "@/app/runtime";
+import { pollManager } from "@/discord/components";
+import { Event } from "@/discord/types";
+import { autoDelete } from "@/discord/utils";
 import {
   ButtonInteraction,
   ChatInputCommandInteraction,
   PermissionsBitField,
 } from "discord.js";
-import { pollManager } from "@/discord/components";
-import { i18n } from "@/app";
-import { bot } from "@/app/runtime";
-import { Event } from "@/discord/types";
-import { autoDelete } from "@/discord/utils";
 
 export default new Event("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
@@ -21,7 +21,7 @@ async function processButtons(interaction: ButtonInteraction) {
   if (interaction.customId.startsWith("v:")) {
     const userId = interaction.user.id;
     const [_, pollId, optionSelected] = interaction.customId.split(":");
-    const optionIndex = parseInt(optionSelected, 10);
+    const optionIndex = Number.parseInt(optionSelected, 10);
     const poll = await pollManager.getPoll(pollId);
     if (!poll) return interaction.deferUpdate();
 

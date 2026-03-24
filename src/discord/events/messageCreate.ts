@@ -1,11 +1,11 @@
-import { Message } from "discord.js";
-import { resolveSpamCheckers } from "@/discord/components";
 import {
   guildSettingsService,
   messageHistoryService,
   spamFilterRuleService,
 } from "@/database/services";
+import { resolveSpamCheckers } from "@/discord/components";
 import { Event } from "@/discord/types";
+import { Message } from "discord.js";
 
 const regexInviteLink =
   /\b(https?:\/\/)?(discord\.gg|discordapp\.com\/invite)\/\w+\b/gm;
@@ -31,7 +31,7 @@ export default new Event("messageCreate", async (message: Message) => {
     return;
   }
 
-  if (message.interaction === null) {
+  if (message.interactionMetadata === null) {
     await messageHistoryService.createMessageHistory({
       userID: message.author.id,
       date: Date.now(),
@@ -45,7 +45,7 @@ export default new Event("messageCreate", async (message: Message) => {
 
 function emoteChannel(message: Message): void {
   if (
-    message.content.match(/(http|https):\/\/[^\s]+/) ||
+    new RegExp(/(http|https):\/\/[^\s]+/).exec(message.content) ||
     message.attachments.size > 0
   ) {
     void message.react("😂");
