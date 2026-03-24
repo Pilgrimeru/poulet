@@ -6,7 +6,7 @@ import {
   pollManager,
   voiceSessionManager,
 } from "@/discord/components";
-import { Command, Event } from "@/discord/types";
+import { Command, ContextMenuCommand, Event } from "@/discord/types";
 import {
   ApplicationCommandDataResolvable,
   Client,
@@ -21,6 +21,7 @@ const DISCORD_DIR = join(__dirname, "..", "..");
 
 export class Bot extends Client {
   public commands = new Collection<string, Command>();
+  public contextMenuCommands = new Collection<string, ContextMenuCommand>();
 
   public constructor() {
     super({
@@ -50,17 +51,26 @@ export class Bot extends Client {
 
   private async loadCommands(): Promise<void> {
     const commandFiles = this.listFiles(join(DISCORD_DIR, "commands"));
-    const slashCommands: ApplicationCommandDataResolvable[] = [];
+    const allCommands: ApplicationCommandDataResolvable[] = [];
 
     for (const file of commandFiles) {
-      const CommandClass = (await import(join(DISCORD_DIR, "commands", file))).default;
-      const instance = new CommandClass() as Command;
-      this.commands.set(instance.name, instance);
-      slashCommands.push(instance.toCommandDataResolvable());
+      const mod = await import(join(DISCORD_DIR, "commands", file));
+
+      if (mod.default) {
+        const instance = new mod.default() as Command;
+        this.commands.set(instance.name, instance);
+        allCommands.push(instance.toCommandDataResolvable());
+      }
+
+      if (mod.contextMenu) {
+        const instance = new mod.contextMenu() as ContextMenuCommand;
+        this.contextMenuCommands.set(instance.name, instance);
+        allCommands.push(instance.toCommandDataResolvable());
+      }
     }
 
     this.once("clientReady", () => {
-      this.application?.commands.set(slashCommands);
+      this.application?.commands.set(allCommands);
     });
   }
 

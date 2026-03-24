@@ -1,6 +1,6 @@
 import { config } from "@/app";
-import { channelRuleService } from "@/database/services";
 import { ChannelRuleMessageFilter } from "@/database/models";
+import { channelRuleService } from "@/database/services";
 import { ScopedSettingsIds } from "@/discord/commands/settings/ids";
 import {
   ActionRowBuilder,
@@ -157,7 +157,7 @@ async function openEmojisModal(interaction: StringSelectMenuInteraction, guildID
         .setLabel("Emojis (separes par des espaces)")
         .setRequired(true)
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ex: 👍 ❤️ 😂")
+        .setPlaceholder("Ex: 👍 <:MonEmoji:1486113309861220352>")
         .setValue(currentEmojis),
     ),
   );
