@@ -1,5 +1,7 @@
 import {
+  channelMetaService,
   channelRuleService,
+  guildMetaService,
   guildSettingsService,
   messageHistoryService,
   messageSnapshotService,
@@ -37,6 +39,15 @@ export default new Event("messageCreate", async (message: Message) => {
   if (channelRule) {
     const deleted = await applyOneMessageLimit(message, guildID, channelRule);
     if (deleted) return;
+  }
+
+  await guildMetaService.upsert(
+    guildID,
+    message.guild.name,
+    message.guild.iconURL() ?? "",
+  );
+  if ("name" in message.channel) {
+    await channelMetaService.upsert(message.channel.id, guildID, message.channel.name);
   }
 
   if (message.interactionMetadata === null) {

@@ -102,6 +102,8 @@ MessageSnapshot.init(
     indexes: [
       { fields: ["messageID"] },
       { fields: ["guildID", "channelID", "snapshotAt"] },
+      { fields: ["authorID"] },
+      { fields: ["isDeleted"] },
     ],
   },
 );

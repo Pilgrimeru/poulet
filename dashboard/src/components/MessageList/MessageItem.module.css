@@ -1,0 +1,154 @@
+.row {
+  display: flex;
+  gap: 14px;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  animation: fadeIn var(--transition-normal) both;
+  position: relative;
+}
+
+.row:hover {
+  background: var(--bg-hover);
+}
+
+.row:hover .actions {
+  opacity: 1;
+}
+
+.deleted {
+  background: var(--deleted-bg) !important;
+  border-left: 2px solid var(--deleted-border);
+  padding-left: 14px;
+}
+
+/* Avatar */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  transition: transform var(--transition-fast);
+}
+
+.row:hover .avatar {
+  transform: scale(1.04);
+}
+
+.avatarFallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #4752c4 0%, #5865f2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  user-select: none;
+  transition: transform var(--transition-fast);
+}
+
+.row:hover .avatarFallback {
+  transform: scale(1.04);
+}
+
+/* Body */
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.displayName {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.displayName:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.content {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.deletedContent {
+  color: var(--deleted-text);
+  opacity: 0.7;
+}
+
+/* Edited badge */
+.editedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+.editedBadge:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+/* Deleted label */
+.deletedLabel {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--deleted-text);
+  background: rgba(237, 66, 69, 0.12);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Actions area (hover) */
+.actions {
+  opacity: 0;
+  position: absolute;
+  right: 12px;
+  top: 4px;
+  transition: opacity var(--transition-fast);
+}

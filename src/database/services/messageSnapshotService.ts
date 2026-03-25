@@ -1,5 +1,20 @@
+import { createWriteStream, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { Op } from "sequelize";
 import { MessageAttachment, MessageSnapshot, MessageSnapshotAttributes } from "@/database/models";
+
+const ATTACHMENTS_DIR = join(__dirname, "../../../database/attachments");
+
+async function downloadAttachment(url: string, dir: string, filename: string): Promise<string> {
+  mkdirSync(dir, { recursive: true });
+  const destPath = join(dir, filename);
+  const res = await fetch(url);
+  if (!res.ok || !res.body) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  const writer = createWriteStream(destPath);
+  await pipeline(res.body as unknown as NodeJS.ReadableStream, writer);
+  return destPath;
+}
 
 export interface MessageSnapshotDTO {
   id: string;
@@ -45,9 +60,20 @@ class MessageSnapshotService {
     });
 
     if (attachments.length > 0) {
-      await MessageAttachment.bulkCreate(
-        attachments.map((a) => ({ ...a, snapshotId: snapshot.id })),
+      const dir = join(ATTACHMENTS_DIR, data.messageID);
+      const saved = await Promise.all(
+        attachments.map(async (a) => {
+          let localUrl = a.url;
+          try {
+            await downloadAttachment(a.url, dir, a.attachmentID + "_" + a.filename);
+            localUrl = `/attachments/${data.messageID}/${a.attachmentID}_${a.filename}`;
+          } catch (err) {
+            console.warn(`[snapshots] Could not download attachment ${a.filename}:`, err);
+          }
+          return { ...a, url: localUrl, snapshotId: snapshot.id };
+        }),
       );
+      await MessageAttachment.bulkCreate(saved);
     }
 
     return snapshot;
@@ -65,22 +91,38 @@ class MessageSnapshotService {
     });
     if (!latest) return;
 
-    await this.saveSnapshot(
-      {
-        messageID: latest.messageID,
-        channelID: latest.channelID,
-        guildID: latest.guildID,
-        authorID: latest.authorID,
-        authorUsername: latest.authorUsername,
-        authorDisplayName: latest.authorDisplayName,
-        authorAvatarURL: latest.authorAvatarURL,
-        content: latest.content,
-        createdAt: latest.createdAt,
-      },
-      [],
-      latest.version + 1,
-      true,
-    );
+    // Carry forward existing attachments (already stored locally)
+    const existingAttachments = await MessageAttachment.findAll({
+      where: { snapshotId: latest.id },
+    });
+
+    const snapshot = await MessageSnapshot.create({
+      messageID: latest.messageID,
+      channelID: latest.channelID,
+      guildID: latest.guildID,
+      authorID: latest.authorID,
+      authorUsername: latest.authorUsername,
+      authorDisplayName: latest.authorDisplayName,
+      authorAvatarURL: latest.authorAvatarURL,
+      content: latest.content,
+      createdAt: latest.createdAt,
+      snapshotAt: Date.now(),
+      isDeleted: true,
+      version: latest.version + 1,
+    });
+
+    if (existingAttachments.length > 0) {
+      await MessageAttachment.bulkCreate(
+        existingAttachments.map((a) => ({
+          snapshotId: snapshot.id,
+          attachmentID: a.attachmentID,
+          filename: a.filename,
+          url: a.url, // already a local path
+          contentType: a.contentType,
+          size: a.size,
+        })),
+      );
+    }
   }
 
   async getMessageHistory(messageID: string): Promise<MessageSnapshotDTO[]> {
@@ -133,6 +175,12 @@ class MessageSnapshotService {
 
     const oldIds = oldSnapshots.map((s) => s.id);
     if (oldIds.length > 0) {
+      // Delete local attachment files
+      const oldMessageIDs = [...new Set(oldSnapshots.map((s) => s.messageID))];
+      for (const messageID of oldMessageIDs) {
+        const dir = join(ATTACHMENTS_DIR, messageID);
+        try { rmSync(dir, { recursive: true, force: true }); } catch {}
+      }
       await MessageAttachment.destroy({ where: { snapshotId: { [Op.in]: oldIds } } });
     }
 

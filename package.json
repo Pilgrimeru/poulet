@@ -12,7 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test --pass-with-no-tests",
-    "prod": "bun run ./src/index.ts"
+    "prod": "bun run ./src/index.ts",
+    "dashboard": "bun run ./scripts/dashboard.ts"
   },
   "license": "MIT",
   "dependencies": {

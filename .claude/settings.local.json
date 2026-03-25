@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(bun install:*)",
+      "Bash(python3 \"C:/Users/Elliott/.claude/plugins/marketplaces/ui-ux-pro-max-skill/cli/assets/scripts/search.py\" \"discord message history viewer dark mode refined\" --design-system -p \"Poulet Dashboard\" -f markdown)",
+      "Bash(bun add:*)",
+      "Bash(bun remove:*)"
     ]
   }
 }

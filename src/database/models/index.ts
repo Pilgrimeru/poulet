@@ -15,6 +15,10 @@ export type {
   SpamFilterRuleAttributes,
 } from "./SpamFilterRule";
 export { VoiceSession } from "./VoiceSession";
+export { ChannelMeta } from "./ChannelMeta";
+export type { ChannelMetaAttributes } from "./ChannelMeta";
+export { GuildMeta } from "./GuildMeta";
+export type { GuildMetaAttributes } from "./GuildMeta";
 export { MessageSnapshot } from "./MessageSnapshot";
 export type { MessageSnapshotAttributes } from "./MessageSnapshot";
 export { MessageAttachment } from "./MessageAttachment";
