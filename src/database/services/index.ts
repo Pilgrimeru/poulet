@@ -7,3 +7,5 @@ export { pollService } from "./pollService";
 export { spamFilterRuleService } from "./spamFilterRuleService";
 export { statsReportMessageStateService } from "./statsReportMessageStateService";
 export { voiceSessionService } from "./voiceSessionService";
+export { messageSnapshotService } from "./messageSnapshotService";
+export type { MessageSnapshotDTO, AttachmentDTO } from "./messageSnapshotService";

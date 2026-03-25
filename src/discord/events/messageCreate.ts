@@ -2,6 +2,7 @@ import {
   channelRuleService,
   guildSettingsService,
   messageHistoryService,
+  messageSnapshotService,
   spamFilterRuleService,
 } from "@/database/services";
 import { ChannelRuleDTO } from "@/database/services/channelRuleService";
@@ -46,6 +47,28 @@ export default new Event("messageCreate", async (message: Message) => {
       channelID: message.channelId,
       messageID: message.id,
     });
+
+    await messageSnapshotService.saveSnapshot(
+      {
+        messageID: message.id,
+        channelID: message.channelId,
+        guildID: message.guildId!,
+        authorID: message.author.id,
+        authorUsername: message.author.username,
+        authorDisplayName: message.member?.displayName ?? message.author.displayName,
+        authorAvatarURL: message.author.displayAvatarURL(),
+        content: message.content,
+        createdAt: message.createdTimestamp,
+      },
+      message.attachments.map((a) => ({
+        attachmentID: a.id,
+        filename: a.name,
+        url: a.url,
+        contentType: a.contentType ?? "",
+        size: a.size,
+      })),
+      0,
+    );
   }
 
   if (message.channelId === guildSettings.emoteChannelID) emoteChannel(message);

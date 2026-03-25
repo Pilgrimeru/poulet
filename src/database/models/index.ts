@@ -15,3 +15,7 @@ export type {
   SpamFilterRuleAttributes,
 } from "./SpamFilterRule";
 export { VoiceSession } from "./VoiceSession";
+export { MessageSnapshot } from "./MessageSnapshot";
+export type { MessageSnapshotAttributes } from "./MessageSnapshot";
+export { MessageAttachment } from "./MessageAttachment";
+export type { MessageAttachmentAttributes } from "./MessageAttachment";
