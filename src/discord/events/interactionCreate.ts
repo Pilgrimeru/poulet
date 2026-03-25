@@ -3,19 +3,19 @@ import { bot } from "@/app/runtime";
 import { componentRouter } from "@/discord/interactions";
 import { Event } from "@/discord/types";
 import { autoDelete } from "@/discord/utils";
-import { ChatInputCommandInteraction, PermissionsBitField, UserContextMenuCommandInteraction } from "discord.js";
+import { ChatInputCommandInteraction, MessageContextMenuCommandInteraction, PermissionsBitField, UserContextMenuCommandInteraction } from "discord.js";
 
 export default new Event("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
     await processChatInput(interaction);
-  } else if (interaction.isUserContextMenuCommand()) {
+  } else if (interaction.isUserContextMenuCommand() || interaction.isMessageContextMenuCommand()) {
     await processContextMenu(interaction);
   } else if (interaction.isMessageComponent()) {
     await componentRouter.dispatch(interaction);
   }
 });
 
-async function processContextMenu(interaction: UserContextMenuCommandInteraction): Promise<void> {
+async function processContextMenu(interaction: UserContextMenuCommandInteraction | MessageContextMenuCommandInteraction): Promise<void> {
   const command = bot.contextMenuCommands.get(interaction.commandName);
   if (!command) return;
 

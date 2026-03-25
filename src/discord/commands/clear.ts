@@ -4,6 +4,7 @@ import {
   ApplicationCommandOptionType,
   ChannelType,
   ChatInputCommandInteraction,
+  MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
 
@@ -51,7 +52,7 @@ export default class RuleCommand extends Command {
       await interaction.channel.bulkDelete(messagesVieuxMoins14Jours);
       return interaction.reply({
         content: "Nettoyage terminé. 🧹",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
     return interaction.reply("Echec du nettoyable.").then(autoDelete);

@@ -1,9 +1,9 @@
-import {guildSettingsService} from "@/database/services";
-import {StatsTableBuilder} from "@/discord/components";
-import {Command} from "@/discord/types";
-import {TableImageGenerator} from "@/image-generator";
-import {ApplicationCommandOptionType, ChatInputCommandInteraction, MessageFlagsBitField,} from "discord.js";
-import {unlinkSync} from "node:fs";
+import { guildSettingsService } from "@/database/services";
+import { StatsTableBuilder } from "@/discord/components";
+import { Command } from "@/discord/types";
+import { TableImageGenerator } from "@/image-generator";
+import { ApplicationCommandOptionType, ChatInputCommandInteraction, MessageFlags, MessageFlagsBitField, } from "discord.js";
+import { unlinkSync } from "node:fs";
 
 const validDateFormat = /^([0-2]\d|3[0-1])-(0[1-9]|1[0-2])-\d{4}$/;
 
@@ -88,7 +88,7 @@ export default class StatsCommand extends Command {
         await interaction
           .reply({
             content: "Impossible de générer les stats pour le moment.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           })
           .catch(console.error);
       }

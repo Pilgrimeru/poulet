@@ -1,7 +1,7 @@
-import { CommandInteraction } from "discord.js";
 import { i18n } from "@/app";
 import { bot } from "@/app/runtime";
 import { Command } from "@/discord/types";
+import { CommandInteraction, MessageFlags } from "discord.js";
 
 export default class UptimeCommand extends Command {
   constructor() {
@@ -29,7 +29,7 @@ export default class UptimeCommand extends Command {
           minutes: minutes,
           seconds: seconds,
         }),
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
       .catch(console.error);
   }

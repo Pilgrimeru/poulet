@@ -4,6 +4,7 @@ import { Command, ContextMenuCommand } from "@/discord/types";
 import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
+  ApplicationCommandType,
   ButtonBuilder,
   ButtonStyle,
   CategoryChannel,
@@ -11,6 +12,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   Guild,
+  MessageContextMenuCommandInteraction,
   MessageFlags,
   OverwriteType,
   PermissionFlagsBits,
@@ -244,5 +246,20 @@ export class ReportContextMenuCommand extends ContextMenuCommand {
   }
 }
 
-// Export nommé pour que Bot.ts puisse le détecter via mod.contextMenu
-export { ReportContextMenuCommand as contextMenu };
+// ─── context menu command (clic droit → message → Apps → Report) ─────────────
+
+export class ReportMessageContextMenuCommand extends ContextMenuCommand {
+  constructor() {
+    super("Signaler", ApplicationCommandType.Message);
+  }
+
+  async execute(interaction: MessageContextMenuCommandInteraction): Promise<void> {
+    await interaction.reply({
+      content: "Le signalement de messages n'est pas encore disponible. Pour signaler un utilisateur, fais un clic droit sur son profil → Apps → Report.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+// Export nommé pour que Bot.ts puisse le détecter via mod.contextMenus
+export const contextMenus = [ReportContextMenuCommand, ReportMessageContextMenuCommand];

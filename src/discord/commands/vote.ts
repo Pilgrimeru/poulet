@@ -1,3 +1,6 @@
+import { config } from "@/app";
+import { pollManager } from "@/discord/components";
+import { Command } from "@/discord/types";
 import { fr } from "chrono-node";
 import {
   ActionRowBuilder,
@@ -6,11 +9,9 @@ import {
   ButtonStyle,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  MessageFlags,
 } from "discord.js";
 import { nanoid } from "nanoid";
-import { pollManager } from "@/discord/components";
-import { config } from "@/app";
-import { Command } from "@/discord/types";
 
 export default class VoteCommand extends Command {
   constructor() {
@@ -60,7 +61,7 @@ export default class VoteCommand extends Command {
       return interaction.reply({
         content:
           "La durée d'expiration est invalide. Veuillez réessayer avec un format valide.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
     const expiration = Math.floor(expirationDate.getTime());
@@ -69,7 +70,7 @@ export default class VoteCommand extends Command {
     if (!options || options.length == 0) {
       return interaction.reply({
         content: "Les options sont requises",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
     const pollId = this.generateVoteSessionID();
