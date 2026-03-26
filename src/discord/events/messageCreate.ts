@@ -6,8 +6,8 @@ import {
   messageHistoryService,
   messageSnapshotService,
   spamFilterRuleService,
-} from "@/database/services";
-import { ChannelRuleDTO } from "@/database/services/channelRuleService";
+} from "@/api";
+import { ChannelRuleDTO } from "@/api/channelRuleService";
 import { resolveSpamCheckers } from "@/discord/components";
 import { Event } from "@/discord/types";
 import { ChannelType, Message } from "discord.js";
@@ -47,7 +47,7 @@ export default new Event("messageCreate", async (message: Message) => {
     message.guild.iconURL() ?? "",
   );
   if ("name" in message.channel) {
-    await channelMetaService.upsert(message.channel.id, guildID, message.channel.name);
+    await channelMetaService.upsert(message.channel.id, guildID, message.channel.name ?? "");
   }
 
   if (message.interactionMetadata === null) {

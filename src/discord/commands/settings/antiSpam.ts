@@ -1,5 +1,5 @@
 import { config } from "@/app";
-import { spamFilterRuleService } from "@/database/services";
+import { spamFilterRuleService } from "@/api";
 import {
   SETTINGS_AS_CREATE_MODAL_ID,
   SETTINGS_AS_META_MODAL_PREFIX,

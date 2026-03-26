@@ -1,6 +1,5 @@
 import { config } from "@/app";
-import { ChannelRuleMessageFilter } from "@/database/models";
-import { channelRuleService } from "@/database/services";
+import { type ChannelRuleMessageFilter, channelRuleService } from "@/api";
 import { ScopedSettingsIds } from "@/discord/commands/settings/ids";
 import {
   ActionRowBuilder,
@@ -58,7 +57,7 @@ export async function renderChannelRulesHome(guildID: string, ids: ScopedSetting
   };
 }
 
-export async function renderChannelRuleSelector(guildID: string, ids: ScopedSettingsIds) {
+export async function renderChannelRuleSelector(_guildID: string, ids: ScopedSettingsIds) {
   const embed = new EmbedBuilder()
     .setColor(config.COLORS.MAIN)
     .setTitle("Settings - Regles par salon")

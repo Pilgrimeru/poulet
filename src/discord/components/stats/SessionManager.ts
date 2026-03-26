@@ -1,6 +1,4 @@
-import { deafSessionService, voiceSessionService } from "@/database/services";
-import { SessionAttributes, SessionService } from "@/database/types";
-import { Model } from "sequelize";
+import { deafSessionService, voiceSessionService } from "@/api";
 
 interface CurrentSession {
   userID: string;
@@ -9,11 +7,15 @@ interface CurrentSession {
   start: number;
 }
 
+interface ApiSessionService {
+  createSession(data: { guildID: string; userID: string; channelID: string; start: number; end: number }): Promise<void>;
+}
+
 export class SessionManager {
   protected currentSessions = new Map<string, CurrentSession>();
-  private readonly sessionService: SessionService<Model<SessionAttributes>>;
+  private readonly sessionService: ApiSessionService;
 
-  constructor(sessionService: SessionService<Model<SessionAttributes>>) {
+  constructor(sessionService: ApiSessionService) {
     this.sessionService = sessionService;
   }
 

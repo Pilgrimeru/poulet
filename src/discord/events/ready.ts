@@ -2,7 +2,7 @@ import { ActivityType } from "discord.js";
 import { startStatsReportScheduler } from "@/discord/components";
 import { bot } from "@/app/runtime";
 import { registerPollHandlers } from "@/discord/interactions";
-import { channelMetaService, guildMetaService, messageSnapshotService } from "@/database/services";
+import { channelMetaService, guildMetaService, messageSnapshotService } from "@/api";
 import { Event } from "@/discord/types";
 
 export default new Event("clientReady", () => {

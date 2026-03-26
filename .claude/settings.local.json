@@ -5,7 +5,9 @@
       "Bash(bun install:*)",
       "Bash(python3 \"C:/Users/Elliott/.claude/plugins/marketplaces/ui-ux-pro-max-skill/cli/assets/scripts/search.py\" \"discord message history viewer dark mode refined\" --design-system -p \"Poulet Dashboard\" -f markdown)",
       "Bash(bun add:*)",
-      "Bash(bun remove:*)"
+      "Bash(bun remove:*)",
+      "Bash(find /c/Users/Elliott/Documents/Github/poulet -not -path */node_modules* -not -path */.git* -type f)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

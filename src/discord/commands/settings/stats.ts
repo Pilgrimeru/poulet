@@ -1,5 +1,5 @@
 import { config } from "@/app";
-import { guildSettingsService } from "@/database/services";
+import { guildSettingsService } from "@/api";
 import { renderHome } from "@/discord/commands/settings/home";
 import { ScopedSettingsIds } from "@/discord/commands/settings/ids";
 import {

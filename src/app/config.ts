@@ -19,6 +19,7 @@ const config: Config = {
   TOKEN: process.env["TOKEN"] ?? "",
   AUTO_DELETE: Boolean(process.env["AUTO_DELETE"]),
   LOCALE: process.env["LOCALE"] ?? "en",
+  GUILD_ID: process.env["GUILD_ID"],
   COLORS: {
     MAIN: parseEnvColor(process.env["MAIN_COLOR"], 0x69adc7),
   },

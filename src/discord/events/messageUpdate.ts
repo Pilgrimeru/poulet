@@ -1,4 +1,4 @@
-import { channelMetaService, guildMetaService, messageSnapshotService } from "@/database/services";
+import { channelMetaService, guildMetaService, messageSnapshotService } from "@/api";
 import { Event } from "@/discord/types";
 import { Message, PartialMessage } from "discord.js";
 

@@ -1,4 +1,4 @@
-import { guildSettingsService } from "@/database/services";
+import { guildSettingsService } from "@/api";
 import { StatsTableBuilder } from "@/discord/components";
 import { Command } from "@/discord/types";
 import { TableImageGenerator } from "@/image-generator";

@@ -1,26 +1,25 @@
 import { bot } from "@/app/runtime";
-import { Poll, PollParticipation } from "@/database/models";
-import { pollParticipationService, pollService } from "@/database/services";
-import { PollAttributes } from "@/database/types";
+import { pollParticipationService, pollService } from "@/api";
+import type { PollDTO } from "@/api/pollService";
 import { APIEmbedField, EmbedBuilder, Message } from "discord.js";
 
 export class PollManager {
   public readonly expirationQueue = new Map<string, NodeJS.Timeout>();
 
   public async startPoll(
-    pollData: PollAttributes,
+    pollData: Omit<PollDTO, "isClosed">,
     message?: Message,
   ): Promise<void> {
     const poll = await pollService.createPoll(pollData);
     await this.activateExpiration(poll, message);
   }
 
-  public async getPoll(pollId: string): Promise<Poll | null> {
+  public async getPoll(pollId: string): Promise<PollDTO | null> {
     return pollService.getPoll(pollId);
   }
 
   public async activateExpiration(
-    poll: Poll,
+    poll: PollDTO,
     message?: Message,
   ): Promise<void> {
     const delay = poll.expiration - Date.now();
@@ -32,23 +31,24 @@ export class PollManager {
     }
   }
 
-  private async stopPoll(poll: Poll, message?: Message): Promise<void> {
-    poll.isClosed = true;
-    await poll.save();
+  private async stopPoll(poll: PollDTO, message?: Message): Promise<void> {
+    await pollService.closePoll(poll.pollId);
+    const closedPoll = { ...poll, isClosed: true };
 
     if (!message) {
-      message = (await this.fetchPollMessage(poll)) ?? undefined;
+      message = (await this.fetchPollMessage(closedPoll)) ?? undefined;
       if (!message)
         return console.error(
           "Can't stop the poll - the message can't be found.",
         );
     }
 
-    const embed = await this.updateEmbed(poll);
+    const embed = await this.updateEmbed(closedPoll);
     await message.edit({ embeds: [embed], components: [] });
   }
+
   public async userVoteInteraction(
-    poll: Poll,
+    poll: PollDTO,
     userId: string,
     optionId: number,
   ): Promise<boolean>;
@@ -58,7 +58,7 @@ export class PollManager {
     optionId: number,
   ): Promise<boolean>;
   public async userVoteInteraction(
-    pollOrPollId: string | Poll,
+    pollOrPollId: string | PollDTO,
     userId: string,
     optionId: number,
   ): Promise<boolean> {
@@ -79,29 +79,30 @@ export class PollManager {
   }
 
   public async addUserVote(
-    pollOrPollId: string | Poll,
+    pollOrPollId: string | PollDTO,
     userId: string,
     optionId: number,
-  ): Promise<PollParticipation | null> {
+  ): Promise<boolean> {
     const poll =
       typeof pollOrPollId === "string"
         ? await pollService.getPoll(pollOrPollId)
         : pollOrPollId;
-    if (!poll) return null;
+    if (!poll) return false;
 
     if (!poll.allowMultipleChoice) {
       await pollParticipationService.removeParticipations(poll.pollId, userId);
     }
 
-    return await pollParticipationService.addParticipation(
+    const result = await pollParticipationService.addParticipation(
       poll.pollId,
       userId,
       optionId,
     );
+    return result !== null;
   }
 
   public async removeUserVote(
-    poll: Poll,
+    poll: PollDTO,
     userId: string,
     optionId: number,
   ): Promise<boolean>;
@@ -111,7 +112,7 @@ export class PollManager {
     optionId: number,
   ): Promise<boolean>;
   public async removeUserVote(
-    pollOrPollId: string | Poll,
+    pollOrPollId: string | PollDTO,
     userId: string,
     optionId: number,
   ): Promise<boolean> {
@@ -127,10 +128,10 @@ export class PollManager {
     );
   }
 
-  public async updateEmbed(poll: PollAttributes): Promise<EmbedBuilder>;
+  public async updateEmbed(poll: PollDTO): Promise<EmbedBuilder>;
   public async updateEmbed(pollId: string): Promise<EmbedBuilder | null>;
   public async updateEmbed(
-    pollOrPollId: PollAttributes | string,
+    pollOrPollId: PollDTO | string,
   ): Promise<EmbedBuilder | null> {
     const poll =
       typeof pollOrPollId === "string"
@@ -152,7 +153,7 @@ export class PollManager {
       .setFooter({ text: `id : ${poll.pollId}` });
   }
 
-  private async fetchPollMessage(poll: Poll): Promise<Message | null> {
+  private async fetchPollMessage(poll: PollDTO): Promise<Message | null> {
     const [guildId, channelId, messageId] = poll.messagePath.split(":");
     const guild = await bot.guilds.fetch(guildId);
     const channel = await guild.channels.fetch(channelId);
@@ -163,7 +164,7 @@ export class PollManager {
   }
 
   private generateEmbedFields(
-    poll: PollAttributes,
+    poll: PollDTO,
     progressBars: string[],
     voteCounts: number[],
     totalVotes: number,
@@ -186,7 +187,7 @@ export class PollManager {
     return fields;
   }
 
-  private async countVotes(poll: PollAttributes): Promise<number[]> {
+  private async countVotes(poll: PollDTO): Promise<number[]> {
     const voteCounts = new Array(JSON.parse(poll.options).length).fill(0);
     const votes = await pollParticipationService.getAllPollParticipations(
       poll.pollId,

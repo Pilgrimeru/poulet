@@ -1,6 +1,5 @@
 import { config } from "@/app";
-import { sequelize } from "@/database";
-import { pollService } from "@/database/services";
+import { pollService } from "@/api";
 import {
   deafSessionManager,
   pollManager,
@@ -44,7 +43,6 @@ export class Bot extends Client {
   }
 
   private async initialize(): Promise<void> {
-    await this.syncDatabase();
     await Promise.all([this.loadEvents(), this.loadCommands()]);
     await this.login(config.TOKEN);
   }
@@ -97,15 +95,6 @@ export class Bot extends Client {
       if (file.endsWith(".map")) return false;
       return statSync(join(dir, file)).isFile();
     });
-  }
-
-  private async syncDatabase(): Promise<void> {
-    try {
-      await sequelize.authenticate();
-      await sequelize.sync({ force: false });
-    } catch (error) {
-      console.error("[bot] Unable to sync database:", error);
-    }
   }
 
   async startSessionsForGuildMembers(): Promise<void> {

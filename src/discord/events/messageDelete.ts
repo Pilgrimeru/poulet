@@ -1,4 +1,4 @@
-import { messageSnapshotService } from "@/database/services";
+import { messageSnapshotService } from "@/api";
 import { Event } from "@/discord/types";
 import { Message, PartialMessage } from "discord.js";
 

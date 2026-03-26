@@ -1,8 +1,138 @@
-import { col, fn } from "sequelize";
+import { createWriteStream, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { pipeline } from "node:stream/promises";
+import { col, fn, Op } from "sequelize";
 import { ChannelMeta } from "../db/models/ChannelMeta";
 import { GuildMeta } from "../db/models/GuildMeta";
 import { MessageAttachment } from "../db/models/MessageAttachment";
 import { MessageSnapshot } from "../db/models/MessageSnapshot";
+
+const ATTACHMENTS_DIR = join(__dirname, "../../../database/attachments");
+const RETENTION_DAYS = Number.parseInt(process.env["MESSAGE_RETENTION_DAYS"] ?? "7", 10);
+
+export interface AttachmentInput {
+  attachmentID: string;
+  filename: string;
+  url: string;
+  contentType: string;
+  size: number;
+}
+
+export interface SaveSnapshotInput {
+  messageID: string;
+  channelID: string;
+  guildID: string;
+  authorID: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorAvatarURL: string;
+  content: string;
+  createdAt: number;
+}
+
+async function downloadAttachment(url: string, dir: string, filename: string): Promise<string> {
+  mkdirSync(dir, { recursive: true });
+  const destPath = join(dir, filename);
+  const res = await fetch(url);
+  if (!res.ok || !res.body) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+  const writer = createWriteStream(destPath);
+  await pipeline(res.body as unknown as NodeJS.ReadableStream, writer);
+  return destPath;
+}
+
+export async function saveSnapshot(
+  data: SaveSnapshotInput,
+  attachments: AttachmentInput[],
+  version: number,
+  isDeleted = false,
+): Promise<void> {
+  const snapshot = await MessageSnapshot.create({
+    ...data,
+    snapshotAt: Date.now(),
+    isDeleted,
+    version,
+  } as any);
+
+  if (attachments.length > 0) {
+    const dir = join(ATTACHMENTS_DIR, data.messageID);
+    const saved = await Promise.all(
+      attachments.map(async (a) => {
+        let localUrl = a.url;
+        try {
+          await downloadAttachment(a.url, dir, a.attachmentID + "_" + a.filename);
+          localUrl = `/attachments/${data.messageID}/${a.attachmentID}_${a.filename}`;
+        } catch (err) {
+          console.warn(`[snapshots] Could not download attachment ${a.filename}:`, err);
+        }
+        return { ...a, url: localUrl, snapshotId: (snapshot as any).id };
+      }),
+    );
+    await MessageAttachment.bulkCreate(saved as any);
+  }
+}
+
+export async function getNextVersion(messageID: string): Promise<number> {
+  return MessageSnapshot.count({ where: { messageID } });
+}
+
+export async function markDeleted(messageID: string): Promise<void> {
+  const latest = await MessageSnapshot.findOne({
+    where: { messageID },
+    order: [["version", "DESC"]],
+  });
+  if (!latest) return;
+
+  const existingAttachments = await MessageAttachment.findAll({ where: { snapshotId: (latest as any).id } });
+
+  const snapshot = await MessageSnapshot.create({
+    messageID: latest.messageID,
+    channelID: latest.channelID,
+    guildID: latest.guildID,
+    authorID: latest.authorID,
+    authorUsername: latest.authorUsername,
+    authorDisplayName: latest.authorDisplayName,
+    authorAvatarURL: latest.authorAvatarURL,
+    content: latest.content,
+    createdAt: latest.createdAt,
+    snapshotAt: Date.now(),
+    isDeleted: true,
+    version: latest.version + 1,
+  } as any);
+
+  if (existingAttachments.length > 0) {
+    await MessageAttachment.bulkCreate(
+      existingAttachments.map((a: any) => ({
+        snapshotId: (snapshot as any).id,
+        attachmentID: a.attachmentID,
+        filename: a.filename,
+        url: a.url,
+        contentType: a.contentType,
+        size: a.size,
+      })) as any,
+    );
+  }
+}
+
+export async function purgeOldSnapshots(): Promise<number> {
+  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  const oldSnapshots = await MessageSnapshot.findAll({
+    where: { snapshotAt: { [Op.lt]: cutoff } },
+    attributes: ["id", "messageID"],
+  });
+
+  const oldIds = oldSnapshots.map((s: any) => s.id);
+  if (oldIds.length > 0) {
+    const oldMessageIDs = [...new Set(oldSnapshots.map((s: any) => s.messageID))];
+    for (const messageID of oldMessageIDs) {
+      const dir = join(ATTACHMENTS_DIR, messageID);
+      try { rmSync(dir, { recursive: true, force: true }); } catch {}
+    }
+    await MessageAttachment.destroy({ where: { snapshotId: { [Op.in]: oldIds } } });
+  }
+
+  return MessageSnapshot.destroy({ where: { snapshotAt: { [Op.lt]: cutoff } } });
+}
 
 export interface AttachmentDTO {
   id: string;

@@ -1,10 +1,5 @@
 import { bot } from "@/app/runtime";
-import {
-  deafSessionService,
-  messageHistoryService,
-  voiceSessionService,
-} from "@/database/services";
-import { SessionService } from "@/database/types";
+import { deafSessionService, messageHistoryService, voiceSessionService } from "@/api";
 import {
   deafSessionManager,
   SessionManager,
@@ -191,19 +186,18 @@ export class StatsTableBuilder {
     info.forEach((value) => {
       if (
         ((!options.whitelistChannel &&
-          !options.blacklistChannel.includes(value.dataValues.channelID)) ||
-          (options.whitelistChannel?.includes(value.dataValues.channelID))) &&
+          !options.blacklistChannel.includes(value.channelID)) ||
+          (options.whitelistChannel?.includes(value.channelID))) &&
         ((!options.whitelistUser &&
-          !options.blacklistUser.includes(value.dataValues.userID)) ||
-          (options.whitelistUser?.includes(value.dataValues.userID)))
+          !options.blacklistUser.includes(value.userID)) ||
+          (options.whitelistUser?.includes(value.userID)))
       ) {
-        if (!totalByMember.has(value.dataValues.userID)) {
-          totalByMember.set(value.dataValues.userID, 0);
+        if (!totalByMember.has(value.userID)) {
+          totalByMember.set(value.userID, 0);
         }
         totalByMember.set(
-          value.dataValues.userID,
-          value.dataValues.messageCount +
-            totalByMember.get(value.dataValues.userID),
+          value.userID,
+          value.messageCount + totalByMember.get(value.userID)!,
         );
       }
     });
@@ -213,7 +207,7 @@ export class StatsTableBuilder {
 
   private static async createSessionTotalMap(
     options: ProcessedOptions,
-    sessionService: SessionService<any>,
+    sessionService: { getGuildSessionsInIntersection(guildID: string, start: number, end: number): Promise<{ guildID: string; userID: string; channelID: string; start: number; end: number }[]> },
     sessionManager: SessionManager,
   ): Promise<Map<string, number>> {
     const sessions = await sessionService.getGuildSessionsInIntersection(
@@ -233,20 +227,14 @@ export class StatsTableBuilder {
           !options.blacklistUser.includes(session.userID)) ||
           (options.whitelistUser?.includes(session.userID)))
       ) {
-        if (!totalByMember.has(session.dataValues.userID)) {
-          totalByMember.set(session.dataValues.userID, 0);
+        if (!totalByMember.has(session.userID)) {
+          totalByMember.set(session.userID, 0);
         }
 
-        const sessionDuration = Number(
-          Math.min(session.dataValues.end, options.end) -
-            Math.max(session.dataValues.start, options.start),
-        );
-        const previousDuration = totalByMember.get(session.dataValues.userID)!;
+        const sessionDuration = Math.min(session.end, options.end) - Math.max(session.start, options.start);
+        const previousDuration = totalByMember.get(session.userID)!;
 
-        totalByMember.set(
-          session.dataValues.userID,
-          previousDuration + sessionDuration,
-        );
+        totalByMember.set(session.userID, previousDuration + sessionDuration);
       }
     });
 

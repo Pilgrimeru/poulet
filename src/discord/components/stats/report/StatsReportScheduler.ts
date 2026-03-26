@@ -1,8 +1,5 @@
 import { bot } from "@/app/runtime";
-import {
-  guildSettingsService,
-  statsReportMessageStateService,
-} from "@/database/services";
+import { guildSettingsService, statsReportMessageStateService } from "@/api";
 import { StatsTableBuilder } from "@/discord/components";
 import { TopTableData } from "@/discord/types";
 import { TableImageGenerator } from "@/image-generator";

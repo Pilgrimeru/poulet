@@ -1,4 +1,4 @@
-import { SpamFilterRuleDTO } from "@/database/services/spamFilterRuleService";
+import { SpamFilterRuleDTO } from "@/api/spamFilterRuleService";
 import { SpamChecker } from "./SpamChecker";
 
 type SpamFilterRunner = {
