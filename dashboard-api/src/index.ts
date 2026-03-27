@@ -14,6 +14,7 @@ import spamRulesRouter from "./routes/spamRules";
 import sessionsRouter from "./routes/sessions";
 import pollsRouter from "./routes/polls";
 import statsReportStateRouter from "./routes/statsReportState";
+import statsRouter from "./routes/stats";
 
 // Ensure models are registered with the sequelize instance
 import "./db/models/ChannelMeta";
@@ -47,6 +48,7 @@ app.use("/api", spamRulesRouter);
 app.use("/api", sessionsRouter);
 app.use("/api", pollsRouter);
 app.use("/api", statsReportStateRouter);
+app.use("/api", statsRouter);
 app.use(errorHandler);
 
 try {
