@@ -33,15 +33,15 @@ export function buildWarnEmbed(opts: WarnOptions): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(sev.color)
     .setAuthor({
-      name: `Signalement — ${opts.target.tag ?? opts.target.username}`,
+      name: `${sev.emoji} Niveau de gravité : ${sev.label}`,
       iconURL: opts.target.displayAvatarURL(),
     })
-    .setTitle(`${sev.emoji} Niveau de gravité : ${sev.label}`)
-    .setDescription(opts.message)
+    .setTitle(`Signalement de ${opts.target.tag ?? opts.target.username}`)
+    .setDescription(`Motif : ${opts.message.trim() || "*[Non communiqué]*"}`)
     .addFields(
       {
         name: "👤 Utilisateur signalé",
-        value: `${opts.target} (${opts.target.id})`,
+        value: `${opts.target}`,
         inline: true,
       },
       {
@@ -51,8 +51,7 @@ export function buildWarnEmbed(opts: WarnOptions): EmbedBuilder {
       },
     )
     .setThumbnail(opts.target.displayAvatarURL())
-    .setTimestamp()
-    .setFooter({ text: `ID : ${opts.target.id}` });
+    .setTimestamp();
 
   if (opts.originalMessage) {
     const url = opts.originalMessage.url;

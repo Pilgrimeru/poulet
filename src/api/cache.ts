@@ -37,7 +37,7 @@ export function createTimedCache<K, V>(ttlMs: number) {
     if (cached !== undefined) return cached;
 
     const current = inflight.get(key);
-    if (current) return current;
+    if (current !== undefined) return current;
 
     const promise = loader()
       .then((value) => set(key, value))

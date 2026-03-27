@@ -18,7 +18,7 @@ export async function apiPost<T = void>(path: string, body?: unknown): Promise<T
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: createHeaders(true),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API POST ${path} failed: ${res.status}`);
   if (res.status === 204) return undefined as T;
@@ -29,7 +29,7 @@ export async function apiPut<T = void>(path: string, body?: unknown): Promise<T>
   const res = await fetch(`${API_BASE}${path}`, {
     method: "PUT",
     headers: createHeaders(true),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API PUT ${path} failed: ${res.status}`);
   if (res.status === 204) return undefined as T;
