@@ -9,7 +9,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ guildId:
     const startDate = Number(url.searchParams.get("startDate"));
     const endDate = Number(url.searchParams.get("endDate"));
     const rows = await getMessageStatsByUser(guildId, startDate, endDate);
-    const metas = await hydrateUserMetas(guildId, await getUserMetas(rows.map((r) => r.userID)));
+    const userIDs = rows.map((r) => r.userID);
+    const metas = await hydrateUserMetas(guildId, userIDs, await getUserMetas(userIDs));
     return NextResponse.json(rows.map((r) => ({ ...r, ...(metas.get(r.userID) ?? {}) })));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

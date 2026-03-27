@@ -226,10 +226,9 @@ export async function getCurrentUserMeta(guildID: string, userID: string): Promi
 
 export async function hydrateUserMetas(
   guildID: string,
+  userIDs: string[],
   fallbackMetas: Map<string, UserMeta>,
 ): Promise<Map<string, UserMeta>> {
-  const userIDs = [...fallbackMetas.keys()];
-
   const hydrated = await mapWithConcurrency(userIDs, 8, async (userID) => {
     const fallback = fallbackMetas.get(userID);
     const current = await getCurrentUserMeta(guildID, userID);
@@ -264,7 +263,7 @@ export async function hydrateMessagesWithCurrentAuthors(
     }
   }
 
-  const currentMetas = await hydrateUserMetas(guildID, fallbackMetas);
+  const currentMetas = await hydrateUserMetas(guildID, [...fallbackMetas.keys()], fallbackMetas);
 
   return messages.map((message) => {
     const current = currentMetas.get(message.authorID);
