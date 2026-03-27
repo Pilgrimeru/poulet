@@ -129,7 +129,7 @@ export function Navbar() {
 
       <div className={styles.bottomItems}>
         <Link
-          href="/settings"
+          href={selectedGuildID ? `/settings?guild=${selectedGuildID}` : "/settings"}
           className={`${styles.navItem} ${pathname === "/settings" ? styles.active : ""}`}
           title="Paramètres du bot"
         >
