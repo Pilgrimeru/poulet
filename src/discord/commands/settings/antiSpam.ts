@@ -288,6 +288,11 @@ export async function onMainMenuSelection(
     await interaction.update(await renderRuleEditor(guildID, ruleID, ids));
     return;
   }
+  if (value === "invite_log") {
+    const { renderInviteLog } = await import("@/discord/commands/settings/inviteLog");
+    await interaction.update(await renderInviteLog(guildID, ids));
+    return;
+  }
   // Channel rules navigation (delegated from main menu)
   const { onChannelRulesMenuSelection } = await import("@/discord/commands/settings/channelRules");
   await onChannelRulesMenuSelection(interaction, guildID, ids);

@@ -9,6 +9,7 @@ class GuildSettings extends Model {
   declare statsRankingPreference: string;
   declare statsReportChannelID: string;
   declare emoteChannelID: string;
+  declare inviteLogChannelID: string;
 }
 
 GuildSettings.init(
@@ -20,6 +21,7 @@ GuildSettings.init(
     statsRankingPreference: { type: DataTypes.STRING, allowNull: false, defaultValue: "messages" },
     statsReportChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
     emoteChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
+    inviteLogChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
   },
   { sequelize, modelName: "GuildSettings", timestamps: false },
 );

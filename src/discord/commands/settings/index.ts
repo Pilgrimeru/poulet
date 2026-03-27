@@ -1,5 +1,6 @@
 import { onMainMenuSelection, onRuleAction, onRuleChannels } from "@/discord/commands/settings/antiSpam";
 import { onChannelRuleAction, onChannelRuleFilter, onChannelSelect } from "@/discord/commands/settings/channelRules";
+import { onInviteLogAction, onInviteLogChannelSelect } from "@/discord/commands/settings/inviteLog";
 import { renderHome } from "@/discord/commands/settings/home";
 import { ScopedSettingsIds, scopeIds } from "@/discord/commands/settings/ids";
 import {
@@ -102,6 +103,17 @@ export default class SettingsCommand extends Command {
       return onRuleChannels(i, guildID, ruleID, ids);
     });
 
+    // Invite log handlers
+    componentRouter.register(ids.IL_ACTIONS, (i) => {
+      if (!i.isStringSelectMenu()) return;
+      return onInviteLogAction(i, ids);
+    });
+
+    componentRouter.register(ids.IL_CHANNEL_SELECT, (i) => {
+      if (!i.isChannelSelectMenu()) return;
+      return onInviteLogChannelSelect(i, guildID, ids);
+    });
+
     // Channel rules handlers
     componentRouter.register(ids.CR_CHANNEL_SELECT, (i) => {
       if (!i.isChannelSelectMenu()) return;
@@ -134,6 +146,8 @@ export default class SettingsCommand extends Command {
     componentRouter.unregister(ids.STATS_TOGGLE_DEAF);
     componentRouter.unregisterPrefix(ids.AS_ACTIONS_PREFIX);
     componentRouter.unregisterPrefix(ids.AS_CHANNELS_PREFIX);
+    componentRouter.unregister(ids.IL_ACTIONS);
+    componentRouter.unregister(ids.IL_CHANNEL_SELECT);
     componentRouter.unregister(ids.CR_CHANNEL_SELECT);
     componentRouter.unregisterPrefix(ids.CR_ACTIONS_PREFIX);
     componentRouter.unregisterPrefix(ids.CR_FILTER_PREFIX);

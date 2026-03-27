@@ -10,6 +10,7 @@ export type GuildSettingsDTO = {
   statsRankingPreference: "voice" | "messages";
   statsReportChannelID: string;
   emoteChannelID: string;
+  inviteLogChannelID: string;
 };
 
 const cache = new Map<string, GuildSettingsDTO>();
@@ -35,6 +36,7 @@ async function ensureColumns(): Promise<void> {
     { name: "statsRankingPreference", type: DataTypes.STRING, defaultValue: "messages" },
     { name: "statsReportChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "emoteChannelID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "inviteLogChannelID", type: DataTypes.STRING, defaultValue: "" },
   ];
   for (const col of cols) {
     if (!table[col.name]) {
@@ -59,6 +61,7 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
       statsRankingPreference: "messages",
       statsReportChannelID: "",
       emoteChannelID: "",
+      inviteLogChannelID: "",
     } as any);
   }
 
@@ -76,6 +79,7 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
         : "messages",
     statsReportChannelID: row.statsReportChannelID,
     emoteChannelID: row.emoteChannelID,
+    inviteLogChannelID: row.inviteLogChannelID,
   };
 
   cache.set(guildID, dto);
@@ -99,6 +103,7 @@ export async function updateByGuildID(
     statsRankingPreference: patch.statsRankingPreference ?? current.statsRankingPreference,
     statsReportChannelID: patch.statsReportChannelID ?? current.statsReportChannelID,
     emoteChannelID: patch.emoteChannelID ?? current.emoteChannelID,
+    inviteLogChannelID: patch.inviteLogChannelID ?? current.inviteLogChannelID,
   };
 
   await GuildSettings.upsert({
@@ -109,6 +114,7 @@ export async function updateByGuildID(
     statsRankingPreference: next.statsRankingPreference,
     statsReportChannelID: next.statsReportChannelID,
     emoteChannelID: next.emoteChannelID,
+    inviteLogChannelID: next.inviteLogChannelID,
   } as any);
 
   cache.set(guildID, next);

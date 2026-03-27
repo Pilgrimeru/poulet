@@ -9,6 +9,7 @@ export type GuildSettingsDTO = {
   statsRankingPreference: "voice" | "messages";
   statsReportChannelID: string;
   emoteChannelID: string;
+  inviteLogChannelID: string;
 };
 
 const settingsCache = createTimedCache<string, GuildSettingsDTO>(30_000);

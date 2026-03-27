@@ -33,6 +33,7 @@ export class Bot extends Client {
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildInvites,
       ],
     });
 

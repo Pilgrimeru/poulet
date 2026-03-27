@@ -3,6 +3,7 @@ import { startStatsReportScheduler } from "@/discord/components";
 import { bot } from "@/app/runtime";
 import { registerPollHandlers } from "@/discord/interactions";
 import { channelMetaService, guildMetaService, messageSnapshotService } from "@/api";
+import { cacheGuildInvites } from "@/services/inviteTrackerService";
 import { Event } from "@/discord/types";
 
 export default new Event("clientReady", () => {
@@ -46,6 +47,9 @@ export default new Event("clientReady", () => {
     await guildMetaService.bulkUpsert(guildRows);
     await channelMetaService.bulkUpsert(channelRows);
   })();
+  for (const guild of bot.guilds.cache.values()) {
+    void cacheGuildInvites(guild);
+  }
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
   startStatsReportScheduler();

@@ -29,6 +29,8 @@ export interface ScopedSettingsIds {
   CR_CHANNEL_SELECT: string;
   CR_ACTIONS_PREFIX: string;
   CR_FILTER_PREFIX: string;
+  IL_CHANNEL_SELECT: string;
+  IL_ACTIONS: string;
 }
 
 export function scopeIds(userId: string): ScopedSettingsIds {
@@ -47,5 +49,7 @@ export function scopeIds(userId: string): ScopedSettingsIds {
     CR_CHANNEL_SELECT: `${p}:cr:channel_select`,
     CR_ACTIONS_PREFIX: `${p}:cr:actions:`,
     CR_FILTER_PREFIX: `${p}:cr:filter:`,
+    IL_CHANNEL_SELECT: `${p}:il:channel_select`,
+    IL_ACTIONS: `${p}:il:actions`,
   };
 }
