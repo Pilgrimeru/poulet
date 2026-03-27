@@ -38,7 +38,7 @@ function startProcesses() {
     shell: true,
   });
 
-  const dashboard = spawn("bun", ["run", "dev", "--turbopack"], {
+  const dashboard = spawn("bun", ["run", "dev"], {
     cwd: dashboardRoot,
     stdio: "inherit",
     shell: true,

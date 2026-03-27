@@ -1,19 +1,12 @@
 import type { ChannelEntry, GuildEntry, MessageSnapshotDTO } from "../types";
-
-const BASE = process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "";
-
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
-  return res.json() as Promise<T>;
-}
+import { getJson } from "./http";
 
 export function fetchGuilds(): Promise<GuildEntry[]> {
-  return get("/api/guilds");
+  return getJson("/api/guilds");
 }
 
 export function fetchChannels(guildID: string): Promise<ChannelEntry[]> {
-  return get(`/api/guilds/${guildID}/channels`);
+  return getJson(`/api/guilds/${guildID}/channels`);
 }
 
 export interface FetchMessagesFilter {
@@ -36,9 +29,9 @@ export function fetchMessages(
   if (filter.search)                params.set("search",      filter.search);
   if (filter.authorID)              params.set("authorID",    filter.authorID);
   if (filter.onlyDeleted)           params.set("onlyDeleted", "true");
-  return get(`/api/channels/${channelID}/messages?${params}`);
+  return getJson(`/api/channels/${channelID}/messages?${params}`);
 }
 
 export function fetchHistory(messageID: string): Promise<MessageSnapshotDTO[]> {
-  return get(`/api/messages/${messageID}/history`);
+  return getJson(`/api/messages/${messageID}/history`);
 }

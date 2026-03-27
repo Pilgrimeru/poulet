@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -37,6 +37,45 @@ import {
 import type { ChannelEntry, GuildEntry } from "@/types";
 import styles from "./Stats.module.css";
 
+type Precision = "day" | "hour-timeline" | "hour";
+
+type StatsData = {
+  msgByDay: DailyValue[];
+  msgByHour: HourlyValue[];
+  msgByHourTimeline: HourlyTimelineValue[];
+  msgByChannel: ChannelValue[];
+  msgByUser: UserValue[];
+  voiceByDay: DailyValue[];
+  voiceByHour: HourlyValue[];
+  voiceByHourTimeline: HourlyTimelineValue[];
+  voiceByChannel: ChannelValue[];
+  voiceByUser: UserValue[];
+};
+
+const EMPTY_STATS: StatsData = {
+  msgByDay: [],
+  msgByHour: [],
+  msgByHourTimeline: [],
+  msgByChannel: [],
+  msgByUser: [],
+  voiceByDay: [],
+  voiceByHour: [],
+  voiceByHourTimeline: [],
+  voiceByChannel: [],
+  voiceByUser: [],
+};
+
+const CHART_COLORS = [
+  "#5865f2", "#ed4245", "#faa61a", "#23a55a", "#00a8fc",
+  "#eb459e", "#57f287", "#fee75c", "#9b59b6", "#1abc9c",
+];
+
+const PRESETS = [
+  { label: "7 jours", days: 7 },
+  { label: "30 jours", days: 30 },
+  { label: "90 jours", days: 90 },
+];
+
 function fmtSecs(s: number): string {
   if (s < 60) return `${s}s`;
   if (s < 3600) return `${Math.floor(s / 60)}m`;
@@ -54,16 +93,11 @@ function fmtDate(d: string): string {
   return `${day}/${m}`;
 }
 
-const CHART_COLORS = [
-  "#5865f2", "#ed4245", "#faa61a", "#23a55a", "#00a8fc",
-  "#eb459e", "#57f287", "#fee75c", "#9b59b6", "#1abc9c",
-];
-
-const PRESETS = [
-  { label: "7 jours", days: 7 },
-  { label: "30 jours", days: 30 },
-  { label: "90 jours", days: 90 },
-];
+function fmtDatetime(dt: string): string {
+  const [datePart, hourPart] = dt.split(" ");
+  const [, m, d] = datePart.split("-");
+  return `${d}/${m} ${hourPart}h`;
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className={styles.sectionTitle}>{children}</h2>;
@@ -77,11 +111,32 @@ function Empty() {
   return <div className={styles.empty}>Aucune donnée sur cette période</div>;
 }
 
-function Loading() {
-  return <div className={styles.empty}>Chargement…</div>;
+function StatsSkeleton() {
+  return (
+    <div className={styles.content}>
+      <SectionTitle>Messages</SectionTitle>
+      <div className={styles.row}>
+        <Card wide>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+        </Card>
+      </div>
+      <div className={styles.row}>
+        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
+        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+      </div>
+      <SectionTitle>Vocal</SectionTitle>
+      <div className={styles.row}>
+        <Card wide>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+        </Card>
+      </div>
+      <div className={styles.row}>
+        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
+        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+      </div>
+    </div>
+  );
 }
-
-type Precision = "day" | "hour-timeline" | "hour";
 
 function PrecisionToggle({ value, onChange, disableHourTimeline }: { value: Precision; onChange: (v: Precision) => void; disableHourTimeline?: boolean }) {
   return (
@@ -91,12 +146,6 @@ function PrecisionToggle({ value, onChange, disableHourTimeline }: { value: Prec
       <button className={`${styles.precisionBtn} ${value === "hour" ? styles.precisionBtnActive : ""}`} onClick={() => onChange("hour")}>Heure (somme)</button>
     </div>
   );
-}
-
-function fmtDatetime(dt: string): string {
-  const [datePart, hourPart] = dt.split(" ");
-  const [, m, d] = datePart.split("-");
-  return `${d}/${m} ${hourPart}h`;
 }
 
 function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradientId, label, formatValue }: { byDay: DailyValue[]; byHour: HourlyValue[]; byHourTimeline: HourlyTimelineValue[]; precision: Precision; color: string; gradientId: string; label: string; formatValue?: (v: number) => string }) {
@@ -118,6 +167,7 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
       </ResponsiveContainer>
     );
   }
+
   if (precision === "hour-timeline") {
     if (byHourTimeline.length === 0) return <Empty />;
     return (
@@ -133,8 +183,8 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
       </ResponsiveContainer>
     );
   }
-  const hasData = byHour.some((h) => h.value > 0);
-  if (!hasData) return <Empty />;
+
+  if (!byHour.some((h) => h.value > 0)) return <Empty />;
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={byHour.map((h) => ({ ...h, hour: fmtHour(h.hour) }))}>
@@ -180,10 +230,19 @@ function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
   return (
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
-        <Pie data={top} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }: { name: string; percent: number }) => `${name} (${(percent * 100).toFixed(0)}%)`} labelLine={false}>
+        <Pie
+          data={top}
+          dataKey="value"
+          nameKey="name"
+          cx="50%"
+          cy="50%"
+          outerRadius={90}
+          label={({ name, percent }) => `${name ?? "Inconnu"} (${((percent ?? 0) * 100).toFixed(0)}%)`}
+          labelLine={false}
+        >
           {top.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
         </Pie>
-        <Tooltip formatter={(v: number, name: string) => [v, name]} />
+        <Tooltip formatter={(value, name) => [typeof value === "number" ? value : 0, String(name ?? "")]} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>
@@ -197,19 +256,13 @@ export default function StatsPage() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [msgPrecision, setMsgPrecision] = useState<Precision>("day");
   const [voicePrecision, setVoicePrecision] = useState<Precision>("day");
-
-  const [msgByDay, setMsgByDay] = useState<DailyValue[]>([]);
-  const [msgByHour, setMsgByHour] = useState<HourlyValue[]>([]);
-  const [msgByHourTimeline, setMsgByHourTimeline] = useState<HourlyTimelineValue[]>([]);
-  const [msgByChannel, setMsgByChannel] = useState<ChannelValue[]>([]);
-  const [msgByUser, setMsgByUser] = useState<UserValue[]>([]);
-  const [voiceByDay, setVoiceByDay] = useState<DailyValue[]>([]);
-  const [voiceByHour, setVoiceByHour] = useState<HourlyValue[]>([]);
-  const [voiceByHourTimeline, setVoiceByHourTimeline] = useState<HourlyTimelineValue[]>([]);
-  const [voiceByChannel, setVoiceByChannel] = useState<ChannelValue[]>([]);
-  const [voiceByUser, setVoiceByUser] = useState<UserValue[]>([]);
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [stats, setStats] = useState<StatsData>(EMPTY_STATS);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const statsRequestRef = useRef(0);
+  const hasLoadedStatsRef = useRef(false);
 
   const { start, end } = useMemo(() => {
     const days = PRESETS[presetIdx].days;
@@ -227,17 +280,25 @@ export default function StatsPage() {
     fetchGuilds().then((gs) => {
       setGuilds(gs);
       if (gs.length > 0) setSelectedGuildID(gs[0].guildID);
+      else setLoadingStats(false);
     });
   }, []);
 
   useEffect(() => {
     if (!selectedGuildID) return;
-    fetchChannels(selectedGuildID).then(setChannels);
+    fetchChannels(selectedGuildID).then(setChannels).catch(() => setChannels([]));
   }, [selectedGuildID]);
 
   useEffect(() => {
     if (!selectedGuildID) return;
-    setLoadingStats(true);
+
+    const requestId = statsRequestRef.current + 1;
+    statsRequestRef.current = requestId;
+    setStatsError(null);
+
+    if (hasLoadedStatsRef.current) setIsRefreshing(true);
+    else setLoadingStats(true);
+
     Promise.all([
       fetchMessagesByDay(selectedGuildID, start, end),
       fetchMessagesByHour(selectedGuildID, start, end),
@@ -249,17 +310,38 @@ export default function StatsPage() {
       fetchVoiceByHourTimeline(selectedGuildID, start, end),
       fetchVoiceByChannel(selectedGuildID, start, end),
       fetchVoiceByUser(selectedGuildID, start, end),
-    ]).then(([mDay, mHour, mHourTl, mChan, mUser, vDay, vHour, vHourTl, vChan, vUser]) => {
-      setMsgByDay(mDay); setMsgByHour(mHour); setMsgByHourTimeline(mHourTl);
-      setMsgByChannel(mChan); setMsgByUser(mUser);
-      setVoiceByDay(vDay); setVoiceByHour(vHour); setVoiceByHourTimeline(vHourTl);
-      setVoiceByChannel(vChan); setVoiceByUser(vUser);
-    }).finally(() => setLoadingStats(false));
+    ])
+      .then(([mDay, mHour, mHourTl, mChan, mUser, vDay, vHour, vHourTl, vChan, vUser]) => {
+        if (statsRequestRef.current !== requestId) return;
+        setStats({
+          msgByDay: mDay,
+          msgByHour: mHour,
+          msgByHourTimeline: mHourTl,
+          msgByChannel: mChan,
+          msgByUser: mUser,
+          voiceByDay: vDay,
+          voiceByHour: vHour,
+          voiceByHourTimeline: vHourTl,
+          voiceByChannel: vChan,
+          voiceByUser: vUser,
+        });
+        hasLoadedStatsRef.current = true;
+      })
+      .catch(() => {
+        if (statsRequestRef.current !== requestId) return;
+        setStatsError("Impossible de charger les statistiques.");
+      })
+      .finally(() => {
+        if (statsRequestRef.current !== requestId) return;
+        setLoadingStats(false);
+        setIsRefreshing(false);
+      });
   }, [selectedGuildID, start, end, refreshKey]);
 
-  const msgPieData = msgByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
-  const voicePieData = voiceByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
+  const msgPieData = stats.msgByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
+  const voicePieData = stats.voiceByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
   const selectedGuild = guilds.find((g) => g.guildID === selectedGuildID);
+  const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
 
   return (
     <div className={styles.page}>
@@ -284,8 +366,8 @@ export default function StatsPage() {
               <button key={i} className={`${styles.presetBtn} ${presetIdx === i ? styles.presetBtnActive : ""}`} onClick={() => setPresetIdx(i)}>{p.label}</button>
             ))}
           </div>
-          <button className={styles.refreshBtn} onClick={() => setRefreshKey((k) => k + 1)} disabled={loadingStats} title="Rafraîchir les statistiques">
-            <svg className={`${styles.refreshIcon} ${loadingStats ? styles.spinning : ""}`} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <button className={styles.refreshBtn} onClick={() => setRefreshKey((k) => k + 1)} disabled={loadingStats || isRefreshing} title="Rafraîchir les statistiques">
+            <svg className={`${styles.refreshIcon} ${isRefreshing ? styles.spinning : ""}`} viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               <path d="M12 2v3h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -294,10 +376,16 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {loadingStats ? (
-        <div className={styles.fullLoading}><Loading /></div>
+      {statsError && !hasLoadedStatsRef.current ? (
+        <div className={styles.fullLoading}>
+          <div className={styles.error}>Impossible de charger les statistiques.</div>
+        </div>
+      ) : showInitialSkeleton ? (
+        <StatsSkeleton />
       ) : (
-        <div className={styles.content}>
+        <div className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}>
+          {statsError && <div className={styles.errorBanner}>{statsError}</div>}
+
           <SectionTitle>Messages</SectionTitle>
           <div className={styles.row}>
             <Card wide>
@@ -305,12 +393,12 @@ export default function StatsPage() {
                 <span className={styles.cardTitle}>Évolution</span>
                 <PrecisionToggle value={msgPrecision} onChange={setMsgPrecision} disableHourTimeline={presetIdx === 2} />
               </div>
-              <EvolutionChart byDay={msgByDay} byHour={msgByHour} byHourTimeline={msgByHourTimeline} precision={msgPrecision} color="#5865f2" gradientId="msgGrad" label="Messages" />
+              <EvolutionChart byDay={stats.msgByDay} byHour={stats.msgByHour} byHourTimeline={stats.msgByHourTimeline} precision={msgPrecision} color="#5865f2" gradientId="msgGrad" label="Messages" />
             </Card>
           </div>
           <div className={styles.row}>
             <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} /></Card>
-            <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={msgByUser} formatValue={(v) => `${v}`} /></Card>
+            <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
           </div>
 
           <SectionTitle>Vocal</SectionTitle>
@@ -320,12 +408,12 @@ export default function StatsPage() {
                 <span className={styles.cardTitle}>Évolution</span>
                 <PrecisionToggle value={voicePrecision} onChange={setVoicePrecision} disableHourTimeline={presetIdx === 2} />
               </div>
-              <EvolutionChart byDay={voiceByDay} byHour={voiceByHour} byHourTimeline={voiceByHourTimeline} precision={voicePrecision} color="#23a55a" gradientId="voiceGrad" label="Temps vocal" formatValue={fmtSecs} />
+              <EvolutionChart byDay={stats.voiceByDay} byHour={stats.voiceByHour} byHourTimeline={stats.voiceByHourTimeline} precision={voicePrecision} color="#23a55a" gradientId="voiceGrad" label="Temps vocal" formatValue={fmtSecs} />
             </Card>
           </div>
           <div className={styles.row}>
             <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} /></Card>
-            <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={voiceByUser} formatValue={fmtSecs} /></Card>
+            <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
           </div>
         </div>
       )}

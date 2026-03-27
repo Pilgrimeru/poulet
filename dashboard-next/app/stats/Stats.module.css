@@ -112,6 +112,10 @@
   gap: 16px;
 }
 
+.contentRefreshing {
+  opacity: 0.9;
+}
+
 .sectionTitle {
   font-size: 13px;
   font-weight: 700;
@@ -245,11 +249,59 @@
   text-align: center;
 }
 
+.loadingBanner,
+.errorBanner,
+.error {
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.loadingBanner {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--text-secondary);
+}
+
+.errorBanner,
+.error {
+  background: rgba(237, 66, 69, 0.12);
+  border: 1px solid rgba(237, 66, 69, 0.28);
+  color: #ffb3b8;
+}
+
 .fullLoading {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 1;
+  padding: 24px;
+}
+
+.skeletonBlock {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--bg-tertiary) 20%, var(--bg-hover) 50%, var(--bg-tertiary) 80%);
+  background-size: 140% 100%;
+  animation: shimmer 14s ease-in-out infinite;
+  will-change: background-position;
+}
+
+.skeletonChart {
+  height: 260px;
+}
+
+.skeletonPie {
+  height: 300px;
+}
+
+.skeletonTable {
+  height: 300px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 8% 0; }
+  50% { background-position: 18% 0; }
+  100% { background-position: 8% 0; }
 }
 
 /* User ranking table */
