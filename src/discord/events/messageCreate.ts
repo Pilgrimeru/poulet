@@ -1,7 +1,5 @@
 import {
-  channelMetaService,
   channelRuleService,
-  guildMetaService,
   guildSettingsService,
   messageHistoryService,
   messageSnapshotService,
@@ -41,18 +39,6 @@ export default new Event("messageCreate", async (message: Message) => {
     if (deleted) return;
   }
 
-  await guildMetaService.upsert(
-    guildID,
-    message.guild.name,
-    message.guild.iconURL() ?? "",
-  );
-  if ("name" in message.channel) {
-    const channel = message.channel;
-    const parentID = "parentId" in channel ? channel.parentId ?? null : null;
-    const parentName = "parent" in channel && channel.parent ? channel.parent.name : null;
-    await channelMetaService.upsert(channel.id, guildID, channel.name ?? "", parentID, parentName, channel.type);
-  }
-
   if (message.interactionMetadata === null) {
     await messageHistoryService.createMessageHistory({
       userID: message.author.id,
@@ -81,7 +67,6 @@ export default new Event("messageCreate", async (message: Message) => {
         contentType: a.contentType ?? "",
         size: a.size,
       })),
-      0,
     );
   }
 

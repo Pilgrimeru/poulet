@@ -32,3 +32,28 @@ export async function upsertChannelMeta(
   await ensureColumns();
   await ChannelMeta.upsert({ channelID, guildID, name, parentID: parentID ?? null, parentName: parentName ?? null, channelType: channelType ?? null });
 }
+
+export async function upsertChannelMetas(rows: Array<{
+  channelID: string;
+  guildID: string;
+  name: string;
+  parentID?: string | null;
+  parentName?: string | null;
+  channelType?: number | null;
+}>): Promise<void> {
+  if (rows.length === 0) return;
+  await ensureColumns();
+  await ChannelMeta.bulkCreate(
+    rows.map((row) => ({
+      channelID: row.channelID,
+      guildID: row.guildID,
+      name: row.name,
+      parentID: row.parentID ?? null,
+      parentName: row.parentName ?? null,
+      channelType: row.channelType ?? null,
+    })),
+    {
+      updateOnDuplicate: ["guildID", "name", "parentID", "parentName", "channelType"],
+    },
+  );
+}

@@ -1,4 +1,4 @@
-import { channelMetaService, guildMetaService, messageSnapshotService } from "@/api";
+import { messageSnapshotService } from "@/api";
 import { Event } from "@/discord/types";
 import { Message, PartialMessage } from "discord.js";
 
@@ -6,16 +6,8 @@ export default new Event("messageUpdate", async (oldMessage: Message | PartialMe
   if (newMessage.author?.bot || !newMessage.guild) return;
   if (newMessage.content === oldMessage.content) return;
 
-  const guild = newMessage.guild;
   const msg = newMessage.partial ? await newMessage.fetch().catch(() => null) : newMessage;
   if (!msg) return;
-
-  await guildMetaService.upsert(guild.id, guild.name, guild.iconURL() ?? "");
-  if ("name" in msg.channel) {
-    await channelMetaService.upsert(msg.channel.id, guild.id, msg.channel.name ?? "");
-  }
-
-  const version = await messageSnapshotService.getNextVersion(msg.id);
 
   await messageSnapshotService.saveSnapshot(
     {
@@ -33,9 +25,8 @@ export default new Event("messageUpdate", async (oldMessage: Message | PartialMe
       attachmentID: a.id,
       filename: a.name,
       url: a.url,
-      contentType: a.contentType ?? "",
-      size: a.size,
-    })),
-    version,
+        contentType: a.contentType ?? "",
+        size: a.size,
+      })),
   );
 });

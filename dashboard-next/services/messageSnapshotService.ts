@@ -44,14 +44,15 @@ async function downloadAttachment(url: string, dir: string, filename: string): P
 export async function saveSnapshot(
   data: SaveSnapshotInput,
   attachments: AttachmentInput[],
-  version: number,
+  version?: number,
   isDeleted = false,
 ): Promise<void> {
+  const resolvedVersion = version ?? await getNextVersion(data.messageID);
   const snapshot = await MessageSnapshot.create({
     ...data,
     snapshotAt: Date.now(),
     isDeleted,
-    version,
+    version: resolvedVersion,
   } as any);
 
   if (attachments.length > 0) {

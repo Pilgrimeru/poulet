@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./client";
+import { apiPost } from "./client";
 
 export interface AttachmentInput {
   attachmentID: string;
@@ -24,15 +24,10 @@ export const messageSnapshotService = {
   async saveSnapshot(
     data: SaveSnapshotInput,
     attachments: AttachmentInput[],
-    version: number,
+    version?: number,
     isDeleted = false,
   ): Promise<void> {
     await apiPost("/messages/snapshot", { data, attachments, version, isDeleted });
-  },
-
-  async getNextVersion(messageID: string): Promise<number> {
-    const result = await apiGet<{ version: number }>(`/messages/${messageID}/next-version`);
-    return result.version;
   },
 
   async markDeleted(messageID: string): Promise<void> {

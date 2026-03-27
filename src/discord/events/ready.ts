@@ -10,16 +10,41 @@ export default new Event("clientReady", () => {
 
   // Seed guild & channel metadata from Discord cache
   void (async () => {
+    const guildRows: Array<{ guildID: string; name: string; iconURL: string }> = [];
+    const channelRows: Array<{
+      channelID: string;
+      guildID: string;
+      name: string;
+      parentID: string | null;
+      parentName: string | null;
+      channelType: number | null;
+    }> = [];
+
     for (const guild of bot.guilds.cache.values()) {
-      await guildMetaService.upsert(guild.id, guild.name, guild.iconURL() ?? "");
+      guildRows.push({
+        guildID: guild.id,
+        name: guild.name,
+        iconURL: guild.iconURL() ?? "",
+      });
+
       for (const channel of guild.channels.cache.values()) {
         if ("name" in channel && channel.name) {
           const parentID = "parentId" in channel ? channel.parentId ?? null : null;
           const parentName = "parent" in channel && channel.parent ? channel.parent.name : null;
-          await channelMetaService.upsert(channel.id, guild.id, channel.name, parentID, parentName, channel.type);
+          channelRows.push({
+            channelID: channel.id,
+            guildID: guild.id,
+            name: channel.name,
+            parentID,
+            parentName,
+            channelType: channel.type,
+          });
         }
       }
     }
+
+    await guildMetaService.bulkUpsert(guildRows);
+    await channelMetaService.bulkUpsert(channelRows);
   })();
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
