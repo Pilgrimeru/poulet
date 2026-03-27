@@ -7,5 +7,23 @@ services:
     volumes:
       - sentibot-db:/app/database
     restart: always
+
+  dashboard:
+    build:
+      context: ./dashboard-next
+      dockerfile: Dockerfile
+    container_name: sentibot-dashboard
+    ports:
+      - "3000:3000"
+    volumes:
+      - sentibot-db:/app/database
+    environment:
+      - DATABASE_PATH=/app/database/database.sqlite
+      - ATTACHMENTS_PATH=/app/database/attachments
+      - NODE_ENV=production
+    restart: always
+    depends_on:
+      - sentibot
+
 volumes:
   sentibot-db:

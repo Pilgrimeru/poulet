@@ -1,22 +1,56 @@
 import { spawn } from "child_process";
+import { existsSync } from "fs";
 import { resolve } from "path";
 
 const root = resolve(__dirname, "..");
+const dashboardRoot = resolve(root, "dashboard-next");
 
-const api = spawn("bun", ["run", "dev"], {
-  cwd: resolve(root, "dashboard-api"),
-  stdio: "inherit",
-  shell: true,
-});
+function ensureDashboardDeps() {
+  const nextBin = resolve(dashboardRoot, "node_modules", ".bin", "next");
+  const nextPkg = resolve(dashboardRoot, "node_modules", "next", "package.json");
 
-const ui = spawn("bun", ["run", "dev"], {
-  cwd: resolve(root, "dashboard"),
-  stdio: "inherit",
-  shell: true,
-});
+  if (existsSync(nextBin) || existsSync(nextPkg)) {
+    startProcesses();
+    return;
+  }
 
-process.on("SIGINT", () => {
-  api.kill();
-  ui.kill();
-  process.exit();
-});
+  console.log("[dashboard] Installing dashboard-next dependencies...");
+
+  const install = spawn("bun", ["install"], {
+    cwd: dashboardRoot,
+    stdio: "inherit",
+    shell: true,
+  });
+
+  install.on("close", (code) => {
+    if (code !== 0) {
+      console.error("[dashboard] Failed to install dependencies.");
+      process.exit(code ?? 1);
+    }
+    startProcesses();
+  });
+}
+
+function startProcesses() {
+  const bot = spawn("bun", ["run", "./src/index.ts"], {
+    cwd: root,
+    stdio: "inherit",
+    shell: true,
+  });
+
+  const dashboard = spawn("bun", ["run", "dev", "--turbopack"], {
+    cwd: dashboardRoot,
+    stdio: "inherit",
+    shell: true,
+  });
+
+  function cleanup() {
+    bot.kill();
+    dashboard.kill();
+    process.exit();
+  }
+
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+}
+ensureDashboardDeps();

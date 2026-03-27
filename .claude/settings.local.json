@@ -10,7 +10,8 @@
       "Bash(npx tsc:*)",
       "Bash(xargs grep:*)",
       "Bash(node -e \":*)",
-      "Bash(bun -e \":*)"
+      "Bash(bun -e \":*)",
+      "Bash(grep -r 'from \"\"\\\\.\\\\./sequelize\"\"' /c/Users/Elliott/Documents/Github/poulet/dashboard-next/models/)"
     ]
   }
 }

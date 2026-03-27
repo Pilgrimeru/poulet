@@ -12,3 +12,4 @@ database/database.sqlite
 cache/
 .yarn
 .vscode
+.next/
