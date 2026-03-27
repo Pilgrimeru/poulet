@@ -14,7 +14,9 @@ export default new Event("clientReady", () => {
       await guildMetaService.upsert(guild.id, guild.name, guild.iconURL() ?? "");
       for (const channel of guild.channels.cache.values()) {
         if ("name" in channel && channel.name) {
-          await channelMetaService.upsert(channel.id, guild.id, channel.name);
+          const parentID = "parentId" in channel ? channel.parentId ?? null : null;
+          const parentName = "parent" in channel && channel.parent ? channel.parent.name : null;
+          await channelMetaService.upsert(channel.id, guild.id, channel.name, parentID, parentName, channel.type);
         }
       }
     }

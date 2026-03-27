@@ -201,17 +201,45 @@ export async function getDistinctGuilds(): Promise<{ guildID: string; name: stri
   }));
 }
 
-export async function getDistinctChannels(guildID: string): Promise<{ channelID: string; channelName: string }[]> {
+export async function getDistinctChannels(guildID: string): Promise<{ channelID: string; channelName: string; parentID: string | null; parentName: string | null; channelType: number | null }[]> {
   const rows = await MessageSnapshot.findAll({
     attributes: [[fn("DISTINCT", col("channelID")), "channelID"]],
     where: { guildID },
     raw: true,
   }) as unknown as { channelID: string }[];
 
-  return Promise.all(rows.map(async ({ channelID }) => {
+  const results = await Promise.all(rows.map(async ({ channelID }) => {
     const meta = await ChannelMeta.findByPk(channelID);
-    return { channelID, channelName: meta?.name ?? "" };
+    return {
+      channelID,
+      channelName: meta?.name ?? "",
+      parentID: meta?.parentID ?? null,
+      parentName: meta?.parentName ?? null,
+      channelType: meta?.channelType ?? null,
+    };
   }));
+
+  // Inject virtual parent entries for forums/categories that have no snapshots themselves
+  // (e.g. forum channels whose posts are threads)
+  const existingIDs = new Set(results.map((r) => r.channelID));
+  const virtualParents = new Map<string, { channelID: string; channelName: string; parentID: string | null; parentName: string | null; channelType: number | null }>();
+
+  for (const r of results) {
+    if (r.parentID && !existingIDs.has(r.parentID) && !virtualParents.has(r.parentID)) {
+      const parentMeta = await ChannelMeta.findByPk(r.parentID);
+      if (parentMeta) {
+        virtualParents.set(r.parentID, {
+          channelID: r.parentID,
+          channelName: parentMeta.name,
+          parentID: parentMeta.parentID ?? null,
+          parentName: parentMeta.parentName ?? null,
+          channelType: parentMeta.channelType ?? null,
+        });
+      }
+    }
+  }
+
+  return [...virtualParents.values(), ...results];
 }
 
 export interface MessageFilter {

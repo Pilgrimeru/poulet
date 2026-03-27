@@ -10,20 +10,28 @@ interface Props {
   onLoadMore: () => void;
   onShowHistory: (messageID: string) => void;
   channelID: string | null;
+  loadedChannelID: string | null;
 }
 
-export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID }: Readonly<Props>) {
+export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID, loadedChannelID }: Readonly<Props>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevChannelRef = useRef<string | null>(null);
+  const scrolledForChannelRef = useRef<string | null>(null);
 
-  // Scroll to bottom when channel changes
+  // Scroll to bottom once messages for the selected channel are actually loaded
   useEffect(() => {
-    if (channelID !== prevChannelRef.current) {
-      prevChannelRef.current = channelID;
-      const el = containerRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+    if (channelID && loadedChannelID === channelID && scrolledForChannelRef.current !== channelID) {
+      scrolledForChannelRef.current = channelID;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = containerRef.current;
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      });
     }
-  }, [channelID, messages]);
+    if (channelID !== loadedChannelID) {
+      scrolledForChannelRef.current = null;
+    }
+  }, [channelID, loadedChannelID]);
 
   if (!channelID) {
     return (

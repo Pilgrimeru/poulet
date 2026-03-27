@@ -47,7 +47,10 @@ export default new Event("messageCreate", async (message: Message) => {
     message.guild.iconURL() ?? "",
   );
   if ("name" in message.channel) {
-    await channelMetaService.upsert(message.channel.id, guildID, message.channel.name ?? "");
+    const channel = message.channel;
+    const parentID = "parentId" in channel ? channel.parentId ?? null : null;
+    const parentName = "parent" in channel && channel.parent ? channel.parent.name : null;
+    await channelMetaService.upsert(channel.id, guildID, channel.name ?? "", parentID, parentName, channel.type);
   }
 
   if (message.interactionMetadata === null) {

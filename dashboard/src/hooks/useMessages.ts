@@ -30,8 +30,10 @@ function filtersToFetchParams(filters: MessageFilters, before?: number) {
 
 export function useMessages(guildID: string | null, channelID: string | null, filters: MessageFilters = DEFAULT_FILTERS) {
   const [messages, setMessages] = useState<MessageSnapshotDTO[]>([]);
+  const [loadedChannelID, setLoadedChannelID] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const beforeRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export function useMessages(guildID: string | null, channelID: string | null, fi
     })
       .then((page) => {
         setMessages(page);
+        setLoadedChannelID(channelID);
         setHasMore(page.length === PAGE_SIZE);
         if (page.length > 0) {
           beforeRef.current = Math.min(...page.map((m) => m.createdAt));
@@ -57,7 +60,7 @@ export function useMessages(guildID: string | null, channelID: string | null, fi
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [guildID, channelID, filters.search, filters.dateFrom, filters.dateTo, filters.onlyDeleted]);
+  }, [guildID, channelID, filters.search, filters.dateFrom, filters.dateTo, filters.onlyDeleted, refreshKey]);
 
   const loadMore = useCallback(() => {
     if (!guildID || !channelID || loading || !hasMore) return;
@@ -80,5 +83,7 @@ export function useMessages(guildID: string | null, channelID: string | null, fi
       .finally(() => setLoading(false));
   }, [guildID, channelID, loading, hasMore, filters]);
 
-  return { messages, loadMore, hasMore, loading };
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  return { messages, loadMore, hasMore, loading, refresh, loadedChannelID };
 }

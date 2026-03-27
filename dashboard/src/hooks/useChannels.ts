@@ -5,6 +5,7 @@ import type { ChannelEntry } from "../types";
 export function useChannels(guildID: string | null) {
   const [channels, setChannels] = useState<ChannelEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!guildID) { setChannels([]); return; }
@@ -13,7 +14,9 @@ export function useChannels(guildID: string | null) {
       .then(setChannels)
       .catch(() => setChannels([]))
       .finally(() => setLoading(false));
-  }, [guildID]);
+  }, [guildID, refreshKey]);
 
-  return { channels, loading };
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  return { channels, loading, refresh };
 }
