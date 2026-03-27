@@ -305,7 +305,6 @@ function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
 
 function StatsPageContent() {
   const searchParams = useSearchParams();
-  const [mounted, setMounted] = useState(false);
   const [guilds, setGuilds] = useState<GuildEntry[]>([]);
   const [selectedGuildID, setSelectedGuildID] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelEntry[]>([]);
@@ -320,10 +319,6 @@ function StatsPageContent() {
   const statsRequestRef = useRef(0);
   const hasLoadedStatsRef = useRef(false);
   const guildFromQuery = searchParams.get("guild");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const { start, end } = useMemo(() => {
     const days = PRESETS[presetIdx].days;
@@ -412,7 +407,13 @@ function StatsPageContent() {
   const msgPieData = stats.msgByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
   const voicePieData = stats.voiceByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
   const selectedGuild = guilds.find((g) => g.guildID === selectedGuildID);
-  const showInitialSkeleton = !mounted || (loadingStats && !hasLoadedStatsRef.current);
+  const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
+  const refreshDisabled = loadingStats || isRefreshing;
+
+  function handleRefresh() {
+    if (refreshDisabled) return;
+    setRefreshKey((k) => k + 1);
+  }
 
   const pageContent = useMemo(() => {
     if (statsError && !hasLoadedStatsRef.current) {
@@ -474,7 +475,12 @@ function StatsPageContent() {
               <button key={i} className={`${styles.presetBtn} ${presetIdx === i ? styles.presetBtnActive : ""}`} onClick={() => setPresetIdx(i)}>{p.label}</button>
             ))}
           </div>
-          <button className={styles.refreshBtn} onClick={() => setRefreshKey((k) => k + 1)} disabled={loadingStats || isRefreshing} title="Rafraîchir les statistiques">
+          <button
+            className={`${styles.refreshBtn} ${refreshDisabled ? styles.refreshBtnDisabled : ""}`}
+            onClick={handleRefresh}
+            aria-disabled={refreshDisabled}
+            title="Rafraîchir les statistiques"
+          >
             <svg className={`${styles.refreshIcon} ${isRefreshing ? styles.spinning : ""}`} viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               <path d="M12 2v3h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

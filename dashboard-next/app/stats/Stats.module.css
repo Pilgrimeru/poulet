@@ -274,9 +274,10 @@
   background: var(--bg-hover);
 }
 
-.refreshBtn:disabled {
+.refreshBtnDisabled {
   opacity: 0.4;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .refreshIcon {
@@ -332,11 +333,14 @@
 }
 
 .skeletonBlock {
+  position: relative;
+  overflow: hidden;
   border-radius: var(--radius-md);
-  background: linear-gradient(90deg, var(--bg-tertiary) 20%, var(--bg-hover) 50%, var(--bg-tertiary) 80%);
-  background-size: 140% 100%;
-  animation: shimmer 14s ease-in-out infinite;
-  will-change: background-position;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 -18px 32px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
 .skeletonChart {
@@ -349,12 +353,6 @@
 
 .skeletonTable {
   height: 300px;
-}
-
-@keyframes shimmer {
-  0% { background-position: 8% 0; }
-  50% { background-position: 18% 0; }
-  100% { background-position: 8% 0; }
 }
 
 /* User ranking table */
