@@ -1,14 +1,11 @@
 "use client";
 import { useMemo, useState } from "react";
-import { ChannelType, type ChannelEntry, type GuildEntry } from "../../types";
+import { ChannelType, type ChannelEntry } from "../../types";
 import styles from "./Sidebar.module.css";
 
 interface Props {
-  guilds: GuildEntry[];
   channels: ChannelEntry[];
-  selectedGuildID: string | null;
   selectedChannelID: string | null;
-  onSelectGuild: (id: string) => void;
   onSelectChannel: (id: string) => void;
 }
 
@@ -24,7 +21,7 @@ function isForum(c: ChannelEntry): boolean {
   return c.channelType === ChannelType.GuildForum || c.channelType === ChannelType.GuildMedia;
 }
 
-export function Sidebar({ guilds, channels, selectedGuildID, selectedChannelID, onSelectGuild, onSelectChannel }: Readonly<Props>) {
+export function Sidebar({ channels, selectedChannelID, onSelectChannel }: Readonly<Props>) {
   const [channelSearch, setChannelSearch] = useState("");
   // For forums: tracks expanded state (toggle open/close)
   // For text channels with threads: "closed" | "open-threads"
@@ -167,62 +164,35 @@ export function Sidebar({ guilds, channels, selectedGuildID, selectedChannelID, 
 
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.section} style={{ maxHeight: "40%" }}>
-        <p className={styles.sectionTitle}>Serveurs</p>
-        <div className={styles.list}>
-          {guilds.map((g) => (
-            <button
-              key={g.guildID}
-              className={`${styles.item} ${selectedGuildID === g.guildID ? styles.itemActive : ""}`}
-              onClick={() => onSelectGuild(g.guildID)}
-            >
-              {g.iconURL ? (
-                <img src={g.iconURL} alt="" className={styles.guildIcon} />
-              ) : (
-                <span className={styles.guildIconFallback}>
-                  {(g.name || g.guildID).slice(0, 2).toUpperCase()}
-                </span>
-              )}
-              <span className={styles.itemLabel}>{g.name || g.guildID}</span>
+      <div className={styles.section} style={{ flex: 1 }}>
+        <p className={styles.sectionTitle}>Salons</p>
+        <div className={styles.searchWrapper}>
+          <svg className={styles.searchIcon} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M13 13l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            className={styles.searchInput}
+            type="text"
+            placeholder="Rechercher un salon…"
+            value={channelSearch}
+            onChange={(e) => setChannelSearch(e.target.value)}
+            aria-label="Rechercher un salon"
+          />
+          {channelSearch && (
+            <button className={styles.searchClear} onClick={() => setChannelSearch("")} aria-label="Effacer">
+              ×
             </button>
-          ))}
+          )}
+        </div>
+        <div className={styles.list}>
+          {items.length === 0 && threadsByParent.size === 0 ? (
+            <p className={styles.searchEmpty}>Aucun salon trouvé</p>
+          ) : (
+            items.map(renderChannel)
+          )}
         </div>
       </div>
-
-      {selectedGuildID && (
-        <>
-          <div className={styles.divider} />
-          <div className={styles.section} style={{ flex: 1 }}>
-            <p className={styles.sectionTitle}>Salons</p>
-            <div className={styles.searchWrapper}>
-              <svg className={styles.searchIcon} viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M13 13l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <input
-                className={styles.searchInput}
-                type="text"
-                placeholder="Rechercher un salon…"
-                value={channelSearch}
-                onChange={(e) => setChannelSearch(e.target.value)}
-                aria-label="Rechercher un salon"
-              />
-              {channelSearch && (
-                <button className={styles.searchClear} onClick={() => setChannelSearch("")} aria-label="Effacer">
-                  ×
-                </button>
-              )}
-            </div>
-            <div className={styles.list}>
-              {items.length === 0 && threadsByParent.size === 0 ? (
-                <p className={styles.searchEmpty}>Aucun salon trouvé</p>
-              ) : (
-                items.map(renderChannel)
-              )}
-            </div>
-          </div>
-        </>
-      )}
     </aside>
   );
 }

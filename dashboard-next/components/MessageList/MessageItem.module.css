@@ -76,6 +76,7 @@
   font-size: 15px;
   color: var(--text-primary);
   cursor: default;
+  user-select: text;
 }
 
 .displayName:hover {
@@ -88,6 +89,7 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+  user-select: text;
 }
 
 .content {
@@ -97,6 +99,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
+  user-select: text;
 }
 
 .deletedContent {

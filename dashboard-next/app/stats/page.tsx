@@ -1,21 +1,5 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { fetchChannels, fetchGuilds } from "@/lib/api-client";
 import {
   fetchMessagesByChannel,
@@ -35,6 +19,21 @@ import {
   type UserValue,
 } from "@/lib/api-stats";
 import type { ChannelEntry, GuildEntry } from "@/types";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import styles from "./Stats.module.css";
 
 type Precision = "day" | "hour-timeline" | "hour";
@@ -201,55 +200,112 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
 function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: number) => string }) {
   if (rows.length === 0) return <Empty />;
   return (
-    <table className={styles.table}>
-      <thead><tr><th className={styles.thRank}>#</th><th className={styles.thUser}>Utilisateur</th><th className={styles.thValue}>Valeur</th></tr></thead>
-      <tbody>
-        {rows.map((r, i) => {
-          const name = r.displayName || r.username || r.userID;
-          return (
-            <tr key={r.userID} className={styles.tr}>
-              <td className={styles.tdRank}>{i + 1}</td>
-              <td className={styles.tdUser}>
-                <div className={styles.userCell}>
-                  {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
-                  <span className={styles.userName} title={r.userID}>{name}</span>
-                </div>
-              </td>
-              <td className={styles.tdValue}>{formatValue(r.value)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className={styles.tableShell}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th className={styles.thRank}>#</th>
+            <th className={styles.thUser}>Utilisateur</th>
+            <th className={styles.thValue}>Valeur</th>
+          </tr>
+        </thead>
+      </table>
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <tbody>
+            {rows.map((r, i) => {
+              const name = r.displayName || r.username || r.userID;
+              return (
+                <tr key={r.userID} className={styles.tr}>
+                  <td className={styles.tdRank}>{i + 1}</td>
+                  <td className={styles.tdUser}>
+                    <div className={styles.userCell}>
+                      {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
+                      <span className={styles.userName} title={r.userID}>{name}</span>
+                    </div>
+                  </td>
+                  <td className={styles.tdValue}>{formatValue(r.value)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
 function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
+  const [hiddenNames, setHiddenNames] = useState<Set<string>>(new Set());
+
   if (data.length === 0) return <Empty />;
   const top = data.slice(0, 10);
+  const visible = top
+    .filter((entry) => !hiddenNames.has(entry.name))
+    .map((entry) => ({
+      ...entry,
+      fill: CHART_COLORS[top.findIndex((candidate) => candidate.name === entry.name) % CHART_COLORS.length],
+    }));
+
+  function toggleName(name: string) {
+    setHiddenNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={top}
-          dataKey="value"
-          nameKey="name"
-          cx="50%"
-          cy="50%"
-          outerRadius={90}
-          label={({ name, percent }) => `${name ?? "Inconnu"} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-          labelLine={false}
-        >
-          {top.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-        </Pie>
-        <Tooltip formatter={(value, name) => [typeof value === "number" ? value : 0, String(name ?? "")]} />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
+    <div className={styles.pieCard}>
+      <ResponsiveContainer width="100%" height={320}>
+        <PieChart>
+          <Pie
+            data={visible}
+            dataKey="value"
+            nameKey="name"
+            fill="#5865f2"
+            cx="50%"
+            cy="50%"
+            innerRadius={54}
+            outerRadius={118}
+            paddingAngle={2}
+            isAnimationActive={false}
+          />
+          <Tooltip
+            formatter={(value, name) => [typeof value === "number" ? value : 0, String(name ?? "")]}
+            contentStyle={{ background: "#2b2d31", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#dcdee1" }}
+            labelStyle={{ color: "#b5bac1" }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className={styles.pieLegend}>
+        {top.map((entry, index) => {
+          const hidden = hiddenNames.has(entry.name);
+          return (
+            <button
+              key={entry.name}
+              type="button"
+              className={`${styles.pieLegendItem} ${hidden ? styles.pieLegendItemHidden : ""}`}
+              onClick={() => toggleName(entry.name)}
+              title={hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`}
+            >
+              <span
+                className={styles.pieLegendSwatch}
+                style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+              />
+              <span className={styles.pieLegendLabel}>{entry.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
-export default function StatsPage() {
+function StatsPageContent() {
+  const searchParams = useSearchParams();
+  const [mounted, setMounted] = useState(false);
   const [guilds, setGuilds] = useState<GuildEntry[]>([]);
   const [selectedGuildID, setSelectedGuildID] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelEntry[]>([]);
@@ -263,6 +319,11 @@ export default function StatsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const statsRequestRef = useRef(0);
   const hasLoadedStatsRef = useRef(false);
+  const guildFromQuery = searchParams.get("guild");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { start, end } = useMemo(() => {
     const days = PRESETS[presetIdx].days;
@@ -279,10 +340,20 @@ export default function StatsPage() {
   useEffect(() => {
     fetchGuilds().then((gs) => {
       setGuilds(gs);
-      if (gs.length > 0) setSelectedGuildID(gs[0].guildID);
+      if (guildFromQuery && gs.some((guild) => guild.guildID === guildFromQuery)) {
+        setSelectedGuildID(guildFromQuery);
+      } else if (gs.length > 0) {
+        setSelectedGuildID(gs[0].guildID);
+      }
       else setLoadingStats(false);
     });
-  }, []);
+  }, [guildFromQuery]);
+
+  useEffect(() => {
+    if (guildFromQuery && guildFromQuery !== selectedGuildID) {
+      setSelectedGuildID(guildFromQuery);
+    }
+  }, [guildFromQuery, selectedGuildID]);
 
   useEffect(() => {
     if (!selectedGuildID) return;
@@ -338,29 +409,66 @@ export default function StatsPage() {
       });
   }, [selectedGuildID, start, end, refreshKey]);
 
-  const msgPieData = stats.msgByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
-  const voicePieData = stats.voiceByChannel.map((c) => ({ name: channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
+  const msgPieData = stats.msgByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
+  const voicePieData = stats.voiceByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
   const selectedGuild = guilds.find((g) => g.guildID === selectedGuildID);
-  const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
+  const showInitialSkeleton = !mounted || (loadingStats && !hasLoadedStatsRef.current);
+
+  const pageContent = useMemo(() => {
+    if (statsError && !hasLoadedStatsRef.current) {
+      return (
+        <div className={styles.fullLoading}>
+          <div className={styles.error}>Impossible de charger les statistiques.</div>
+        </div>
+      );
+    }
+    if (showInitialSkeleton) {
+      return <StatsSkeleton />;
+    }
+    return (
+      <div className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}>
+        {statsError && <div className={styles.errorBanner}>{statsError}</div>}
+
+        <SectionTitle>Messages</SectionTitle>
+        <div className={styles.row}>
+          <Card wide>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>Évolution</span>
+              <PrecisionToggle value={msgPrecision} onChange={setMsgPrecision} disableHourTimeline={presetIdx === 2} />
+            </div>
+            <EvolutionChart byDay={stats.msgByDay} byHour={stats.msgByHour} byHourTimeline={stats.msgByHourTimeline} precision={msgPrecision} color="#5865f2" gradientId="msgGrad" label="Messages" />
+          </Card>
+        </div>
+        <div className={styles.row}>
+          <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} /></Card>
+          <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
+        </div>
+
+        <SectionTitle>Vocal</SectionTitle>
+        <div className={styles.row}>
+          <Card wide>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>Évolution</span>
+              <PrecisionToggle value={voicePrecision} onChange={setVoicePrecision} disableHourTimeline={presetIdx === 2} />
+            </div>
+            <EvolutionChart byDay={stats.voiceByDay} byHour={stats.voiceByHour} byHourTimeline={stats.voiceByHourTimeline} precision={voicePrecision} color="#23a55a" gradientId="voiceGrad" label="Temps vocal" formatValue={fmtSecs} />
+          </Card>
+        </div>
+        <div className={styles.row}>
+          <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} /></Card>
+          <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
+        </div>
+      </div>
+    );
+  }, [statsError, showInitialSkeleton, isRefreshing, msgPrecision, voicePrecision, presetIdx, stats, msgPieData, voicePieData]);
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.pageTitle}>Statistiques</h1>
-          {selectedGuild && (
-            <span className={styles.guildBadge}>
-              {selectedGuild.iconURL && <img src={selectedGuild.iconURL} alt="" className={styles.guildBadgeIcon} />}
-              {selectedGuild.name}
-            </span>
-          )}
         </div>
         <div className={styles.controls}>
-          {guilds.length > 1 && (
-            <select className={styles.select} value={selectedGuildID ?? ""} onChange={(e) => setSelectedGuildID(e.target.value)}>
-              {guilds.map((g) => <option key={g.guildID} value={g.guildID}>{g.name || g.guildID}</option>)}
-            </select>
-          )}
           <div className={styles.presetButtons}>
             {PRESETS.map((p, i) => (
               <button key={i} className={`${styles.presetBtn} ${presetIdx === i ? styles.presetBtnActive : ""}`} onClick={() => setPresetIdx(i)}>{p.label}</button>
@@ -376,47 +484,15 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {statsError && !hasLoadedStatsRef.current ? (
-        <div className={styles.fullLoading}>
-          <div className={styles.error}>Impossible de charger les statistiques.</div>
-        </div>
-      ) : showInitialSkeleton ? (
-        <StatsSkeleton />
-      ) : (
-        <div className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}>
-          {statsError && <div className={styles.errorBanner}>{statsError}</div>}
-
-          <SectionTitle>Messages</SectionTitle>
-          <div className={styles.row}>
-            <Card wide>
-              <div className={styles.cardHeader}>
-                <span className={styles.cardTitle}>Évolution</span>
-                <PrecisionToggle value={msgPrecision} onChange={setMsgPrecision} disableHourTimeline={presetIdx === 2} />
-              </div>
-              <EvolutionChart byDay={stats.msgByDay} byHour={stats.msgByHour} byHourTimeline={stats.msgByHourTimeline} precision={msgPrecision} color="#5865f2" gradientId="msgGrad" label="Messages" />
-            </Card>
-          </div>
-          <div className={styles.row}>
-            <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} /></Card>
-            <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
-          </div>
-
-          <SectionTitle>Vocal</SectionTitle>
-          <div className={styles.row}>
-            <Card wide>
-              <div className={styles.cardHeader}>
-                <span className={styles.cardTitle}>Évolution</span>
-                <PrecisionToggle value={voicePrecision} onChange={setVoicePrecision} disableHourTimeline={presetIdx === 2} />
-              </div>
-              <EvolutionChart byDay={stats.voiceByDay} byHour={stats.voiceByHour} byHourTimeline={stats.voiceByHourTimeline} precision={voicePrecision} color="#23a55a" gradientId="voiceGrad" label="Temps vocal" formatValue={fmtSecs} />
-            </Card>
-          </div>
-          <div className={styles.row}>
-            <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} /></Card>
-            <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
-          </div>
-        </div>
-      )}
+      {pageContent}
     </div>
+  );
+}
+
+export default function StatsPage() {
+  return (
+    <Suspense fallback={null}>
+      <StatsPageContent />
+    </Suspense>
   );
 }

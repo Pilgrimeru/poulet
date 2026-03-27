@@ -1,7 +1,7 @@
 import { Config } from "@/app/types";
 import { config as dotenvConfig } from "dotenv";
 
-dotenvConfig({ path: "config.env" });
+dotenvConfig({ path: "config.env", quiet: true });
 
 function parseEnvColor(
   value: string | undefined,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { FilterBar } from "@/components/FilterBar/FilterBar";
 import { HistoryModal } from "@/components/HistoryModal/HistoryModal";
 import { MessageList } from "@/components/MessageList/MessageList";
@@ -11,7 +12,8 @@ import type { MessageFilters } from "@/hooks/useMessages";
 import { DEFAULT_FILTERS, useMessages } from "@/hooks/useMessages";
 import styles from "./MessageHistory.module.css";
 
-export default function HistoryPage() {
+function HistoryPageContent() {
+  const searchParams = useSearchParams();
   const [selectedGuildID, setSelectedGuildID] = useState<string | null>(null);
   const [selectedChannelID, setSelectedChannelID] = useState<string | null>(null);
   const [historyMessageID, setHistoryMessageID] = useState<string | null>(null);
@@ -20,12 +22,19 @@ export default function HistoryPage() {
   const { guilds } = useGuilds();
   const { channels, refresh: refreshChannels } = useChannels(selectedGuildID);
   const { messages, hasMore, loading, loadMore, refresh: refreshMessages, loadedChannelID, updateMode } = useMessages(selectedGuildID, selectedChannelID, filters);
+  const guildFromQuery = searchParams.get("guild");
 
-  function handleSelectGuild(id: string) {
-    setSelectedGuildID(id);
-    setSelectedChannelID(null);
-    setFilters(DEFAULT_FILTERS);
-  }
+  useEffect(() => {
+    if (guildFromQuery && selectedGuildID !== guildFromQuery) {
+      setSelectedGuildID(guildFromQuery);
+      setSelectedChannelID(null);
+      setFilters(DEFAULT_FILTERS);
+      return;
+    }
+    if (!guildFromQuery && !selectedGuildID && guilds[0]?.guildID) {
+      setSelectedGuildID(guilds[0].guildID);
+    }
+  }, [guildFromQuery, guilds, selectedGuildID]);
 
   function handleSelectChannel(id: string) {
     setSelectedChannelID(id);
@@ -35,11 +44,8 @@ export default function HistoryPage() {
   return (
     <div className={styles.layout}>
       <Sidebar
-        guilds={guilds}
         channels={channels}
-        selectedGuildID={selectedGuildID}
         selectedChannelID={selectedChannelID}
-        onSelectGuild={handleSelectGuild}
         onSelectChannel={handleSelectChannel}
       />
 
@@ -100,5 +106,13 @@ export default function HistoryPage() {
         <HistoryModal messageID={historyMessageID} onClose={() => setHistoryMessageID(null)} />
       )}
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={null}>
+      <HistoryPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,8 @@
 import path from "path";
 import { config as dotenvConfig } from "dotenv";
+import { Op } from "sequelize";
 import type { ChannelEntry, GuildEntry, MessageSnapshotDTO } from "@/types";
+import { ChannelMeta } from "@/models/ChannelMeta";
 import type { UserMeta } from "@/services/statsService";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
@@ -37,14 +39,14 @@ type DiscordGuildMember = {
   user?: DiscordUser;
 };
 
-let envLoaded = false;
+const globalForDiscordMeta = globalThis as typeof globalThis & { __discordMetaEnvLoaded?: boolean };
 const cache = new Map<string, CacheEntry<unknown>>();
 
 function ensureEnvLoaded(): void {
-  if (envLoaded) return;
-  dotenvConfig({ path: path.resolve(process.cwd(), "config.env") });
-  dotenvConfig({ path: path.resolve(process.cwd(), "../config.env"), override: false });
-  envLoaded = true;
+  if (globalForDiscordMeta.__discordMetaEnvLoaded) return;
+  dotenvConfig({ path: path.resolve(process.cwd(), "config.env"), quiet: true });
+  dotenvConfig({ path: path.resolve(process.cwd(), "../config.env"), override: false, quiet: true });
+  globalForDiscordMeta.__discordMetaEnvLoaded = true;
 }
 
 function getToken(): string | null {
@@ -62,6 +64,12 @@ function getCached<T>(key: string): T | null {
   return entry.value as T;
 }
 
+function getStaleCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  return entry.value as T;
+}
+
 function setCached<T>(key: string, value: T): T {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
   return value;
@@ -70,22 +78,31 @@ function setCached<T>(key: string, value: T): T {
 async function discordGet<T>(pathname: string, cacheKey: string): Promise<T | null> {
   const cached = getCached<T | null>(cacheKey);
   if (cached !== null) return cached;
+  const staleCached = getStaleCached<T | null>(cacheKey);
 
   const token = getToken();
-  if (!token) return setCached(cacheKey, null);
+  if (!token) return staleCached ?? setCached(cacheKey, null);
 
-  const response = await fetch(`${DISCORD_API_BASE}${pathname}`, {
-    headers: {
-      Authorization: `Bot ${token}`,
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${DISCORD_API_BASE}${pathname}`, {
+      headers: {
+        Authorization: `Bot ${token}`,
+      },
+      cache: "no-store",
+    });
+  } catch {
+    if (staleCached !== null) return staleCached;
+    throw new Error(`Discord API request failed on ${pathname}`);
+  }
 
   if (response.status === 401 || response.status === 403 || response.status === 404) {
     return setCached(cacheKey, null);
   }
 
   if (!response.ok) {
+    if (staleCached !== null) return staleCached;
     throw new Error(`Discord API ${response.status} on ${pathname}`);
   }
 
@@ -196,6 +213,39 @@ export async function hydrateChannelEntries(guildID: string, fallbackChannels: C
   }
 }
 
+export async function hydrateChannelValues<T extends { channelID: string }>(
+  guildID: string,
+  rows: T[],
+): Promise<Array<T & { channelName: string }>> {
+  if (rows.length === 0) return [];
+
+  const channelIDs = [...new Set(rows.map((row) => row.channelID))];
+  const fallbackMetas = await ChannelMeta.findAll({
+    attributes: ["channelID", "name"],
+    where: {
+      guildID,
+      channelID: { [Op.in]: channelIDs },
+    },
+  });
+
+  const fallbackNames = new Map(fallbackMetas.map((meta) => [meta.channelID, meta.name]));
+
+  try {
+    const channels = await fetchGuildChannels(guildID);
+    const channelNames = new Map(channels?.map((channel) => [channel.id, channel.name]) ?? []);
+
+    return rows.map((row) => ({
+      ...row,
+      channelName: channelNames.get(row.channelID) ?? fallbackNames.get(row.channelID) ?? row.channelID,
+    }));
+  } catch {
+    return rows.map((row) => ({
+      ...row,
+      channelName: fallbackNames.get(row.channelID) ?? row.channelID,
+    }));
+  }
+}
+
 export async function getCurrentUserMeta(guildID: string, userID: string): Promise<UserMeta | null> {
   try {
     const member = await fetchGuildMember(guildID, userID);
@@ -209,7 +259,11 @@ export async function getCurrentUserMeta(guildID: string, userID: string): Promi
         avatarURL: memberAvatarURL(guildID, userID, member?.avatar) || userAvatarURL(userID, memberUser.avatar),
       };
     }
+  } catch {
+    // Fall through to the global user endpoint when guild member hydration fails transiently.
+  }
 
+  try {
     const user = await fetchUser(userID);
     if (!user) return null;
 

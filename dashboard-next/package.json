@@ -5,18 +5,18 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "15.3.0",
+    "nanoid": "^5.1.7",
+    "next": "^16.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sequelize": "^6.37.8",
-    "sqlite3": "^5.1.7",
-    "nanoid": "^5.1.7",
+    "react-window": "^1.8.11",
     "recharts": "^3.8.1",
-    "react-window": "^1.8.11"
+    "sequelize": "^6.37.8",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

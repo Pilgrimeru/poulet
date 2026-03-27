@@ -125,6 +125,7 @@
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  user-select: text;
 }
 
 .versionContent {
@@ -133,6 +134,7 @@
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
+  user-select: text;
 }
 
 .deletedContent {

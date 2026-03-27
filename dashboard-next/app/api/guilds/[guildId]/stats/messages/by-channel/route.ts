@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hydrateChannelValues } from "@/services/discordMetaService";
 import { getMessageStatsByChannel } from "@/services/statsService";
 
 export async function GET(req: Request, { params }: { params: Promise<{ guildId: string }> }) {
@@ -7,7 +8,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ guildId:
     const url = new URL(req.url);
     const startDate = Number(url.searchParams.get("startDate"));
     const endDate = Number(url.searchParams.get("endDate"));
-    return NextResponse.json(await getMessageStatsByChannel(guildId, startDate, endDate));
+    const rows = await getMessageStatsByChannel(guildId, startDate, endDate);
+    return NextResponse.json(await hydrateChannelValues(guildId, rows));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

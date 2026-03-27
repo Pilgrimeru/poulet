@@ -11,6 +11,12 @@ export async function getJson<T>(path: string): Promise<T> {
 
   const request = fetch(url)
     .then(async (res) => {
+      if (res.status === 401 && typeof window !== "undefined") {
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        window.location.href = `/login?next=${encodeURIComponent(nextPath)}`;
+        throw new Error(`Unauthorized: ${path}`);
+      }
+
       if (!res.ok) {
         throw new Error(`API error ${res.status}: ${path}`);
       }

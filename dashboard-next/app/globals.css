@@ -61,6 +61,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-size: 15px;
   line-height: 1.5;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+option {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* Scrollbar */

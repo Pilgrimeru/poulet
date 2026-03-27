@@ -39,6 +39,7 @@
   padding: 3px 10px 3px 4px;
   font-size: 13px;
   color: var(--text-secondary);
+  user-select: text;
 }
 
 .guildBadgeIcon {
@@ -158,6 +159,58 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.pieCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.pieLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.pieLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.pieLegendItem:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.pieLegendItemHidden {
+  opacity: 0.45;
+}
+
+.pieLegendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.pieLegendLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .precisionToggle {
@@ -309,6 +362,24 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  table-layout: fixed;
+}
+
+.tableShell {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.tableScroll {
+  max-height: 386px;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.tableScroll:hover {
+  overflow-y: auto;
 }
 
 .table th {
@@ -320,10 +391,33 @@
   padding: 4px 8px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
 }
 
-.thRank { width: 36px; text-align: center !important; }
-.thValue { text-align: right !important; width: 100px; }
+.tableScroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.tableScroll:hover::-webkit-scrollbar {
+  width: 10px;
+}
+
+.tableScroll:hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tableScroll:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid var(--bg-secondary);
+}
+
+.tableScroll:hover::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-primary) 55%, transparent);
+}
+
+.thRank { width: 28px; text-align: center !important; padding-left: 6px !important; padding-right: 6px !important; }
+.thValue { text-align: right !important; width: 116px; padding-right: 16px !important; }
 
 .tr {
   border-bottom: 1px solid var(--border-subtle);
@@ -339,11 +433,13 @@
 }
 
 .tdRank {
-  padding: 7px 8px;
+  width: 28px;
+  padding: 7px 6px;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+  white-space: nowrap;
 }
 
 .tdUser {
@@ -386,12 +482,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  user-select: text;
 }
 
 .tdValue {
-  padding: 7px 8px;
+  padding: 7px 16px 7px 8px;
   color: var(--accent);
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
+  user-select: text;
 }

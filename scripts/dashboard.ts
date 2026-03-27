@@ -1,9 +1,12 @@
 import { spawn } from "child_process";
 import { existsSync } from "fs";
 import { resolve } from "path";
+import { config as dotenvConfig } from "dotenv";
 
 const root = resolve(__dirname, "..");
 const dashboardRoot = resolve(root, "dashboard-next");
+
+dotenvConfig({ path: resolve(root, "config.env"), quiet: true });
 
 function ensureDashboardDeps() {
   const nextBin = resolve(dashboardRoot, "node_modules", ".bin", "next");
@@ -36,12 +39,14 @@ function startProcesses() {
     cwd: root,
     stdio: "inherit",
     shell: true,
+    env: process.env,
   });
 
   const dashboard = spawn("bun", ["run", "dev"], {
     cwd: dashboardRoot,
     stdio: "inherit",
     shell: true,
+    env: process.env,
   });
 
   function cleanup() {
