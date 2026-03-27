@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hydrateChannelEntries } from "@/services/discordMetaService";
 import { getDistinctChannels } from "@/services/messageSnapshotService";
 
 export async function GET(
@@ -7,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { guildId } = await params;
-    return NextResponse.json(await getDistinctChannels(guildId));
+    const channels = await getDistinctChannels(guildId);
+    return NextResponse.json(await hydrateChannelEntries(guildId, channels));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

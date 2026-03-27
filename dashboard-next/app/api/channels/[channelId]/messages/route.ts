@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hydrateMessagesWithCurrentAuthors } from "@/services/discordMetaService";
 import { getChannelMessages } from "@/services/messageSnapshotService";
 
 export async function GET(
@@ -31,7 +32,7 @@ export async function GET(
         onlyDeleted: onlyDeleted === "true",
       },
     );
-    return NextResponse.json(messages);
+    return NextResponse.json(await hydrateMessagesWithCurrentAuthors(guildId, messages));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
