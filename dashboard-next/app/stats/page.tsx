@@ -211,7 +211,16 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
 }
 
 function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatValue: (v: number) => string }>) {
-  const [hoveredID, setHoveredID] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ userID: string; x: number; y: number } | null>(null);
+
+  function openTooltip(target: HTMLElement, userID: string) {
+    const rect = target.getBoundingClientRect();
+    setTooltip({
+      userID,
+      x: rect.left,
+      y: rect.bottom + 6,
+    });
+  }
 
   if (rows.length === 0) return <Empty />;
   return (
@@ -236,18 +245,13 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
                   <td className={styles.tdUser}>
                     <div className={styles.userCell}>
                       {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
-                      <button
-                        type="button"
+                      <span
                         className={styles.userName}
-                        onMouseEnter={() => setHoveredID(r.userID)}
-                        onMouseLeave={() => setHoveredID(null)}
-                        aria-label={`User: ${name}`}
+                        onMouseEnter={(e) => openTooltip(e.currentTarget, r.userID)}
+                        onMouseLeave={() => setTooltip(null)}
                       >
                         <span className={styles.userNameText}>{name}</span>
-                        {hoveredID === r.userID && (
-                          <span className={`${styles.userIDTooltip} ${i < 2 ? styles.userIDTooltipBelow : ""}`}>{r.userID}</span>
-                        )}
-                      </button>
+                      </span>
                     </div>
                   </td>
                   <td className={styles.tdValue}>{formatValue(r.value)}</td>
@@ -257,6 +261,11 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
           </tbody>
         </table>
       </div>
+      {tooltip && (
+        <span className={`${styles.userIDTooltip} ${styles.userIDTooltipFloating}`} style={{ left: tooltip.x, top: tooltip.y }}>
+          {tooltip.userID}
+        </span>
+      )}
     </div>
   );
 }
