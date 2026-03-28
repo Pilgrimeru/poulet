@@ -269,7 +269,7 @@
 
 /* ── Channel pill select ── */
 .channelSelect {
-  composes: select;
+  color-scheme: select;
   min-width: 220px;
 }
 

@@ -18,7 +18,7 @@ import {
   type HourlyValue,
   type UserValue,
 } from "@/lib/api-stats";
-import type { ChannelEntry, GuildEntry } from "@/types";
+import type { ChannelEntry } from "@/types";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -98,11 +98,11 @@ function fmtDatetime(dt: string): string {
   return `${d}/${m} ${hourPart}h`;
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
   return <h2 className={styles.sectionTitle}>{children}</h2>;
 }
 
-function Card({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
+function Card({ children, wide }: Readonly<{ children: React.ReactNode; wide?: boolean }>) {
   return <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>{children}</div>;
 }
 
@@ -137,7 +137,7 @@ function StatsSkeleton() {
   );
 }
 
-function PrecisionToggle({ value, onChange, disableHourTimeline }: { value: Precision; onChange: (v: Precision) => void; disableHourTimeline?: boolean }) {
+function PrecisionToggle({ value, onChange, disableHourTimeline }: Readonly<{ value: Precision; onChange: (v: Precision) => void; disableHourTimeline?: boolean }>) {
   return (
     <div className={styles.precisionToggle}>
       <button className={`${styles.precisionBtn} ${value === "day" ? styles.precisionBtnActive : ""}`} onClick={() => onChange("day")}>Jour</button>
@@ -147,7 +147,7 @@ function PrecisionToggle({ value, onChange, disableHourTimeline }: { value: Prec
   );
 }
 
-function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradientId, label, formatValue }: { byDay: DailyValue[]; byHour: HourlyValue[]; byHourTimeline: HourlyTimelineValue[]; precision: Precision; color: string; gradientId: string; label: string; formatValue?: (v: number) => string }) {
+function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradientId, label, formatValue }: Readonly<{ byDay: DailyValue[]; byHour: HourlyValue[]; byHourTimeline: HourlyTimelineValue[]; precision: Precision; color: string; gradientId: string; label: string; formatValue?: (v: number) => string }>) {
   const tooltipStyle = { background: "#2b2d31", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#dcdee1" };
   const tooltipFmt = formatValue ? (v: unknown) => [formatValue(v as number), label] as [string, string] : undefined;
 
@@ -210,7 +210,7 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
   );
 }
 
-function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: number) => string }) {
+function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatValue: (v: number) => string }>) {
   const [hoveredID, setHoveredID] = useState<string | null>(null);
 
   if (rows.length === 0) return <Empty />;
@@ -236,16 +236,18 @@ function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: 
                   <td className={styles.tdUser}>
                     <div className={styles.userCell}>
                       {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
-                      <span
+                      <button
+                        type="button"
                         className={styles.userName}
                         onMouseEnter={() => setHoveredID(r.userID)}
                         onMouseLeave={() => setHoveredID(null)}
+                        aria-label={`User: ${name}`}
                       >
                         <span className={styles.userNameText}>{name}</span>
                         {hoveredID === r.userID && (
                           <span className={`${styles.userIDTooltip} ${i < 2 ? styles.userIDTooltipBelow : ""}`}>{r.userID}</span>
                         )}
-                      </span>
+                      </button>
                     </div>
                   </td>
                   <td className={styles.tdValue}>{formatValue(r.value)}</td>
@@ -259,7 +261,7 @@ function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: 
   );
 }
 
-function ChannelPie({ data, formatValue = (v) => `${v}` }: { data: { name: string; value: number }[]; formatValue?: (v: number) => string }) {
+function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { name: string; value: number }[]; formatValue?: (v: number) => string }>) {
   const [hiddenNames, setHiddenNames] = useState<Set<string>>(new Set());
 
   if (data.length === 0) return <Empty />;
@@ -352,7 +354,6 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: { data: { name: strin
 
 function StatsPageContent() {
   const searchParams = useSearchParams();
-  const [guilds, setGuilds] = useState<GuildEntry[]>([]);
   const [selectedGuildID, setSelectedGuildID] = useState<string | null>(null);
   const [channels, setChannels] = useState<ChannelEntry[]>([]);
   const [presetIdx, setPresetIdx] = useState(0);
@@ -381,7 +382,6 @@ function StatsPageContent() {
 
   useEffect(() => {
     fetchGuilds().then((gs) => {
-      setGuilds(gs);
       if (guildFromQuery && gs.some((guild) => guild.guildID === guildFromQuery)) {
         setSelectedGuildID(guildFromQuery);
       } else if (gs.length > 0) {
@@ -453,7 +453,6 @@ function StatsPageContent() {
 
   const msgPieData = stats.msgByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
   const voicePieData = stats.voiceByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
-  const selectedGuild = guilds.find((g) => g.guildID === selectedGuildID);
   const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
   const refreshDisabled = loadingStats || isRefreshing;
 
