@@ -65,7 +65,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 32px 40px;
-  animation: fadeIn var(--transition-normal);
+  animation: fadeIn var(--transition-slow) both;
 }
 
 .sectionHeader {
@@ -142,9 +142,10 @@
 .toggle {
   position: relative;
   display: inline-block;
-  width: 44px;
-  height: 24px;
+  width: 52px;
+  height: 28px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .toggle input {
@@ -157,31 +158,88 @@
 .toggleTrack {
   position: absolute;
   inset: 0;
-  background: var(--bg-hover);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 5%, transparent), transparent),
+    var(--bg-hover);
   border-radius: var(--radius-full);
   border: 1px solid var(--border-strong);
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 220ms ease;
+}
+
+.toggleTrack::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%);
+  opacity: 0;
+  transition: opacity 220ms ease;
 }
 
 .toggle input:checked + .toggleTrack {
-  background: var(--accent);
-  border-color: var(--accent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 8%, transparent), transparent),
+    color-mix(in srgb, var(--accent) 72%, #0f1720);
+  border-color: color-mix(in srgb, var(--accent) 72%, #ffffff 8%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.toggle input:checked + .toggleTrack::after {
+  opacity: 1;
 }
 
 .toggleThumb {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 16px;
-  height: 16px;
-  background: white;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, #e9eefb 100%);
   border-radius: 50%;
-  transition: transform var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.9, 0.22, 1.18),
+    box-shadow 220ms ease,
+    background 220ms ease;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset;
+  will-change: transform;
 }
 
 .toggle input:checked ~ .toggleThumb {
-  transform: translateX(20px);
+  transform: translateX(24px);
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7ff 100%);
+  box-shadow:
+    0 4px 10px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset;
+}
+
+.toggle:hover .toggleThumb {
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    0 1px 1px rgba(255, 255, 255, 0.45) inset;
+}
+
+.toggle:active .toggleThumb {
+  transform: scaleX(1.08) scaleY(0.92);
+}
+
+.toggle input:checked ~ .toggleThumb,
+.toggle:active input:checked ~ .toggleThumb {
+  transform: translateX(24px);
+}
+
+.toggle:active input:checked ~ .toggleThumb {
+  transform: translateX(24px) scaleX(1.08) scaleY(0.92);
+}
+
+.toggle input:focus-visible + .toggleTrack {
+  outline: 2px solid color-mix(in srgb, var(--accent) 56%, #ffffff);
+  outline-offset: 3px;
 }
 
 /* ── Select ── */
@@ -227,11 +285,18 @@
   width: 100px;
   text-align: right;
   transition: border-color var(--transition-fast);
+  appearance: textfield;
 }
 
 .numberInput:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.numberInput::-webkit-outer-spin-button,
+.numberInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* ── Spam rules ── */
@@ -279,17 +344,33 @@
   width: 14px;
   height: 14px;
   color: var(--text-muted);
-  transition: transform var(--transition-fast);
+  transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1), color var(--transition-fast);
   flex-shrink: 0;
 }
 
 .ruleChevron.open {
   transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.ruleBodyWrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  border-top: 0px solid var(--border-subtle);
+}
+
+.ruleBodyWrapperOpen {
+  grid-template-rows: 1fr;
+  border-top-width: 1px;
+}
+
+.ruleBodyInner {
+  overflow: hidden;
 }
 
 .ruleBody {
   padding: 0 20px 16px;
-  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -314,16 +395,22 @@
   font-family: inherit;
   padding: 8px 16px;
   cursor: pointer;
-  transition: background var(--transition-fast), opacity var(--transition-fast);
+  transition: background var(--transition-fast), opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .btnPrimary:hover {
   background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btnPrimary:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .btnPrimary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btnDanger {
@@ -336,11 +423,15 @@
   font-family: inherit;
   padding: 8px 16px;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .btnDanger:hover {
   background: var(--deleted-bg);
+}
+
+.btnDanger:active {
+  transform: scale(0.97);
 }
 
 .btnSecondary {
@@ -395,7 +486,7 @@
   border-radius: var(--radius-lg);
   padding: 12px 20px;
   box-shadow: var(--shadow-lg);
-  animation: slideUp var(--transition-normal);
+  animation: slideUp 280ms cubic-bezier(0.34, 1.2, 0.64, 1) both;
   z-index: 100;
 }
 

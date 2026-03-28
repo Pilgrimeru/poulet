@@ -161,7 +161,7 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
           <XAxis dataKey="date" tick={{ fill: "#80848e", fontSize: 11 }} />
           <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
           <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#b5bac1" }} formatter={tooltipFmt} />
-          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} />
+          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} isAnimationActive animationDuration={600} animationEasing="ease-out" />
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -177,7 +177,7 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
           <XAxis dataKey="datetime" tick={{ fill: "#80848e", fontSize: 10 }} interval="preserveStartEnd" />
           <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
           <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#b5bac1" }} formatter={tooltipFmt} />
-          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId}Ht)`} strokeWidth={2} dot={false} />
+          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId}Ht)`} strokeWidth={2} dot={false} isAnimationActive animationDuration={600} animationEasing="ease-out" />
         </AreaChart>
       </ResponsiveContainer>
     );
@@ -190,14 +190,29 @@ function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradi
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
         <XAxis dataKey="hour" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
         <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
-        <Tooltip contentStyle={tooltipStyle} formatter={tooltipFmt} />
-        <Bar dataKey="value" name={label} fill={color} radius={[3, 3, 0, 0]} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          formatter={tooltipFmt}
+          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+        />
+        <Bar
+          dataKey="value"
+          name={label}
+          fill={color}
+          activeBar={{ fill: color, fillOpacity: 0.9, stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
+          radius={[3, 3, 0, 0]}
+          isAnimationActive
+          animationDuration={500}
+          animationEasing="ease-out"
+        />
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
 function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: number) => string }) {
+  const [hoveredID, setHoveredID] = useState<string | null>(null);
+
   if (rows.length === 0) return <Empty />;
   return (
     <div className={styles.tableShell}>
@@ -221,7 +236,16 @@ function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: 
                   <td className={styles.tdUser}>
                     <div className={styles.userCell}>
                       {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
-                      <span className={styles.userName} title={r.userID}>{name}</span>
+                      <span
+                        className={styles.userName}
+                        onMouseEnter={() => setHoveredID(r.userID)}
+                        onMouseLeave={() => setHoveredID(null)}
+                      >
+                        <span className={styles.userNameText}>{name}</span>
+                        {hoveredID === r.userID && (
+                          <span className={`${styles.userIDTooltip} ${i < 2 ? styles.userIDTooltipBelow : ""}`}>{r.userID}</span>
+                        )}
+                      </span>
                     </div>
                   </td>
                   <td className={styles.tdValue}>{formatValue(r.value)}</td>
@@ -235,7 +259,7 @@ function UserTable({ rows, formatValue }: { rows: UserValue[]; formatValue: (v: 
   );
 }
 
-function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
+function ChannelPie({ data, formatValue = (v) => `${v}` }: { data: { name: string; value: number }[]; formatValue?: (v: number) => string }) {
   const [hiddenNames, setHiddenNames] = useState<Set<string>>(new Set());
 
   if (data.length === 0) return <Empty />;
@@ -256,6 +280,8 @@ function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
     });
   }
 
+  const total = visible.reduce((sum, entry) => sum + entry.value, 0);
+
   return (
     <div className={styles.pieCard}>
       <ResponsiveContainer width="100%" height={320}>
@@ -270,12 +296,33 @@ function ChannelPie({ data }: { data: { name: string; value: number }[] }) {
             innerRadius={54}
             outerRadius={118}
             paddingAngle={2}
-            isAnimationActive={false}
+            isAnimationActive
+            animationDuration={500}
+            animationEasing="ease-out"
           />
           <Tooltip
-            formatter={(value, name) => [typeof value === "number" ? value : 0, String(name ?? "")]}
-            contentStyle={{ background: "#2b2d31", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#dcdee1" }}
-            labelStyle={{ color: "#b5bac1" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const item = payload[0]?.payload as { name: string; value: number } | undefined;
+              if (!item) return null;
+              const percentage = total > 0 ? (item.value / total) * 100 : 0;
+              return (
+                <div
+                  style={{
+                    background: "#2b2d31",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    color: "#dcdee1",
+                    padding: "10px 12px",
+                    boxShadow: "0 10px 26px rgba(0,0,0,0.22)",
+                  }}
+                >
+                  <div style={{ color: "#f2f3f5", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{item.name}</div>
+                  <div style={{ color: "#b5bac1", fontSize: 12 }}>{formatValue(item.value)}</div>
+                  <div style={{ color: "#b5bac1", fontSize: 12 }}>{percentage.toFixed(1)}%</div>
+                </div>
+              );
+            }}
           />
         </PieChart>
       </ResponsiveContainer>
@@ -441,7 +488,7 @@ function StatsPageContent() {
           </Card>
         </div>
         <div className={styles.row}>
-          <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} /></Card>
+          <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} formatValue={(v) => `${v}`} /></Card>
           <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
         </div>
 
@@ -456,7 +503,7 @@ function StatsPageContent() {
           </Card>
         </div>
         <div className={styles.row}>
-          <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} /></Card>
+          <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} formatValue={fmtSecs} /></Card>
           <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
         </div>
       </div>

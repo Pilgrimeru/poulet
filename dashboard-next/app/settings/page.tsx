@@ -305,8 +305,8 @@ function SpamRuleCard({
         </svg>
       </div>
 
-      {open && (
-        <>
+      <div className={`${styles.ruleBodyWrapper} ${open ? styles.ruleBodyWrapperOpen : ""}`}>
+        <div className={styles.ruleBodyInner}>
           <div className={styles.ruleBody}>
             <SettingRow name="Activé">
               <Toggle checked={rule.enabled} onChange={(v) => onUpdate({ enabled: v })} />
@@ -432,8 +432,8 @@ function SpamRuleCard({
               Supprimer ce filtre
             </button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -670,7 +670,7 @@ function SettingsInner() {
         ))}
       </aside>
 
-      <main className={styles.content}>
+      <main className={styles.content} key={section}>
         {section === "stats" && (
           <StatsSection settings={settings} channels={channels} onPatch={handlePatch} />
         )}

@@ -1,6 +1,8 @@
 .navbar {
   width: 232px;
-  background-color: var(--bg-tertiary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 55%, transparent) 0%, transparent 18%),
+    var(--bg-tertiary);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,7 +21,9 @@
 .guildPicker {
   width: 100%;
   min-height: 56px;
-  background-color: var(--bg-primary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 4%, transparent), transparent),
+    var(--bg-primary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -28,12 +32,12 @@
   gap: 10px;
   padding: 10px 12px;
   position: relative;
-  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
 .guildPicker:hover {
-  border-color: var(--border-strong);
-  background-color: var(--bg-hover);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-subtle));
+  background-color: color-mix(in srgb, var(--bg-hover) 88%, var(--bg-primary));
 }
 
 .guildPickerIcon,
@@ -87,6 +91,12 @@
   color: var(--text-muted);
   margin-left: auto;
   flex-shrink: 0;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.guildPicker:hover .guildPickerChevron {
+  color: var(--text-secondary);
+  transform: translateY(1px);
 }
 
 .guildPickerSelect {
@@ -117,14 +127,22 @@
 
 .profileCard {
   width: 100%;
-  background: var(--bg-primary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 4%, transparent), transparent),
+    var(--bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 10px;
   display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 10px;
+  grid-template-columns: 36px 1fr auto;
+  gap: 8px;
   align-items: center;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.profileCard:hover {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border-subtle));
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
 }
 
 .profileAvatar,
@@ -173,63 +191,96 @@
 }
 
 .logoutBtn {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius-md);
   background: var(--bg-hover);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
 .logoutBtn:hover {
-  background: rgba(237, 66, 69, 0.12);
-  color: #ffb3b8;
+  background: rgba(237, 66, 69, 0.18);
+  color: #f23f42;
+  transform: translateY(-1px);
+}
+
+.logoutIcon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
 }
 
 .navItem {
   width: 100%;
-  height: 48px;
+  height: 44px;
   border-radius: var(--radius-md);
-  background-color: var(--bg-primary);
+  background-color: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
   position: relative;
   text-decoration: none;
   padding: 0 12px;
+  border: 1px solid transparent;
+  isolation: isolate;
+}
+
+.navItem::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 58%);
+  opacity: 0;
+  transition: opacity 160ms ease;
+  z-index: -1;
 }
 
 .navItem:hover {
-  background-color: var(--accent);
-  color: white;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 3%, transparent), transparent),
+    color-mix(in srgb, var(--bg-hover) 82%, var(--bg-primary));
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border-subtle));
+}
+
+.navItem:hover::after {
+  opacity: 1;
 }
 
 .navItem.active {
-  background-color: var(--accent);
-  color: white;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 4%, transparent), transparent),
+    color-mix(in srgb, var(--accent) 10%, var(--bg-tertiary));
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-subtle));
 }
 
 .navItem.active::before {
   content: "";
   position: absolute;
-  left: -12px;
+  left: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 70%;
+  height: 22px;
   width: 4px;
-  background-color: white;
+  background-color: var(--accent);
   border-radius: 0 4px 4px 0;
+}
+
+.navItem.active .icon {
+  color: color-mix(in srgb, var(--accent) 72%, #ffffff);
 }
 
 .icon {
@@ -242,4 +293,15 @@
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guildPicker,
+  .guildPickerChevron,
+  .profileCard,
+  .logoutBtn,
+  .navItem,
+  .navItem::after {
+    transition: none;
+  }
 }

@@ -29,11 +29,6 @@
   border-radius: 50%;
   flex-shrink: 0;
   object-fit: cover;
-  transition: transform var(--transition-fast);
-}
-
-.row:hover .avatar {
-  transform: scale(1.04);
 }
 
 .avatarFallback {
@@ -50,11 +45,6 @@
   color: #fff;
   text-transform: uppercase;
   user-select: none;
-  transition: transform var(--transition-fast);
-}
-
-.row:hover .avatarFallback {
-  transform: scale(1.04);
 }
 
 /* Body */
@@ -75,13 +65,7 @@
   font-weight: 600;
   font-size: 15px;
   color: var(--text-primary);
-  cursor: default;
   user-select: text;
-}
-
-.displayName:hover {
-  text-decoration: underline;
-  cursor: pointer;
 }
 
 .timestamp {
