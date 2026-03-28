@@ -46,6 +46,10 @@ export function Navbar() {
     [guilds, selectedGuildID],
   );
 
+  function withGuild(path: string) {
+    return selectedGuildID ? `${path}?guild=${encodeURIComponent(selectedGuildID)}` : path;
+  }
+
   function onGuildChange(guildID: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("guild", guildID);
@@ -91,7 +95,7 @@ export function Navbar() {
 
       <div className={styles.navItems}>
         <Link
-          href="/"
+          href={withGuild("/")}
           className={`${styles.navItem} ${pathname === "/" ? styles.active : ""}`}
           title="Accueil"
         >
@@ -103,7 +107,7 @@ export function Navbar() {
         </Link>
 
         <Link
-          href="/history"
+          href={withGuild("/history")}
           className={`${styles.navItem} ${pathname === "/history" ? styles.active : ""}`}
           title="Historique des messages"
         >
@@ -114,22 +118,22 @@ export function Navbar() {
         </Link>
 
         <Link
-          href="/stats"
+          href={withGuild("/stats")}
           className={`${styles.navItem} ${pathname === "/stats" ? styles.active : ""}`}
-          title="Statistiques de serveur"
+          title="Activité du serveur"
         >
           <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="20" x2="18" y2="10"></line>
             <line x1="12" y1="20" x2="12" y2="4"></line>
             <line x1="6" y1="20" x2="6" y2="14"></line>
           </svg>
-          <span className={styles.navLabel}>Stats</span>
+          <span className={styles.navLabel}>Activité</span>
         </Link>
       </div>
 
       <div className={styles.bottomItems}>
         <Link
-          href={selectedGuildID ? `/settings?guild=${selectedGuildID}` : "/settings"}
+          href={withGuild("/settings")}
           className={`${styles.navItem} ${pathname === "/settings" ? styles.active : ""}`}
           title="Paramètres du bot"
         >

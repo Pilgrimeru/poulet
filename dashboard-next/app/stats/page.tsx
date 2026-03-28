@@ -514,7 +514,7 @@ function StatsPageContent() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <h1 className={styles.pageTitle}>Statistiques</h1>
+          <h1 className={styles.pageTitle}>Activité</h1>
         </div>
         <div className={styles.controls}>
           <div className={styles.presetButtons}>
