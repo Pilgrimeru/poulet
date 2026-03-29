@@ -1,15 +1,27 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { col, fn, Op } from "sequelize";
+import { DataTypes, col, fn, Op } from "sequelize";
 import { ChannelMeta } from "../models/ChannelMeta";
 import { GuildMeta } from "../models/GuildMeta";
 import { MessageAttachment } from "../models/MessageAttachment";
 import { MessageSnapshot } from "../models/MessageSnapshot";
-import { ATTACHMENTS_PATH } from "../lib/db";
+import { ATTACHMENTS_PATH, sequelize } from "../lib/db";
 
 const ATTACHMENTS_DIR = ATTACHMENTS_PATH;
 const RETENTION_DAYS = Number.parseInt(process.env["MESSAGE_RETENTION_DAYS"] ?? "7", 10);
+
+let schemaReady = false;
+async function ensureColumns(): Promise<void> {
+  if (schemaReady) return;
+  const qi = sequelize.getQueryInterface();
+  const table = await qi.describeTable("MessageSnapshots");
+  const nullText = { type: DataTypes.TEXT, allowNull: true, defaultValue: null };
+  if (!table["referencedMessageID"]) await qi.addColumn("MessageSnapshots", "referencedMessageID", { type: DataTypes.STRING, allowNull: true, defaultValue: null });
+  if (!table["referencedMessageContent"]) await qi.addColumn("MessageSnapshots", "referencedMessageContent", nullText);
+  if (!table["referencedMessageAuthor"]) await qi.addColumn("MessageSnapshots", "referencedMessageAuthor", { type: DataTypes.STRING, allowNull: true, defaultValue: null });
+  schemaReady = true;
+}
 
 export interface AttachmentInput {
   attachmentID: string;
@@ -29,6 +41,9 @@ export interface SaveSnapshotInput {
   authorAvatarURL: string;
   content: string;
   createdAt: number;
+  referencedMessageID?: string | null;
+  referencedMessageContent?: string | null;
+  referencedMessageAuthor?: string | null;
 }
 
 async function downloadAttachment(url: string, dir: string, filename: string): Promise<string> {
@@ -47,6 +62,7 @@ export async function saveSnapshot(
   version?: number,
   isDeleted = false,
 ): Promise<void> {
+  await ensureColumns();
   const resolvedVersion = version ?? await getNextVersion(data.messageID);
   const snapshot = await MessageSnapshot.create({
     ...data,
@@ -99,6 +115,9 @@ export async function markDeleted(messageID: string): Promise<void> {
     snapshotAt: Date.now(),
     isDeleted: true,
     version: latest.version + 1,
+    referencedMessageID: latest.referencedMessageID ?? null,
+    referencedMessageContent: latest.referencedMessageContent ?? null,
+    referencedMessageAuthor: latest.referencedMessageAuthor ?? null,
   } as any);
 
   if (existingAttachments.length > 0) {
@@ -161,6 +180,9 @@ export interface MessageSnapshotDTO {
   isDeleted: boolean;
   version: number;
   attachments: AttachmentDTO[];
+  referencedMessageID: string | null;
+  referencedMessageContent: string | null;
+  referencedMessageAuthor: string | null;
 }
 
 async function toDTO(snapshot: MessageSnapshot): Promise<MessageSnapshotDTO> {
@@ -179,6 +201,9 @@ async function toDTO(snapshot: MessageSnapshot): Promise<MessageSnapshotDTO> {
     snapshotAt: Number(snapshot.snapshotAt),
     isDeleted: snapshot.isDeleted,
     version: snapshot.version,
+    referencedMessageID: snapshot.referencedMessageID ?? null,
+    referencedMessageContent: snapshot.referencedMessageContent ?? null,
+    referencedMessageAuthor: snapshot.referencedMessageAuthor ?? null,
     attachments: attachments.map((a) => ({
       id: a.id,
       snapshotId: a.snapshotId,

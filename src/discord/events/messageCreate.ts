@@ -48,6 +48,10 @@ export default new Event("messageCreate", async (message: Message) => {
       messageID: message.id,
     });
 
+    const referencedMessage = message.reference?.messageId
+      ? await message.fetchReference().catch(() => null)
+      : null;
+
     await messageSnapshotService.saveSnapshot(
       {
         messageID: message.id,
@@ -59,6 +63,9 @@ export default new Event("messageCreate", async (message: Message) => {
         authorAvatarURL: message.author.displayAvatarURL(),
         content: message.content,
         createdAt: message.createdTimestamp,
+        referencedMessageID: referencedMessage?.id ?? null,
+        referencedMessageContent: referencedMessage?.content ?? null,
+        referencedMessageAuthor: referencedMessage?.member?.displayName ?? referencedMessage?.author.displayName ?? null,
       },
       message.attachments.map((a) => ({
         attachmentID: a.id,

@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { MessageUpdateMode } from "../../hooks/useMessages";
 import type { MessageSnapshotDTO } from "../../types";
 import { MessageItem } from "./MessageItem";
@@ -20,6 +20,7 @@ export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHist
   const containerRef = useRef<HTMLDivElement>(null);
   const distanceFromBottomRef = useRef(0);
   const previousLoadedChannelIDRef = useRef<string | null>(null);
+  const [highlightedID, setHighlightedID] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -91,7 +92,19 @@ export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHist
 
       <div className={styles.messages}>
         {ordered.map((m) => (
-          <MessageItem key={m.id} message={m} onShowHistory={onShowHistory} />
+          <MessageItem
+            key={m.id}
+            message={m}
+            onShowHistory={onShowHistory}
+            isHighlighted={highlightedID === m.messageID}
+            onScrollToMessage={(messageID) => {
+              const el = containerRef.current?.querySelector(`[data-message-id="${messageID}"]`);
+              if (!el) return;
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              setHighlightedID(messageID);
+              setTimeout(() => setHighlightedID(null), 2000);
+            }}
+          />
         ))}
       </div>
 

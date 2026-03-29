@@ -15,6 +15,9 @@ export interface MessageSnapshotAttributes {
   snapshotAt: number;
   isDeleted: boolean;
   version: number;
+  referencedMessageID?: string | null;
+  referencedMessageContent?: string | null;
+  referencedMessageAuthor?: string | null;
 }
 
 class MessageSnapshot extends Model<MessageSnapshotAttributes> {
@@ -31,6 +34,9 @@ class MessageSnapshot extends Model<MessageSnapshotAttributes> {
   declare snapshotAt: number;
   declare isDeleted: boolean;
   declare version: number;
+  declare referencedMessageID: string | null;
+  declare referencedMessageContent: string | null;
+  declare referencedMessageAuthor: string | null;
 }
 
 MessageSnapshot.init(
@@ -48,6 +54,9 @@ MessageSnapshot.init(
     snapshotAt: { type: DataTypes.BIGINT, allowNull: false },
     isDeleted: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    referencedMessageID: { type: DataTypes.STRING, allowNull: true, defaultValue: null },
+    referencedMessageContent: { type: DataTypes.TEXT, allowNull: true, defaultValue: null },
+    referencedMessageAuthor: { type: DataTypes.STRING, allowNull: true, defaultValue: null },
   },
   {
     sequelize,

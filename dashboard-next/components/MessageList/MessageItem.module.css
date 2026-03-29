@@ -131,6 +131,57 @@
   letter-spacing: 0.04em;
 }
 
+/* Reply preview */
+.replyPreview {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: none;
+  border: none;
+  border-left: 2px solid var(--text-muted);
+  padding: 2px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 100%;
+  text-align: left;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  overflow: hidden;
+}
+
+.replyPreview:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.replyAuthor {
+  font-weight: 600;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.replyContent {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Highlight on scroll-to */
+.highlighted {
+  animation: highlight 2s ease-out forwards !important;
+}
+
+@keyframes highlight {
+  0%   { background: rgba(88, 101, 242, 0.3); }
+  60%  { background: rgba(88, 101, 242, 0.15); }
+  100% { background: transparent; }
+}
+
 /* Actions area (hover) */
 .actions {
   opacity: 0;

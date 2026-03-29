@@ -23,6 +23,9 @@ export interface MessageSnapshotDTO {
   isDeleted: boolean;
   version: number;
   attachments: AttachmentDTO[];
+  referencedMessageID: string | null;
+  referencedMessageContent: string | null;
+  referencedMessageAuthor: string | null;
 }
 
 export interface GuildEntry {

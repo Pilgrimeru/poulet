@@ -18,6 +18,9 @@ export interface SaveSnapshotInput {
   authorAvatarURL: string;
   content: string;
   createdAt: number;
+  referencedMessageID?: string | null;
+  referencedMessageContent?: string | null;
+  referencedMessageAuthor?: string | null;
 }
 
 export const messageSnapshotService = {
