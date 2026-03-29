@@ -11,3 +11,7 @@ import "./DeafSession";
 import "./SpamFilterRule";
 import "./ChannelRule";
 import "./StatsReportMessageState";
+import "./Warn";
+import "./Sanction";
+import "./FlaggedMessage";
+import "./ModerationReport";

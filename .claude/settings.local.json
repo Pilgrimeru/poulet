@@ -14,7 +14,10 @@
       "Bash(grep -r 'from \"\"\\\\.\\\\./sequelize\"\"' /c/Users/Elliott/Documents/Github/poulet/dashboard-next/models/)",
       "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next/app/api/guilds/[guildId]/stats -type f -name \"route.ts\")",
       "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next -type f -name *history*)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next/hooks -type f -name *.ts)"
+      "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next/hooks -type f -name *.ts)",
+      "Bash(find /c/Users/Elliott/Documents/Github/poulet -name *.prisma -o -name schema.*)",
+      "Bash(ls /c/Users/Elliott/Documents/Github/poulet/dashboard-next/app/api/guilds/[guildId]/)",
+      "Bash(cat /c/Users/Elliott/Documents/Github/poulet/dashboard-next/app/api/guilds/[guildId]/route.ts)"
     ]
   }
 }
