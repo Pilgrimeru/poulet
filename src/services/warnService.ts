@@ -7,15 +7,15 @@ import {
   User,
 } from "discord.js";
 
-export type WarnSeverity = "faible" | "moyen" | "élevé";
+export type WarnSeverity = "LOW" | "MEDIUM" | "HIGH";
 
 const SEVERITY_CONFIG: Record<
   WarnSeverity,
   { color: number; label: string; emoji: string }
 > = {
-  faible: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
-  moyen: { color: 0xe07820, label: "Moyen", emoji: "🟠" },
-  élevé: { color: 0xe03030, label: "Élevé", emoji: "🔴" },
+  LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
+  MEDIUM: { color: 0xe07820, label: "Moyen", emoji: "🟠" },
+  HIGH: { color: 0xe03030, label: "Élevé", emoji: "🔴" },
 };
 
 export interface WarnOptions {

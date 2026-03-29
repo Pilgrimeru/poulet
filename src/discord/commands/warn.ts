@@ -26,9 +26,9 @@ export default class WarnCommand extends Command {
           type: ApplicationCommandOptionType.String,
           required: true,
           choices: [
-            { name: "🟡 Faible", value: "faible" },
-            { name: "🟠 Moyen", value: "moyen" },
-            { name: "🔴 Élevé", value: "élevé" },
+            { name: "🟡 Faible", value: "LOW" },
+            { name: "🟠 Moyen", value: "MEDIUM" },
+            { name: "🔴 Élevé", value: "HIGH" },
           ],
         },
         {
