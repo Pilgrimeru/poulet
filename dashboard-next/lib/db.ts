@@ -1,7 +1,7 @@
 import path from "path";
 import { Sequelize } from "sequelize";
 
-const DB_PATH =
+export const DB_PATH =
   process.env["DATABASE_PATH"] ??
   path.resolve(process.cwd(), "../database/database.sqlite");
 
