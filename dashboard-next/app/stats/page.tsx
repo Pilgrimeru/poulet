@@ -75,6 +75,34 @@ const PRESETS = [
   { label: "90 jours", days: 90 },
 ];
 
+// Forum (15), Media (16), and thread types (11, 12) are grouped under their parent
+const CHILD_TYPES = new Set([11, 12]);
+
+function groupChannelData(channels: ChannelValue[]): { name: string; value: number }[] {
+  const grouped = new Map<string, number>();
+
+  for (const c of channels) {
+    const isChild = (c.channelType != null && CHILD_TYPES.has(c.channelType)) ||
+      (c.parentID != null && c.channelType != null && CHILD_TYPES.has(c.channelType));
+    const parentIsForumOrMedia = c.parentID != null; // threads always have a parent; we group if parent is forum/media type OR if channel is a thread
+    const useParent = isChild && parentIsForumOrMedia && c.parentName;
+
+    const key = useParent ? (c.parentName ?? c.channelName ?? c.channelID) : (c.channelName ?? c.channelID);
+    grouped.set(key, (grouped.get(key) ?? 0) + c.value);
+  }
+
+  const sorted = Array.from(grouped.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  if (sorted.length <= 10) return sorted;
+
+  const top9 = sorted.slice(0, 9);
+  const rest = sorted.slice(9);
+  const othersValue = rest.reduce((sum, e) => sum + e.value, 0);
+  return [...top9, { name: "Autres", value: othersValue }];
+}
+
 function fmtSecs(s: number): string {
   if (s < 60) return `${s}s`;
   if (s < 3600) return `${Math.floor(s / 60)}m`;
@@ -272,14 +300,15 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
 
 function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { name: string; value: number }[]; formatValue?: (v: number) => string }>) {
   const [hiddenNames, setHiddenNames] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<"pie" | "list">("pie");
 
   if (data.length === 0) return <Empty />;
-  const top = data.slice(0, 10);
-  const visible = top
+
+  const visible = data
     .filter((entry) => !hiddenNames.has(entry.name))
     .map((entry) => ({
       ...entry,
-      fill: CHART_COLORS[top.findIndex((candidate) => candidate.name === entry.name) % CHART_COLORS.length],
+      fill: CHART_COLORS[data.findIndex((candidate) => candidate.name === entry.name) % CHART_COLORS.length],
     }));
 
   function toggleName(name: string) {
@@ -295,68 +324,109 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
 
   return (
     <div className={styles.pieCard}>
-      <ResponsiveContainer width="100%" height={320}>
-        <PieChart>
-          <Pie
-            data={visible}
-            dataKey="value"
-            nameKey="name"
-            fill="#5865f2"
-            cx="50%"
-            cy="50%"
-            innerRadius={54}
-            outerRadius={118}
-            paddingAngle={2}
-            isAnimationActive
-            animationDuration={500}
-            animationEasing="ease-out"
-          />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const item = payload[0]?.payload as { name: string; value: number } | undefined;
-              if (!item) return null;
-              const percentage = total > 0 ? (item.value / total) * 100 : 0;
-              return (
-                <div
-                  style={{
-                    background: "#2b2d31",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 8,
-                    color: "#dcdee1",
-                    padding: "10px 12px",
-                    boxShadow: "0 10px 26px rgba(0,0,0,0.22)",
-                  }}
-                >
-                  <div style={{ color: "#f2f3f5", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{item.name}</div>
-                  <div style={{ color: "#b5bac1", fontSize: 12 }}>{formatValue(item.value)}</div>
-                  <div style={{ color: "#b5bac1", fontSize: 12 }}>{percentage.toFixed(1)}%</div>
-                </div>
-              );
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className={styles.pieLegend}>
-        {top.map((entry, index) => {
-          const hidden = hiddenNames.has(entry.name);
-          return (
-            <button
-              key={entry.name}
-              type="button"
-              className={`${styles.pieLegendItem} ${hidden ? styles.pieLegendItemHidden : ""}`}
-              onClick={() => toggleName(entry.name)}
-              title={hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`}
-            >
-              <span
-                className={styles.pieLegendSwatch}
-                style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-              />
-              <span className={styles.pieLegendLabel}>{entry.name}</span>
-            </button>
-          );
-        })}
+      <div className={styles.pieViewToggle}>
+        <button type="button" className={`${styles.precisionBtn} ${mode === "pie" ? styles.precisionBtnActive : ""}`} onClick={() => setMode("pie")}>
+          Donut
+        </button>
+        <button type="button" className={`${styles.precisionBtn} ${mode === "list" ? styles.precisionBtnActive : ""}`} onClick={() => setMode("list")}>
+          Liste
+        </button>
       </div>
+
+      {mode === "pie" ? (
+        <>
+          <ResponsiveContainer width="100%" height={320}>
+            <PieChart>
+              <Pie
+                data={visible}
+                dataKey="value"
+                nameKey="name"
+                fill="#5865f2"
+                cx="50%"
+                cy="50%"
+                innerRadius={54}
+                outerRadius={118}
+                paddingAngle={2}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const item = payload[0]?.payload as { name: string; value: number } | undefined;
+                  if (!item) return null;
+                  const percentage = total > 0 ? (item.value / total) * 100 : 0;
+                  return (
+                    <div
+                      style={{
+                        background: "#2b2d31",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 8,
+                        color: "#dcdee1",
+                        padding: "10px 12px",
+                        boxShadow: "0 10px 26px rgba(0,0,0,0.22)",
+                      }}
+                    >
+                      <div style={{ color: "#f2f3f5", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{item.name}</div>
+                      <div style={{ color: "#b5bac1", fontSize: 12 }}>{formatValue(item.value)}</div>
+                      <div style={{ color: "#b5bac1", fontSize: 12 }}>{percentage.toFixed(1)}%</div>
+                    </div>
+                  );
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className={styles.pieLegend}>
+            {data.map((entry, index) => {
+              const hidden = hiddenNames.has(entry.name);
+              return (
+                <button
+                  key={entry.name}
+                  type="button"
+                  className={`${styles.pieLegendItem} ${hidden ? styles.pieLegendItemHidden : ""}`}
+                  onClick={() => toggleName(entry.name)}
+                  title={hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`}
+                >
+                  <span
+                    className={styles.pieLegendSwatch}
+                    style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                  />
+                  <span className={styles.pieLegendLabel}>{entry.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div className={styles.tableShell}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.thRank}>#</th>
+                <th>Salon</th>
+                <th className={styles.thValue}>Valeur</th>
+              </tr>
+            </thead>
+          </table>
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <tbody>
+                {data.map((entry, index) => (
+                  <tr key={entry.name} className={styles.tr}>
+                    <td className={styles.tdRank}>{index + 1}</td>
+                    <td className={styles.tdChannel}>
+                      <span className={styles.channelSwatch} style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                      <span className={styles.channelName}>{entry.name}</span>
+                    </td>
+                    <td className={styles.tdValue}>{formatValue(entry.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -460,8 +530,12 @@ function StatsPageContent() {
       });
   }, [selectedGuildID, start, end, refreshKey]);
 
-  const msgPieData = stats.msgByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
-  const voicePieData = stats.voiceByChannel.map((c) => ({ name: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID, value: c.value }));
+  const msgPieData = useMemo(() => groupChannelData(
+    stats.msgByChannel.map((c) => ({ ...c, channelName: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID }))
+  ), [stats.msgByChannel, channelNames]);
+  const voicePieData = useMemo(() => groupChannelData(
+    stats.voiceByChannel.map((c) => ({ ...c, channelName: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID }))
+  ), [stats.voiceByChannel, channelNames]);
   const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
   const refreshDisabled = loadingStats || isRefreshing;
 
@@ -496,7 +570,10 @@ function StatsPageContent() {
           </Card>
         </div>
         <div className={styles.row}>
-          <Card><p className={styles.cardTitle}>Salons les plus actifs</p><ChannelPie data={msgPieData} formatValue={(v) => `${v}`} /></Card>
+          <Card>
+            <div className={styles.cardHeader}><span className={styles.cardTitle}>Salons les plus actifs</span></div>
+            <ChannelPie data={msgPieData} formatValue={(v) => `${v}`} />
+          </Card>
           <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
         </div>
 
@@ -511,7 +588,10 @@ function StatsPageContent() {
           </Card>
         </div>
         <div className={styles.row}>
-          <Card><p className={styles.cardTitle}>Salons vocaux les plus utilisés</p><ChannelPie data={voicePieData} formatValue={fmtSecs} /></Card>
+          <Card>
+            <div className={styles.cardHeader}><span className={styles.cardTitle}>Salons vocaux les plus utilisés</span></div>
+            <ChannelPie data={voicePieData} formatValue={fmtSecs} />
+          </Card>
           <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
         </div>
       </div>

@@ -216,33 +216,48 @@ export async function hydrateChannelEntries(guildID: string, fallbackChannels: C
 export async function hydrateChannelValues<T extends { channelID: string }>(
   guildID: string,
   rows: T[],
-): Promise<Array<T & { channelName: string }>> {
+): Promise<Array<T & { channelName: string; parentID: string | null; parentName: string | null; channelType: number | null }>> {
   if (rows.length === 0) return [];
 
   const channelIDs = [...new Set(rows.map((row) => row.channelID))];
   const fallbackMetas = await ChannelMeta.findAll({
-    attributes: ["channelID", "name"],
+    attributes: ["channelID", "name", "parentID", "parentName", "channelType"],
     where: {
       guildID,
       channelID: { [Op.in]: channelIDs },
     },
   });
 
-  const fallbackNames = new Map(fallbackMetas.map((meta) => [meta.channelID, meta.name]));
+  const fallbackMap = new Map(fallbackMetas.map((meta) => [meta.channelID, meta]));
 
   try {
     const channels = await fetchGuildChannels(guildID);
-    const channelNames = new Map(channels?.map((channel) => [channel.id, channel.name]) ?? []);
+    const channelMap = new Map(channels?.map((channel) => [channel.id, channel]) ?? []);
 
-    return rows.map((row) => ({
-      ...row,
-      channelName: channelNames.get(row.channelID) ?? fallbackNames.get(row.channelID) ?? row.channelID,
-    }));
+    return rows.map((row) => {
+      const channel = channelMap.get(row.channelID);
+      const fallback = fallbackMap.get(row.channelID);
+      const parentID = channel?.parent_id ?? fallback?.parentID ?? null;
+      const parentName = (parentID ? channelMap.get(parentID)?.name : null) ?? fallback?.parentName ?? null;
+      return {
+        ...row,
+        channelName: channel?.name ?? fallback?.name ?? row.channelID,
+        parentID,
+        parentName,
+        channelType: channel?.type ?? fallback?.channelType ?? null,
+      };
+    });
   } catch {
-    return rows.map((row) => ({
-      ...row,
-      channelName: fallbackNames.get(row.channelID) ?? row.channelID,
-    }));
+    return rows.map((row) => {
+      const fallback = fallbackMap.get(row.channelID);
+      return {
+        ...row,
+        channelName: fallback?.name ?? row.channelID,
+        parentID: fallback?.parentID ?? null,
+        parentName: fallback?.parentName ?? null,
+        channelType: fallback?.channelType ?? null,
+      };
+    });
   }
 }
 

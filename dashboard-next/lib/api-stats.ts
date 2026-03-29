@@ -3,7 +3,7 @@ import { getJson } from "./http";
 export interface DailyValue { date: string; value: number; }
 export interface HourlyValue { hour: number; value: number; }
 export interface HourlyTimelineValue { datetime: string; value: number; }
-export interface ChannelValue { channelID: string; value: number; channelName?: string; }
+export interface ChannelValue { channelID: string; value: number; channelName?: string; parentID?: string | null; parentName?: string | null; channelType?: number | null; }
 export interface UserValue {
   userID: string;
   value: number;
