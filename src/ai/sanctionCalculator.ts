@@ -6,10 +6,7 @@ export interface SanctionComputation {
   durationMs: number;
   sanctionType: SanctionType;
   severity: SanctionSeverity;
-  requiresBanConfirmation: boolean;
 }
-
-const SEVERITY_ORDER: SanctionSeverity[] = ["LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"];
 
 const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
   LOW: 5 * 60 * 1000,
@@ -18,51 +15,39 @@ const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
   UNFORGIVABLE: 7 * 24 * 60 * 60 * 1000,
 };
 
+const PENDING_BAN_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+
 function severityToWarnType(severity: SanctionSeverity): SanctionType {
   if (severity === "LOW") return "WARN_LOW";
   if (severity === "MEDIUM") return "WARN_MEDIUM";
   return "WARN_HIGH";
 }
 
-export function escalateSeverity(
-  severity: SanctionSeverity,
-  similarPriorLevel: 0 | 1 | 2 | 3,
-): SanctionSeverity {
-  const currentIndex = SEVERITY_ORDER.indexOf(severity);
-  const nextIndex = Math.min(SEVERITY_ORDER.length - 1, currentIndex + similarPriorLevel);
-  return SEVERITY_ORDER[nextIndex];
-}
-
 /**
- * Compute a sanction given severity, multiplier, and prior recidivism level.
- * UNFORGIVABLE always results in MUTE (7 days) + BAN_PENDING (caller must create both).
- * For other severities, if multiplier <= 1 (no prior active sanctions), a warn is issued.
- * Otherwise a mute is applied with multiplied duration.
+ * Compute a sanction from the IA decision.
+ * The IA decides WARN vs MUTE vs BAN_PENDING.
+ * The duration of a mute is computed algorithmically.
+ * BAN_PENDING is a single sanction that implicitly applies a 7-day timeout while waiting for human review.
  */
 export function computeSanction(
   severity: SanctionSeverity,
+  sanctionKind: "WARN" | "MUTE" | "BAN_PENDING",
   multiplier: number,
-  similarPriorLevel: 0 | 1 | 2 | 3,
 ): SanctionComputation {
-  const effectiveSeverity = escalateSeverity(severity, similarPriorLevel);
-  const requiresBanConfirmation = effectiveSeverity === "UNFORGIVABLE";
-  const baseDurationMs = BASE_DURATION_MS[effectiveSeverity];
-  const durationMs = Math.ceil((baseDurationMs * multiplier) / 60_000) * 60_000;
-
-  if (requiresBanConfirmation) {
+  if (sanctionKind === "BAN_PENDING") {
     return {
-      durationMs,
-      sanctionType: "MUTE",
-      severity: effectiveSeverity,
-      requiresBanConfirmation: true,
+      durationMs: PENDING_BAN_DURATION_MS,
+      sanctionType: "BAN_PENDING",
+      severity,
     };
   }
 
-  const isWarn = multiplier <= 1;
+  const baseDurationMs = BASE_DURATION_MS[severity];
+  const durationMs = Math.ceil((baseDurationMs * multiplier) / 60_000) * 60_000;
+
   return {
-    durationMs: isWarn ? 0 : durationMs,
-    sanctionType: isWarn ? severityToWarnType(effectiveSeverity) : "MUTE",
-    severity: effectiveSeverity,
-    requiresBanConfirmation: false,
+    durationMs: sanctionKind === "MUTE" ? durationMs : 0,
+    sanctionType: sanctionKind === "MUTE" ? "MUTE" : severityToWarnType(severity),
+    severity,
   };
 }

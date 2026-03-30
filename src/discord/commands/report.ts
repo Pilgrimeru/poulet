@@ -66,10 +66,6 @@ function safeParseJSON<T>(value: unknown): T | null {
   }
 }
 
-function normalizeText(value: string): string {
-  return value.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
 function logFlagTargetingDebug(args: {
   guildID: string;
   channelID: string;
@@ -113,12 +109,6 @@ function formatDuration(durationMs: number): string {
   return `${Math.ceil(durationMs / 86_400_000)}j`;
 }
 
-function similarPriorLevelForType(type: string): 1 | 2 | 3 {
-  if (type === "WARN_LOW") return 1;
-  if (type === "WARN_MEDIUM") return 2;
-  return 3;
-}
-
 const SEVERITY_EMBED_CONFIG: Record<SanctionSeverity, { color: number; label: string; emoji: string }> = {
   LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
   MEDIUM: { color: 0xe07820, label: "Moyen", emoji: "🟠" },
@@ -140,7 +130,7 @@ function buildSanctionEmbed(opts: {
     ? `Warn formel (${sev.label})`
     : opts.type === "MUTE"
       ? `Exclusion${opts.durationMs ? ` (${formatDuration(opts.durationMs)})` : ""}`
-      : "En attente de bannissement";
+      : `En attente de bannissement${opts.durationMs ? ` (${formatDuration(opts.durationMs)})` : ""}`;
 
   const embed = new EmbedBuilder()
     .setColor(sev.color)
@@ -311,28 +301,51 @@ function ticketMessagesToTranscript(messages: ContextMessage[]): string {
     .join("\n");
 }
 
-async function getSimilarityInputs(guildID: string, userID: string, nature: string): Promise<{
+async function getAlreadySanctionedMessageIDs(guildID: string, targetUserID: string): Promise<Set<string>> {
+  const [flags, reports] = await Promise.all([
+    flaggedMessageApiService.list(guildID, { targetUserID, status: "sanctioned" }).catch(() => []),
+    moderationReportApiService.list(guildID, { status: "sanctioned" }).catch(() => []),
+  ]);
+
+  const messageIDs = new Set<string>();
+
+  for (const flag of flags) {
+    if (flag.targetUserID !== targetUserID || !flag.sanctionID) continue;
+    if (flag.messageID) messageIDs.add(flag.messageID);
+    for (const message of flag.context ?? []) {
+      if (message.authorID === targetUserID && message.id) {
+        messageIDs.add(message.id);
+      }
+    }
+  }
+
+  for (const report of reports) {
+    if (report.targetUserID !== targetUserID || !report.sanctionID) continue;
+    for (const message of report.context?.messages ?? []) {
+      if (message.authorID === targetUserID && message.id) {
+        messageIDs.add(message.id);
+      }
+    }
+  }
+
+  return messageIDs;
+}
+
+async function getSimilarityInputs(guildID: string, userID: string, referenceTimestamp?: number): Promise<{
   multiplier: number;
-  similarPriorLevel: 0 | 1 | 2 | 3;
+  sanctions: Awaited<ReturnType<typeof sanctionApiService.list>>;
 }> {
   const settings = await guildSettingsService.getByGuildID(guildID).catch(() => null);
   const sanctionDurationMs = (settings as unknown as { sanctionDurationMs?: number | null })?.sanctionDurationMs ?? null;
 
-  const [multiplier, sanctions] = await Promise.all([
-    sanctionApiService.getActiveMultiplier(guildID, userID, sanctionDurationMs),
+  const [multiplier, allSanctions] = await Promise.all([
+    sanctionApiService.getActiveMultiplier(guildID, userID, sanctionDurationMs, referenceTimestamp),
     sanctionApiService.list(guildID, { userID }),
   ]);
-
-  const needle = normalizeText(nature);
-  let similarPriorLevel: 0 | 1 | 2 | 3 = 0;
-
-  for (const sanction of sanctions) {
-    if (normalizeText(sanction.nature).includes(needle) || normalizeText(sanction.reason).includes(needle)) {
-      similarPriorLevel = Math.max(similarPriorLevel, similarPriorLevelForType(sanction.type)) as 0 | 1 | 2 | 3;
-    }
-  }
-
-  return { multiplier, similarPriorLevel };
+  const sanctions = referenceTimestamp === undefined
+    ? allSanctions
+    : allSanctions.filter((sanction) => sanction.createdAt <= referenceTimestamp);
+  return { multiplier, sanctions };
 }
 
 async function sendAppealDM(target: User, guildID: string, sanctionID: string, reason: string): Promise<void> {
@@ -360,11 +373,13 @@ async function applyAutomaticSanction(args: {
   moderator: User;
   reason: string;
   severity: SanctionSeverity;
+  sanctionKind: "WARN" | "MUTE" | "BAN_PENDING";
   nature: SanctionNature;
   source: { kind: "flag"; id: string; message?: Message } | { kind: "report"; id: string; channel: TextChannel };
 }) {
-  const { multiplier, similarPriorLevel } = await getSimilarityInputs(args.guild.id, args.target.id, args.nature);
-  const computed = computeSanction(args.severity, multiplier, similarPriorLevel);
+  const referenceTimestamp = args.source.kind === "flag" ? args.source.message?.createdTimestamp : undefined;
+  const { multiplier } = await getSimilarityInputs(args.guild.id, args.target.id, referenceTimestamp);
+  const computed = computeSanction(args.severity, args.sanctionKind, multiplier);
   const member = await args.guild.members.fetch(args.target.id).catch(() => null);
 
   const sanction = await sanctionApiService.create({
@@ -376,24 +391,10 @@ async function applyAutomaticSanction(args: {
     severity: computed.severity,
     nature: args.nature,
     state: "created",
-    durationMs: computed.sanctionType === "MUTE" ? computed.durationMs : null,
+    durationMs: computed.sanctionType.startsWith("WARN") ? null : computed.durationMs,
   });
 
-  if (computed.requiresBanConfirmation) {
-    await sanctionApiService.create({
-      guildID: args.guild.id,
-      userID: args.target.id,
-      moderatorID: args.moderator.id,
-      reason: args.reason,
-      type: "BAN_PENDING",
-      severity: computed.severity,
-      nature: args.nature,
-      state: "created",
-      durationMs: null,
-    });
-  }
-
-  if (member && computed.sanctionType === "MUTE") {
+  if (member && (computed.sanctionType === "MUTE" || computed.sanctionType === "BAN_PENDING")) {
     await member.timeout(computed.durationMs, args.reason).catch(() => undefined);
   }
 
@@ -403,7 +404,7 @@ async function applyAutomaticSanction(args: {
     type: computed.sanctionType,
     reason: args.reason,
     moderator: args.moderator,
-    durationMs: computed.sanctionType === "MUTE" ? computed.durationMs : null,
+    durationMs: computed.sanctionType === "MUTE" || computed.sanctionType === "BAN_PENDING" ? computed.durationMs : null,
     originalMessage: args.source.kind === "flag" ? args.source.message : undefined,
   });
 
@@ -433,7 +434,7 @@ async function applyAutomaticSanction(args: {
     }
   }
 
-  if (computed.requiresBanConfirmation) {
+  if (computed.sanctionType === "BAN_PENDING") {
     const channel = args.source.kind === "flag" ? args.source.message?.channel : args.source.channel;
     if (channel && "send" in channel) {
       await (channel as TextChannel).send({
@@ -441,7 +442,7 @@ async function applyAutomaticSanction(args: {
           new EmbedBuilder()
             .setColor(0xe03030)
             .setTitle("Confirmation de bannissement requise")
-            .setDescription(`L'utilisateur ${args.target} a été marqué pour un bannissement potentiel.\nMotif : ${args.reason}`),
+            .setDescription(`L'utilisateur ${args.target} est exclu temporairement pendant 7 jours en attente d'une validation humaine pour un éventuel bannissement.\nMotif : ${args.reason}`),
         ],
       }).catch(() => undefined);
     }
@@ -456,6 +457,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
 
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = ticketMessagesToTranscript(ticketMessages);
+  const { sanctions } = await getSimilarityInputs(guild.id, meta.targetUserID);
 
   const existingReport = await moderationReportApiService.getByChannel(guild.id, channel.id);
   const report = existingReport
@@ -478,6 +480,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
+    priorSanctions: sanctions,
   });
 
   if (questions.needsFollowUp) {
@@ -508,6 +511,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
+    priorSanctions: sanctions,
   });
 
   await moderationReportApiService.update(guild.id, report!.id, {
@@ -616,6 +620,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     moderator: interaction.client.user,
     reason: analysis.reason,
     severity: analysis.severity,
+    sanctionKind: analysis.sanctionKind,
     nature: analysis.nature,
     source: { kind: "report", id: report.id, channel },
   });
@@ -857,6 +862,13 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contextMessages = await collectContextMessages(targetMessage);
+    const alreadySanctionedMessageIDs = await getAlreadySanctionedMessageIDs(interaction.guild.id, target.id);
+    if (alreadySanctionedMessageIDs.has(targetMessage.id)) {
+      await interaction.editReply({
+        content: "Ce message a déjà été pris en compte dans une sanction existante. Il ne peut pas être sanctionné une seconde fois.",
+      });
+      return;
+    }
     const reporterMember = interaction.member;
     const reporterDisplayName =
       reporterMember && typeof reporterMember === "object" && "displayName" in reporterMember
@@ -885,6 +897,7 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       targetUserID: target.id,
       targetUsername: target.username,
       targetDisplayName: interaction.guild.members.cache.get(target.id)?.displayName ?? target.globalName ?? target.username,
+      priorSanctions: (await getSimilarityInputs(interaction.guild.id, target.id, targetMessage.createdTimestamp)).sanctions,
       messageMentions,
       messageContent: targetMessage.content,
       contextMessages,
@@ -936,6 +949,7 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       moderator: interaction.client.user,
       reason: analysis.reason,
       severity: analysis.severity,
+      sanctionKind: analysis.sanctionKind,
       nature: analysis.nature,
       source: { kind: "flag", id: flagged.id, message: targetMessage },
     });

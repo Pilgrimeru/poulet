@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./Moderation.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -870,10 +870,14 @@ function ModerationInner() {
           guildID,
           userID: linkedSanction.userID,
           moderatorID: linkedSanction.moderatorID,
+          type: decision.badFaithSanction?.type,
+          severity: decision.badFaithSanction?.severity,
+          nature: decision.badFaithSanction?.nature,
+          reason: decision.badFaithSanction?.reason,
+          durationMs: decision.badFaithSanction?.durationMs,
           state: "created",
           createdAt: Date.now(),
-          ...decision.badFaithSanction,
-        },
+        } as SanctionItem,
         ...(cur ?? []),
       ]);
     }
@@ -893,6 +897,14 @@ function ModerationInner() {
   const handleSanctionRevoke = useCallback(async () => {
     if (!selectedSanction) return;
     const updated = await patchSanction(guildID, selectedSanction.id, { state: "canceled" });
+    setSanctions((cur) => cur?.map((i) => (i.id === updated.id ? updated : i)) ?? []);
+    setSanctionDraft(toDraft(updated));
+    setConfirmRevoke(false);
+  }, [guildID, selectedSanction]);
+
+  const handleSanctionReopen = useCallback(async () => {
+    if (!selectedSanction) return;
+    const updated = await patchSanction(guildID, selectedSanction.id, { state: "created" });
     setSanctions((cur) => cur?.map((i) => (i.id === updated.id ? updated : i)) ?? []);
     setSanctionDraft(toDraft(updated));
     setConfirmRevoke(false);
@@ -1018,103 +1030,152 @@ function ModerationInner() {
           )}
 
           {tab === "sanctions" && selectedSanction && sanctionDraft && (
-            <>
-              <section className={styles.hero} aria-label="Détail de la sanction">
-                <div className={styles.heroHeader}>
-                  <div className={styles.heroTitleGroup}>
-                    <span className={styles.heroKind}>{TYPE_LABELS[selectedSanction.type]}</span>
-                    <div className={styles.heroMeta}>
-                      <span className={styles.heroDate}>{formatDate(selectedSanction.createdAt)}</span>
-                      <SeverityTag value={selectedSanction.severity} />
-                      <span className={styles.categoryBadge}>{NATURE_LABELS[selectedSanction.nature]}</span>
-                      <span className={`${styles.pill} ${selectedSanction.state === "created" ? styles.pillActive : styles.pillInactive}`}>
-                        {selectedSanction.state === "created" ? "Active" : "Levée"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {selectedSanction.state === "created" && !confirmRevoke && (
-                    <button
-                      className={`${styles.btn} ${styles.btnDanger}`}
-                      onClick={() => setConfirmRevoke(true)}
-                    >
-                      Révoquer
-                    </button>
-                  )}
-                  {selectedSanction.state === "created" && confirmRevoke && (
-                    <div className={styles.actionGroup}>
-                      <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => setConfirmRevoke(false)}>
-                        Annuler
-                      </button>
-                      <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => void handleSanctionRevoke()}>
-                        Confirmer la révocation
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.heroBody}>
-                  <div className={styles.userGrid}>
-                    <UserCard guildID={guildID} userID={selectedSanction.userID} label="Utilisateur sanctionné" />
-                    <UserCard guildID={guildID} userID={selectedSanction.moderatorID} label="Modérateur" />
-                  </div>
-
-                  <div className={styles.factsGrid}>
-                    <div className={styles.fact}>
-                      <span className={styles.label}>Type</span>
-                      <span className={styles.factValue}>{TYPE_LABELS[selectedSanction.type]}</span>
-                    </div>
-                    <div className={styles.fact}>
-                      <span className={styles.label}>Durée</span>
-                      <span className={styles.factValue}>{formatDuration(selectedSanction.durationMs)}</span>
-                    </div>
-                    <div className={styles.fact}>
-                      <span className={styles.label}>Créé le</span>
-                      <span className={styles.factValue}>{formatDate(selectedSanction.createdAt)}</span>
-                    </div>
-                    <div className={styles.fact}>
-                      <span className={styles.label}>ID</span>
-                      <span className={`${styles.factValue} ${styles.factMono}`}>{selectedSanction.id}</span>
-                    </div>
-                  </div>
-
-                  <div className={styles.block}>
-                    <div className={styles.label}>Motif</div>
-                    <p className={styles.blockText}>{selectedSanction.reason}</p>
+            <section className={styles.hero} aria-label="Détail de la sanction">
+              <div className={styles.heroHeader}>
+                <div className={styles.heroTitleGroup}>
+                  <span className={styles.heroKind}>{TYPE_LABELS[selectedSanction.type]}</span>
+                  <div className={styles.heroMeta}>
+                    <span className={styles.heroDate}>{formatDate(selectedSanction.createdAt)}</span>
+                    <SeverityTag value={selectedSanction.severity} />
+                    <span className={styles.categoryBadge}>{NATURE_LABELS[selectedSanction.nature]}</span>
+                    <span className={`${styles.pill} ${selectedSanction.state === "created" ? styles.pillActive : styles.pillInactive}`}>
+                      {selectedSanction.state === "created" ? "Active" : "Levée"}
+                    </span>
                   </div>
                 </div>
-              </section>
+              </div>
 
-              {selectedSanction.state === "created" && (
-                <Collapsible title="Modifier la sanction">
-                  <SanctionEditor
-                    draft={sanctionDraft}
-                    onChange={setSanctionDraft}
-                    isEditing={isEditingSanction}
-                  />
-                  {!isEditingSanction ? (
-                    <button
-                      className={`${styles.btn} ${styles.btnGhost}`}
-                      onClick={() => setIsEditingSanction(true)}
-                    >
-                      <IconEdit /> Modifier
-                    </button>
-                  ) : (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void handleSanctionSave()}>
-                        <IconSave /> Enregistrer
-                      </button>
-                      <button
-                        className={`${styles.btn} ${styles.btnGhost}`}
-                        onClick={() => { setSanctionDraft(toDraft(selectedSanction)); setIsEditingSanction(false); }}
-                      >
-                        <IconUndo /> Réinitialiser
-                      </button>
+              <div className={styles.heroBody}>
+                <div className={styles.primaryGrid}>
+                  <section className={styles.panel} aria-label="Résumé de la sanction">
+                    <div className={styles.panelHeader}>
+                      <h2 className={styles.panelTitle}>Résumé</h2>
+                      <div className={styles.panelHint}>Lecture rapide de la mesure appliquée</div>
                     </div>
-                  )}
-                </Collapsible>
-              )}
-            </>
+
+                    <div className={styles.userGrid}>
+                      <UserCard guildID={guildID} userID={selectedSanction.userID} label="Utilisateur sanctionné" />
+                      <UserCard guildID={guildID} userID={selectedSanction.moderatorID} label="Modérateur" />
+                    </div>
+
+                    <div className={styles.factsGrid}>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>Type</span>
+                        <span className={styles.factValue}>{TYPE_LABELS[selectedSanction.type]}</span>
+                      </div>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>Durée</span>
+                        <span className={styles.factValue}>{formatDuration(selectedSanction.durationMs)}</span>
+                      </div>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>Nature</span>
+                        <span className={styles.factValue}>{NATURE_LABELS[selectedSanction.nature]}</span>
+                      </div>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>État</span>
+                        <span className={styles.factValue}>{selectedSanction.state === "created" ? "Active" : "Levée"}</span>
+                      </div>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>Créée le</span>
+                        <span className={styles.factValue}>{formatDate(selectedSanction.createdAt)}</span>
+                      </div>
+                      <div className={styles.fact}>
+                        <span className={styles.label}>ID</span>
+                        <span className={`${styles.factValue} ${styles.factMono}`}>{selectedSanction.id}</span>
+                      </div>
+                    </div>
+
+                    <div className={styles.block}>
+                      <div className={styles.label}>Motif</div>
+                      <p className={styles.blockText}>{selectedSanction.reason}</p>
+                    </div>
+                  </section>
+
+                  <section className={styles.panel} aria-label="Actions sur la sanction">
+                    <div className={styles.panelHeader}>
+                      <h2 className={styles.panelTitle}>Actions</h2>
+                      <div className={styles.panelHint}>
+                        {selectedSanction.state === "created"
+                          ? "Ajuste ou révoque la sanction si nécessaire."
+                          : "Cette sanction a déjà été levée et n'est plus modifiable."}
+                      </div>
+                    </div>
+
+                    {selectedSanction.state === "created" ? (
+                      <>
+                        <SanctionEditor
+                          draft={sanctionDraft}
+                          onChange={setSanctionDraft}
+                          isEditing={isEditingSanction}
+                        />
+
+                        <div className={styles.actionBar}>
+                          <div className={styles.actionGroup}>
+                            {!isEditingSanction ? (
+                              <button
+                                className={`${styles.btn} ${styles.btnGhost}`}
+                                onClick={() => setIsEditingSanction(true)}
+                              >
+                                <IconEdit /> Modifier
+                              </button>
+                            ) : (
+                              <>
+                                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void handleSanctionSave()}>
+                                  <IconSave /> Enregistrer
+                                </button>
+                                <button
+                                  className={`${styles.btn} ${styles.btnGhost}`}
+                                  onClick={() => { setSanctionDraft(toDraft(selectedSanction)); setIsEditingSanction(false); }}
+                                >
+                                  <IconUndo /> Réinitialiser
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className={`${styles.block} ${styles.blockMuted}`}>
+                          <div className={styles.label}>Révocation</div>
+                          <p className={styles.blockTextMuted}>
+                            Utilise cette action seulement si la sanction doit être annulée côté dashboard et côté Discord.
+                          </p>
+                          {!confirmRevoke ? (
+                            <button
+                              className={`${styles.btn} ${styles.btnDanger}`}
+                              onClick={() => setConfirmRevoke(true)}
+                            >
+                              Révoquer
+                            </button>
+                          ) : (
+                            <div className={styles.actionGroup}>
+                              <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => setConfirmRevoke(false)}>
+                                Annuler
+                              </button>
+                              <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => void handleSanctionRevoke()}>
+                                Confirmer la révocation
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className={`${styles.block} ${styles.blockMuted}`}>
+                        <div className={styles.label}>Statut</div>
+                        <p className={styles.blockTextMuted}>
+                          Cette sanction a été levée. Le panneau d’édition est désactivé pour conserver un historique lisible.
+                        </p>
+                        <button
+                          className={`${styles.btn} ${styles.btnPrimary}`}
+                          onClick={() => void handleSanctionReopen()}
+                        >
+                          Réouvrir la sanction
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                </div>
+              </div>
+            </section>
           )}
         </main>
       </div>

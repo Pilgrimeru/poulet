@@ -30,6 +30,15 @@ export interface FlagAnalysisInput {
   targetUserID: string;
   targetUsername?: string | null;
   targetDisplayName?: string | null;
+  priorSanctions?: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    nature: string;
+    reason: string;
+    state: string;
+    createdAt: number;
+  }>;
   messageMentions?: Array<{ id: string; username?: string | null; displayName?: string | null }>;
   messageContent: string;
   contextMessages: ContextMessage[];
@@ -39,6 +48,15 @@ export interface ReportAnalysisInput {
   reporterID: string;
   targetUserID: string;
   transcript: string;
+  priorSanctions?: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    nature: string;
+    reason: string;
+    state: string;
+    createdAt: number;
+  }>;
 }
 
 function normalizeValue(value: unknown): string {
@@ -76,6 +94,15 @@ function normalizeStructuredPayload(value: unknown): unknown {
   const payload = { ...(value as Record<string, unknown>) };
   if ("severity" in payload) payload["severity"] = normalizeSeverity(payload["severity"]);
   if ("nature" in payload) payload["nature"] = normalizeNature(payload["nature"]);
+  if (
+    !("sanctionKind" in payload) ||
+    (payload["sanctionKind"] !== "WARN" &&
+      payload["sanctionKind"] !== "MUTE" &&
+      payload["sanctionKind"] !== "BAN_PENDING")
+  ) {
+    payload["sanctionKind"] = "WARN";
+  }
+  if (!Array.isArray(payload["similarSanctionIDs"])) payload["similarSanctionIDs"] = [];
   return payload;
 }
 
@@ -131,6 +158,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
         `Reported message author ID: ${input.targetUserID}`,
         `Reported message author username: ${input.targetUsername ?? "(unknown)"}`,
         `Reported message author display name: ${input.targetDisplayName ?? "(unknown)"}`,
+        `Sanctions precedentes pertinentes: ${JSON.stringify(input.priorSanctions ?? [])}`,
         `Mentions detectees: ${JSON.stringify(input.messageMentions ?? [])}`,
         `Message cible: ${input.messageContent}`,
         "Contexte:",
@@ -161,8 +189,10 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
     return {
       isViolation: false,
       severity: "LOW",
+      sanctionKind: "WARN",
       reason: "L'analyse IA du signalement a échoué. Le cas doit être revu via le flux de ticket.",
       nature: "Harassment",
+      similarSanctionIDs: [],
       targetID: null,
       needsMoreContext: true,
       searchQuery: null,
@@ -177,6 +207,7 @@ export async function askReportQuestions(input: ReportAnalysisInput): Promise<Qu
       [
         `Reporter ID: ${input.reporterID}`,
         `Target ID: ${input.targetUserID}`,
+        `Sanctions precedentes pertinentes: ${JSON.stringify(input.priorSanctions ?? [])}`,
         "Contenu du dossier:",
         input.transcript,
         "Reponds en JSON selon le schema attendu.",
@@ -205,6 +236,7 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
       [
         `Reporter ID: ${input.reporterID}`,
         `Target ID: ${input.targetUserID}`,
+        `Sanctions precedentes pertinentes: ${JSON.stringify(input.priorSanctions ?? [])}`,
         "Transcript complet du ticket:",
         input.transcript,
         "Reponds en JSON selon le schema attendu.",
@@ -227,8 +259,10 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
     return {
       isViolation: false,
       severity: "LOW",
+      sanctionKind: "WARN",
       reason: "Analyse IA indisponible en mode degrade.",
       nature: "Harassment",
+      similarSanctionIDs: [],
       targetID: input.targetUserID,
       searchQuery: null,
       summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",

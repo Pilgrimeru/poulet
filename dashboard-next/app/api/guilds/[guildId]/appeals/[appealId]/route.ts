@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSanction, getSanction, listSanctions, updateSanction } from "@/services/sanctionService";
+import { createSanction, getSanction, updateSanction } from "@/services/sanctionService";
 import { getAppealForGuild, updateAppeal } from "@/services/appealService";
 import { sendDirectMessage, setMemberTimeout } from "@/services/discordMetaService";
 import { getSessionFromCookies } from "@/lib/auth";
@@ -32,7 +32,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
 
     if (reviewOutcome === "overturned") {
       await updateSanction(guildId, linkedSanction.id, { state: "canceled" });
-      if (linkedSanction.type === "MUTE") {
+      if (linkedSanction.type === "MUTE" || linkedSanction.type === "BAN_PENDING") {
         await setMemberTimeout(guildId, linkedSanction.userID, null, resolutionReason).catch(() => false);
       }
       await sendDirectMessage(
@@ -50,7 +50,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
         return NextResponse.json({ error: "Sanction not found" }, { status: 404 });
       }
 
-      if (updatedSanction.type === "MUTE") {
+      if (updatedSanction.type === "MUTE" || updatedSanction.type === "BAN_PENDING") {
         await setMemberTimeout(
           guildId,
           updatedSanction.userID,
@@ -59,18 +59,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
         ).catch(() => false);
       } else {
         await setMemberTimeout(guildId, updatedSanction.userID, null, resolutionReason).catch(() => false);
-      }
-
-      if (updatedSanction.severity !== "UNFORGIVABLE") {
-        const pending = await listSanctions(guildId, updatedSanction.userID, { state: "created" });
-        const pendingBan = pending.find((row) =>
-          row.type === "BAN_PENDING" &&
-          row.reason === linkedSanction.reason &&
-          row.userID === linkedSanction.userID,
-        );
-        if (pendingBan) {
-          await updateSanction(guildId, pendingBan.id, { state: "canceled" });
-        }
       }
 
       await sendDirectMessage(
@@ -96,7 +84,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
         userID: linkedSanction.userID,
         moderatorID,
       });
-      if (created.type === "MUTE") {
+      if (created.type === "MUTE" || created.type === "BAN_PENDING") {
         await setMemberTimeout(guildId, created.userID, created.durationMs ?? 0, resolutionReason).catch(() => false);
       }
       await sendDirectMessage(

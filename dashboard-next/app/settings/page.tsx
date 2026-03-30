@@ -15,6 +15,7 @@ type GuildSettingsDTO = {
   statsRankingPreference: "voice" | "messages";
   statsReportChannelID: string;
   inviteLogChannelID: string;
+  sanctionDurationMs: number | null;
 };
 
 type SpamFilterMode = "whitelist" | "blacklist";
@@ -152,6 +153,14 @@ function SettingRow({
   );
 }
 
+function formatSanctionDurationLabel(value: number | null): string {
+  if (value === null) return "Jamais";
+  const days = Math.round(value / 86_400_000);
+  if (days <= 0) return "Jamais";
+  if (days === 1) return "1 jour";
+  return `${days} jours`;
+}
+
 // ── Stats section ────────────────────────────────────────────────────────────
 
 function StatsSection({
@@ -213,6 +222,34 @@ function StatsSection({
             onChange={(v) => onPatch({ statsReportChannelID: v })}
             placeholder="Aucun salon"
           />
+        </SettingRow>
+      </div>
+
+      <div className={styles.group}>
+        <div className={styles.groupTitle}>Modération</div>
+        <SettingRow
+          name="Durée de validité des sanctions"
+          hint="Durée pendant laquelle une sanction reste prise en compte pour la récidive. Laissez vide pour ne jamais expirer."
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              className={styles.numberInput}
+              type="number"
+              min={0}
+              step={1}
+              value={settings.sanctionDurationMs === null ? "" : Math.round(settings.sanctionDurationMs / 86_400_000)}
+              placeholder="∞"
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                onPatch({
+                  sanctionDurationMs: raw === "" || Number(raw) <= 0 ? null : Math.round(Number(raw)) * 86_400_000,
+                });
+              }}
+            />
+            <span className={`${styles.badge} ${styles.badgeEnabled}`}>
+              {formatSanctionDurationLabel(settings.sanctionDurationMs)}
+            </span>
+          </div>
         </SettingRow>
       </div>
 

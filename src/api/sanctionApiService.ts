@@ -73,13 +73,18 @@ export const sanctionApiService = {
     return apiPatch<SanctionDTO>(`/guilds/${guildID}/sanctions/${sanctionID}`, patch);
   },
 
-  async getActiveMultiplier(guildID: string, userID: string, sanctionDurationMs: number | null): Promise<number> {
+  async getActiveMultiplier(
+    guildID: string,
+    userID: string,
+    sanctionDurationMs: number | null,
+    referenceTimestamp: number = Date.now(),
+  ): Promise<number> {
     const sanctions = await this.list(guildID, { userID, state: "created" });
-    const now = Date.now();
     const active = sanctions.filter((s) => {
+      if (s.createdAt > referenceTimestamp) return false;
       if (s.durationMs === null && sanctionDurationMs === null) return true;
-      if (s.durationMs === null) return now - s.createdAt < sanctionDurationMs!;
-      return now - s.createdAt < s.durationMs;
+      if (s.durationMs === null) return referenceTimestamp - s.createdAt < sanctionDurationMs!;
+      return referenceTimestamp - s.createdAt < s.durationMs;
     });
     const total = active.reduce((sum, s) => sum + WEIGHT[s.severity], 0);
     return Math.min(7, 1 + total);
