@@ -1,5 +1,8 @@
 import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import type { ContextMessage } from "@/api/flaggedMessageApiService";
+import { messageSnapshotService } from "@/api/messageSnapshotService";
 import { callWithFallback } from "./client";
+import { extractTextFromImages } from "./ocrService";
 import {
   FlagAnalysisResult,
   FlagAnalysisSchema,
@@ -13,17 +16,8 @@ import {
 } from "./prompts";
 import { duckduckgoTool } from "./tools";
 
-export interface ContextMessage {
-  id: string;
-  authorID: string;
-  authorUsername: string;
-  authorAvatarURL: string;
-  content: string;
-  createdAt: number;
-  referencedMessageID: string | null;
-}
-
 export interface FlagAnalysisInput {
+  guildID: string;
   reporterID: string;
   reporterUsername?: string | null;
   reporterDisplayName?: string | null;
@@ -45,6 +39,7 @@ export interface FlagAnalysisInput {
 }
 
 export interface ReportAnalysisInput {
+  guildID: string;
   reporterID: string;
   targetUserID: string;
   transcript: string;
@@ -115,6 +110,72 @@ function extractJSONObject(raw: string): string {
   return raw.slice(start, end + 1);
 }
 
+const MAX_TOOL_ITERATIONS = 3;
+
+async function runToolLoop<T extends {
+  searchQuery: string | null;
+  historyQuery: { userID: string; startDate: number | null; endDate: number | null; onlyDeleted: boolean; channelID: string | null; limit: number } | null;
+  ocrTargets: string[] | null;
+}>(
+  initialMessages: BaseMessage[],
+  schema: { parse: (value: unknown) => T },
+  guildID: string,
+): Promise<T> {
+  let messages = [...initialMessages];
+  let result = await parseStructuredResult(messages, schema);
+  let iterations = 0;
+
+  while (iterations < MAX_TOOL_ITERATIONS) {
+    if (result.searchQuery) {
+      const searchResult = await duckduckgoTool.invoke(result.searchQuery);
+      messages = [
+        ...messages,
+        new HumanMessage(
+          `[Outil: DuckDuckGo — requete: "${result.searchQuery}"]\n` +
+          (typeof searchResult === "string" ? searchResult : JSON.stringify(searchResult)),
+        ),
+      ];
+    } else if (result.historyQuery) {
+      const q = result.historyQuery;
+      const history = await messageSnapshotService.getUserMessages(guildID, q.userID, {
+        startDate: q.startDate ?? undefined,
+        endDate: q.endDate ?? undefined,
+        onlyDeleted: q.onlyDeleted,
+        channelID: q.channelID ?? undefined,
+        limit: q.limit,
+      });
+      const formatted = history.length === 0
+        ? "Aucun message trouve."
+        : history.map((m) =>
+            `[${new Date(m.createdAt).toISOString()}] #${m.channelID} ${m.authorUsername}: ${m.content}` +
+            (m.isDeleted ? " [SUPPRIME]" : ""),
+          ).join("\n");
+      messages = [
+        ...messages,
+        new HumanMessage(
+          `[Outil: Historique utilisateur — userID: ${q.userID}, ${history.length} messages]\n${formatted}`,
+        ),
+      ];
+    } else if (result.ocrTargets && result.ocrTargets.length > 0) {
+      const ocrResults = await extractTextFromImages(result.ocrTargets);
+      const formatted = ocrResults
+        .map((r) => r.error ? `[${r.url}] ERREUR: ${r.error}` : `[${r.url}]\n${r.text}`)
+        .join("\n\n");
+      messages = [
+        ...messages,
+        new HumanMessage(`[Outil: OCR — ${ocrResults.length} image(s)]\n${formatted}`),
+      ];
+    } else {
+      break;
+    }
+
+    iterations++;
+    result = await parseStructuredResult(messages, schema);
+  }
+
+  return result;
+}
+
 async function parseStructuredResult<T>(messages: BaseMessage[], schema: { parse: (value: unknown) => T }): Promise<T> {
   const raw = await callWithFallback(messages);
   const parsed = JSON.parse(extractJSONObject(raw));
@@ -145,11 +206,15 @@ async function parseStructuredResult<T>(messages: BaseMessage[], schema: { parse
 
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
   const contextText = input.contextMessages
-    .map((msg) => `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername} (${msg.authorID}): ${msg.content}`)
+    .map((msg) => {
+      const base = `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername} (${msg.authorID}): ${msg.content}`;
+      const imgs = msg.attachments?.map((a) => `[image: ${a.url}]`).join(" ") ?? "";
+      return imgs ? `${base} ${imgs}` : base;
+    })
     .join("\n");
 
   const messages: BaseMessage[] = [
-    new SystemMessage(flagSystemPrompt),
+    new SystemMessage({ content: flagSystemPrompt, additional_kwargs: { cache_control: { type: "ephemeral" } } }),
     new HumanMessage(
       [
         `Reporter ID: ${input.reporterID}`,
@@ -169,16 +234,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   ];
 
   try {
-    let result = await parseStructuredResult(messages, FlagAnalysisSchema);
-    if (result.searchQuery) {
-      const searchResult = await duckduckgoTool.invoke(result.searchQuery);
-      const followUpMessages: BaseMessage[] = [
-        ...messages,
-        new HumanMessage(`Resultats DuckDuckGo:\n${typeof searchResult === "string" ? searchResult : JSON.stringify(searchResult)}`),
-      ];
-      result = await parseStructuredResult(followUpMessages, FlagAnalysisSchema);
-    }
-    return result;
+    return await runToolLoop(messages, FlagAnalysisSchema, input.guildID);
   } catch (error) {
     console.error("[ai] analyzeFlag failed", {
       reporterID: input.reporterID,
@@ -196,6 +252,8 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       targetID: null,
       needsMoreContext: true,
       searchQuery: null,
+      historyQuery: null,
+      ocrTargets: null,
     };
   }
 }
@@ -231,7 +289,7 @@ export async function askReportQuestions(input: ReportAnalysisInput): Promise<Qu
 
 export async function summarizeReport(input: ReportAnalysisInput): Promise<SummaryResult> {
   const messages: BaseMessage[] = [
-    new SystemMessage(summarySystemPrompt),
+    new SystemMessage({ content: summarySystemPrompt, additional_kwargs: { cache_control: { type: "ephemeral" } } }),
     new HumanMessage(
       [
         `Reporter ID: ${input.reporterID}`,
@@ -245,16 +303,7 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
   ];
 
   try {
-    let result = await parseStructuredResult(messages, SummarySchema);
-    if (result.searchQuery) {
-      const searchResult = await duckduckgoTool.invoke(result.searchQuery);
-      const followUpMessages: BaseMessage[] = [
-        ...messages,
-        new HumanMessage(`Resultats DuckDuckGo:\n${typeof searchResult === "string" ? searchResult : JSON.stringify(searchResult)}`),
-      ];
-      result = await parseStructuredResult(followUpMessages, SummarySchema);
-    }
-    return result;
+    return await runToolLoop(messages, SummarySchema, input.guildID);
   } catch {
     return {
       isViolation: false,
@@ -265,6 +314,8 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
       similarSanctionIDs: [],
       targetID: input.targetUserID,
       searchQuery: null,
+      historyQuery: null,
+      ocrTargets: null,
       summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",
     };
   }

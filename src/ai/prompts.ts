@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+const HistoryQuerySchema = z.object({
+  userID: z.string(),
+  startDate: z.number().nullable(),
+  endDate: z.number().nullable(),
+  onlyDeleted: z.boolean(),
+  channelID: z.string().nullable(),
+  limit: z.number().int().min(1).max(100).default(25),
+});
+
 export const FlagAnalysisSchema = z.object({
   isViolation: z.boolean(),
   severity: z.enum(["LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"]),
@@ -10,6 +19,8 @@ export const FlagAnalysisSchema = z.object({
   targetID: z.string().nullable(),
   needsMoreContext: z.boolean(),
   searchQuery: z.string().nullable(),
+  historyQuery: HistoryQuerySchema.nullable(),
+  ocrTargets: z.array(z.string()).nullable(),
 });
 
 export const QuestionSchema = z.object({
@@ -26,6 +37,8 @@ export const SummarySchema = z.object({
   similarSanctionIDs: z.array(z.string()),
   targetID: z.string().nullable(),
   searchQuery: z.string().nullable(),
+  historyQuery: HistoryQuerySchema.nullable(),
+  ocrTargets: z.array(z.string()).nullable(),
   summary: z.string(),
 });
 
@@ -73,6 +86,23 @@ Regles :
 - Les niveaux de gravite autorises : LOW, MEDIUM, HIGH, UNFORGIVABLE
 - Ta reponse doit etre strictement l'un de ces labels pour "nature" : Extremism, Violence, Hate, Harassment, Spam, Manipulation, Recidivism, Other
 - Tous les champs sont obligatoires, y compris sanctionKind et similarSanctionIDs.
+
+Outils disponibles (maximum 3 tours combines) :
+
+- searchQuery (string | null) : Lance une recherche DuckDuckGo. Utilise-le pour verifier des faits externes, du jargon ou des references culturelles ambigues.
+
+- historyQuery (object | null) : Consulte l'historique des messages d'un utilisateur dans tous les salons du serveur. Utilise-le quand le comportement passe d'un utilisateur est pertinent mais non fourni dans le contexte. Champs :
+    userID (string) — ID Discord de l'utilisateur a inspecter
+    startDate (number | null) — borne inferieure en ms unix
+    endDate (number | null) — borne superieure en ms unix
+    onlyDeleted (boolean) — true pour ne voir que les messages supprimes
+    channelID (string | null) — restreindre a un salon specifique
+    limit (number) — nombre de messages, entre 1 et 100 (defaut 25)
+
+- ocrTargets (string[] | null) : Extrait le texte des images. Fournis une liste d'URLs d'images (CDN Discord ou chemins /attachments/...). Utilise-le quand un message contient une image dont le contenu textuel est potentiellement important.
+
+Si aucun outil n'est necessaire, mets historyQuery, ocrTargets et searchQuery a null.
+Un seul outil par reponse — ne renseigne jamais plus d'un de ces trois champs a la fois.
 `;
 
 export const questionSystemPrompt = `
@@ -94,4 +124,21 @@ Evalue isViolation, severity (LOW/MEDIUM/HIGH/UNFORGIVABLE), sanctionKind (WARN/
 Si aucune categorie ne correspond nettement, utilise "Other".
 Le calcul exact de la duree d'un mute n'est PAS ton role. Ne propose jamais de duree.
 Si tu choisis BAN_PENDING, cela correspond a une exclusion temporaire de 7 jours en attente d'une validation humaine pour un ban.
+
+Outils disponibles (maximum 3 tours combines) :
+
+- searchQuery (string | null) : Lance une recherche DuckDuckGo. Utilise-le pour verifier des faits externes, du jargon ou des references culturelles ambigues.
+
+- historyQuery (object | null) : Consulte l'historique des messages d'un utilisateur dans tous les salons du serveur. Utilise-le quand le comportement passe d'un utilisateur est pertinent mais non fourni dans le contexte. Champs :
+    userID (string) — ID Discord de l'utilisateur a inspecter
+    startDate (number | null) — borne inferieure en ms unix
+    endDate (number | null) — borne superieure en ms unix
+    onlyDeleted (boolean) — true pour ne voir que les messages supprimes
+    channelID (string | null) — restreindre a un salon specifique
+    limit (number) — nombre de messages, entre 1 et 100 (defaut 25)
+
+- ocrTargets (string[] | null) : Extrait le texte des images. Fournis une liste d'URLs d'images (CDN Discord ou chemins /attachments/...). Utilise-le quand un message contient une image dont le contenu textuel est potentiellement important.
+
+Si aucun outil n'est necessaire, mets historyQuery, ocrTargets et searchQuery a null.
+Un seul outil par reponse — ne renseigne jamais plus d'un de ces trois champs a la fois.
 `;

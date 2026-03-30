@@ -1,4 +1,42 @@
-import { apiPost } from "./client";
+import { apiGet, apiPost } from "./client";
+
+export interface AttachmentDTO {
+  id: string;
+  snapshotId: string;
+  attachmentID: string;
+  filename: string;
+  url: string;
+  contentType: string;
+  size: number;
+}
+
+export interface MessageSnapshotDTO {
+  id: string;
+  messageID: string;
+  channelID: string;
+  guildID: string;
+  authorID: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorAvatarURL: string;
+  content: string;
+  createdAt: number;
+  snapshotAt: number;
+  isDeleted: boolean;
+  version: number;
+  attachments: AttachmentDTO[];
+  referencedMessageID: string | null;
+  referencedMessageContent: string | null;
+  referencedMessageAuthor: string | null;
+}
+
+export interface GetUserMessagesOptions {
+  startDate?: number;
+  endDate?: number;
+  onlyDeleted?: boolean;
+  channelID?: string;
+  limit?: number;
+}
 
 export interface AttachmentInput {
   attachmentID: string;
@@ -24,6 +62,21 @@ export interface SaveSnapshotInput {
 }
 
 export const messageSnapshotService = {
+  async getUserMessages(
+    guildID: string,
+    userID: string,
+    options: GetUserMessagesOptions = {},
+  ): Promise<MessageSnapshotDTO[]> {
+    const params = new URLSearchParams();
+    if (options.limit)       params.set("limit",       String(options.limit));
+    if (options.startDate)   params.set("startDate",   String(options.startDate));
+    if (options.endDate)     params.set("endDate",     String(options.endDate));
+    if (options.onlyDeleted) params.set("onlyDeleted", "true");
+    if (options.channelID)   params.set("channelID",   options.channelID);
+    const qs = params.size > 0 ? `?${params.toString()}` : "";
+    return apiGet<MessageSnapshotDTO[]>(`/guilds/${guildID}/users/${userID}/messages${qs}`);
+  },
+
   async saveSnapshot(
     data: SaveSnapshotInput,
     attachments: AttachmentInput[],

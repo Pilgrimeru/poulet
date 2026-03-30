@@ -6,15 +6,14 @@
       "Bash(python3 *)",
       "Bash(bun add:*)",
       "Bash(bun remove:*)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet -not -path */node_modules* -not -path */.git* -type f)",
       "Bash(npx tsc:*)",
       "Bash(xargs grep:*)",
       "Bash(node -e \":*)",
       "Bash(bun -e \":*)",
       "Bash(grep *)",
-      "Bash(ls /c/Users/Elliott/Documents/Github/poulet/*)",
-      "Bash(cat /c/Users/Elliott/Documents/Github/poulet/*)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet/*)"
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(find *)"
     ]
   }
 }

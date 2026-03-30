@@ -262,6 +262,9 @@ async function collectContextMessages(targetMessage: Message): Promise<ContextMe
         content: targetMessage.content,
         createdAt: targetMessage.createdTimestamp,
         referencedMessageID: targetMessage.reference?.messageId ?? null,
+        attachments: [...targetMessage.attachments.values()]
+          .filter((a) => a.contentType?.startsWith("image/") ?? false)
+          .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
       },
     ];
   }
@@ -276,6 +279,9 @@ async function collectContextMessages(targetMessage: Message): Promise<ContextMe
       content: message.content,
       createdAt: message.createdTimestamp,
       referencedMessageID: message.reference?.messageId ?? null,
+      attachments: [...message.attachments.values()]
+        .filter((a) => a.contentType?.startsWith("image/") ?? false)
+        .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
     }));
 }
 
@@ -477,6 +483,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
       });
 
   const questions = await askReportQuestions({
+    guildID: guild.id,
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
@@ -508,6 +515,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
   }
 
   const summary = await summarizeReport({
+    guildID: guild.id,
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
@@ -891,6 +899,7 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
     });
 
     const analysis = await analyzeFlag({
+      guildID: interaction.guild.id,
       reporterID: interaction.user.id,
       reporterUsername: interaction.user.username,
       reporterDisplayName,

@@ -10,9 +10,10 @@ function createClient(model: string): ChatOpenAI | null {
   return new ChatOpenAI({
     model,
     apiKey: openRouterApiKey,
+    cache: true,
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",
-    }
+    },
   });
 }
 

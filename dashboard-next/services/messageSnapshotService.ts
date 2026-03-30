@@ -328,6 +328,53 @@ export async function getChannelMessages(
   return Promise.all(latest.map(toDTO));
 }
 
+export interface UserMessageFilter {
+  startDate?: number;
+  endDate?: number;
+  onlyDeleted?: boolean;
+  channelID?: string;
+}
+
+export async function getUserMessages(
+  guildID: string,
+  userID: string,
+  limit = 50,
+  filter: UserMessageFilter = {},
+): Promise<MessageSnapshotDTO[]> {
+  const { startDate, endDate, onlyDeleted, channelID } = filter;
+
+  const conditions: string[] = ["guildID = :guildID", "authorID = :authorID"];
+  const replacements: Record<string, unknown> = { guildID, authorID: userID };
+
+  if (startDate) { conditions.push("createdAt >= :startDate"); replacements["startDate"] = startDate; }
+  if (endDate)   { conditions.push("createdAt <= :endDate");   replacements["endDate"]   = endDate; }
+  if (channelID) { conditions.push("channelID = :channelID"); replacements["channelID"] = channelID; }
+  if (onlyDeleted) { conditions.push("isDeleted = 1"); }
+
+  const where = conditions.join(" AND ");
+  const fetch = limit * 5;
+  const rows = await MessageSnapshot.sequelize!.query<MessageSnapshot>(
+    `SELECT * FROM MessageSnapshots
+     WHERE ${where}
+     ORDER BY snapshotAt DESC
+     LIMIT :fetch`,
+    { replacements: { ...replacements, fetch }, type: "SELECT", model: MessageSnapshot, mapToModel: true },
+  );
+
+  const seen = new Set<string>();
+  const latestMap = new Map<string, MessageSnapshot>();
+  for (const s of rows) {
+    if (!seen.has(s.messageID)) {
+      seen.add(s.messageID);
+      latestMap.set(s.messageID, s);
+      if (latestMap.size >= limit) break;
+    }
+  }
+
+  const latest = [...latestMap.values()].sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+  return Promise.all(latest.map(toDTO));
+}
+
 export async function getMessageHistory(messageID: string): Promise<MessageSnapshotDTO[]> {
   const snapshots = await MessageSnapshot.findAll({
     where: { messageID },

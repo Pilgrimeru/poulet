@@ -8,6 +8,11 @@ export interface ContextMessage {
   content: string;
   createdAt: number;
   referencedMessageID: string | null;
+  attachments?: Array<{
+    url: string;
+    contentType: string;
+    filename: string;
+  }>;
 }
 
 export interface FlaggedMessageDTO {
