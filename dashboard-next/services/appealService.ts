@@ -1,3 +1,4 @@
+import "../models";
 import { Appeal } from "../models/Appeal";
 import { Sanction } from "../models/Sanction";
 
@@ -9,19 +10,40 @@ export interface AppealDTO {
   sanctionID: string;
   text: string;
   status: AppealStatus;
+  reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith" | null;
+  resolutionReason: string | null;
+  revisedSanction: unknown;
+  reviewedAt: number | null;
   createdAt: number;
 }
 
 export interface UpdateAppealInput {
-  status: AppealStatus;
+  status?: AppealStatus;
+  reviewOutcome?: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith" | null;
+  resolutionReason?: string | null;
+  revisedSanction?: unknown;
+  reviewedAt?: number | null;
 }
 
 function toDTO(row: Appeal): AppealDTO {
+  let revisedSanction: unknown = null;
+  if (row.revisedSanction) {
+    try {
+      revisedSanction = JSON.parse(row.revisedSanction);
+    } catch {
+      revisedSanction = null;
+    }
+  }
+
   return {
     id: row.id,
     sanctionID: row.sanctionID,
     text: row.text,
     status: row.status,
+    reviewOutcome: row.reviewOutcome ?? null,
+    resolutionReason: row.resolutionReason ?? null,
+    revisedSanction,
+    reviewedAt: row.reviewedAt === null ? null : Number(row.reviewedAt),
     createdAt: Number(row.createdAt),
   };
 }
@@ -60,9 +82,29 @@ export async function listAppeals(
   return rows.map(toDTO);
 }
 
+export async function getAppealForGuild(guildID: string, appealID: string): Promise<AppealDTO | null> {
+  const row = await Appeal.findOne({
+    where: { id: appealID },
+    include: [
+      {
+        model: Sanction,
+        where: { guildID },
+        attributes: [],
+      },
+    ],
+  });
+  return row ? toDTO(row) : null;
+}
+
 export async function updateAppeal(appealID: string, patch: UpdateAppealInput): Promise<AppealDTO | null> {
   const row = await Appeal.findOne({ where: { id: appealID } });
   if (!row) return null;
-  await row.update({ status: patch.status });
+  await row.update({
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+    ...(patch.reviewOutcome !== undefined ? { reviewOutcome: patch.reviewOutcome } : {}),
+    ...(patch.resolutionReason !== undefined ? { resolutionReason: patch.resolutionReason } : {}),
+    ...(patch.revisedSanction !== undefined ? { revisedSanction: patch.revisedSanction === null ? null : JSON.stringify(patch.revisedSanction) } : {}),
+    ...(patch.reviewedAt !== undefined ? { reviewedAt: patch.reviewedAt } : {}),
+  });
   return toDTO(row);
 }

@@ -109,6 +109,30 @@ async function discordGet<T>(pathname: string, cacheKey: string): Promise<T | nu
   return setCached(cacheKey, await response.json() as T);
 }
 
+async function discordWrite<T>(pathname: string, init: RequestInit): Promise<T | null> {
+  const token = getToken();
+  if (!token) return null;
+
+  const response = await fetch(`${DISCORD_API_BASE}${pathname}`, {
+    ...init,
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Discord API ${response.status} on ${pathname}`);
+  }
+  if (response.status === 204) return null;
+  return response.json() as Promise<T>;
+}
+
 function imageExtension(hash: string): string {
   return hash.startsWith("a_") ? "gif" : "png";
 }
@@ -291,6 +315,42 @@ export async function getCurrentUserMeta(guildID: string, userID: string): Promi
   } catch {
     return null;
   }
+}
+
+export async function sendDirectMessage(userID: string, content: string): Promise<boolean> {
+  const dm = await discordWrite<{ id: string }>("/users/@me/channels", {
+    method: "POST",
+    body: JSON.stringify({ recipient_id: userID }),
+  });
+  if (!dm?.id) return false;
+  await discordWrite(`/channels/${dm.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+  return true;
+}
+
+export async function setMemberTimeout(
+  guildID: string,
+  userID: string,
+  durationMs: number | null,
+  reason: string,
+): Promise<boolean> {
+  const communicationDisabledUntil = durationMs === null
+    ? null
+    : new Date(Date.now() + durationMs).toISOString();
+
+  const result = await discordWrite(`/guilds/${guildID}/members/${userID}`, {
+    method: "PATCH",
+    headers: {
+      "X-Audit-Log-Reason": encodeURIComponent(reason).slice(0, 512),
+    },
+    body: JSON.stringify({
+      communication_disabled_until: communicationDisabledUntil,
+    }),
+  });
+
+  return result !== undefined;
 }
 
 export async function hydrateUserMetas(

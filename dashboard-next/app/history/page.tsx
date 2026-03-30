@@ -23,6 +23,8 @@ function HistoryPageContent() {
   const { channels, refresh: refreshChannels } = useChannels(selectedGuildID);
   const { messages, hasMore, loading, loadMore, refresh: refreshMessages, loadedChannelID, updateMode } = useMessages(selectedGuildID, selectedChannelID, filters);
   const guildFromQuery = searchParams.get("guild");
+  const channelFromQuery = searchParams.get("channel");
+  const messageFromQuery = searchParams.get("message");
 
   useEffect(() => {
     if (guildFromQuery && selectedGuildID !== guildFromQuery) {
@@ -35,6 +37,17 @@ function HistoryPageContent() {
       setSelectedGuildID(guilds[0].guildID);
     }
   }, [guildFromQuery, guilds, selectedGuildID]);
+
+  useEffect(() => {
+    if (!channelFromQuery) return;
+    if (selectedChannelID === channelFromQuery) return;
+    setSelectedChannelID(channelFromQuery);
+  }, [channelFromQuery, selectedChannelID]);
+
+  useEffect(() => {
+    if (!messageFromQuery) return;
+    setHistoryMessageID(messageFromQuery);
+  }, [messageFromQuery]);
 
   function handleSelectChannel(id: string) {
     setSelectedChannelID(id);

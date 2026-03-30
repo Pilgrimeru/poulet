@@ -27,6 +27,7 @@ const NATURE_LABELS: Record<SanctionNature, string> = {
   Spam: "Spam",
   Manipulation: "Manipulation",
   Recidivism: "Récidive",
+  Other: "Autre",
 };
 
 export interface SanctionEmbedOptions {

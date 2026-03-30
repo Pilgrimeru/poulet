@@ -8,7 +8,7 @@ let initPromise: Promise<void> | null = null;
 
 const MODERATION_TABLE_REQUIREMENTS: Record<string, string[]> = {
   Sanctions: ["id", "guildID", "userID", "moderatorID", "type", "severity", "nature", "state", "reason", "durationMs", "createdAt"],
-  Appeals: ["id", "sanctionID", "text", "status", "createdAt"],
+  Appeals: ["id", "sanctionID", "text", "status", "reviewOutcome", "resolutionReason", "revisedSanction", "reviewedAt", "createdAt"],
   FlaggedMessages: ["id", "guildID", "channelID", "messageID", "reporterID", "targetUserID", "status", "aiAnalysis", "sanctionID", "context", "moderatorID", "createdAt"],
   ModerationReports: ["id", "guildID", "reporterID", "targetUserID", "ticketChannelID", "status", "reporterSummary", "confirmationCount", "sanctionID", "context", "moderatorID", "createdAt"],
 };

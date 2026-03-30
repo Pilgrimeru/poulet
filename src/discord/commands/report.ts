@@ -70,6 +70,42 @@ function normalizeText(value: string): string {
   return value.normalize("NFD").replaceAll(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function logFlagTargetingDebug(args: {
+  guildID: string;
+  channelID: string;
+  messageID: string;
+  reporterID: string;
+  reporterUsername: string;
+  reporterDisplayName: string;
+  targetUserID: string;
+  messageContent: string;
+  messageMentions: Array<{ id: string; username?: string | null; displayName?: string | null }>;
+  analysis: {
+    isViolation: boolean;
+    severity: string;
+    nature: string;
+    reason: string;
+    targetID: string | null;
+    needsMoreContext: boolean;
+    searchQuery: string | null;
+  };
+  resolvedTargetID: string | null;
+}): void {
+  console.info("[report][target-debug]", {
+    guildID: args.guildID,
+    channelID: args.channelID,
+    messageID: args.messageID,
+    reporterID: args.reporterID,
+    reporterUsername: args.reporterUsername,
+    reporterDisplayName: args.reporterDisplayName,
+    targetUserID: args.targetUserID,
+    messageContent: args.messageContent,
+    messageMentions: args.messageMentions,
+    aiAnalysis: args.analysis,
+    wouldRequireCertification: Boolean(args.resolvedTargetID && args.resolvedTargetID !== args.reporterID),
+  });
+}
+
 function formatDuration(durationMs: number): string {
   if (durationMs < 60_000) return `${Math.ceil(durationMs / 1000)}s`;
   if (durationMs < 3_600_000) return `${Math.ceil(durationMs / 60_000)}min`;
@@ -200,7 +236,7 @@ async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: Us
         `Bonjour ${reporter}, ton signalement concernant **${target.username}** va etre analyse automatiquement.`,
         "",
         "Explique clairement les faits reproches, avec des preuves ou des liens quand c'est possible.",
-        "Quand tout est pret, clique sur **Deposer le signalement**.",
+        "Quand tout est prêt, clique sur **Déposer le signalement**.",
       ].join("\n"),
     )
     .setThumbnail(target.displayAvatarURL())
@@ -210,7 +246,7 @@ async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: Us
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`report:submit:${channel.id}`)
-      .setLabel("Deposer le signalement")
+      .setLabel("Déposer le signalement")
       .setStyle(ButtonStyle.Success)
       .setEmoji("📨"),
     new ButtonBuilder()
@@ -312,7 +348,7 @@ async function sendAppealDM(target: User, guildID: string, sanctionID: string, r
       new EmbedBuilder()
         .setColor(config.COLORS.MAIN)
         .setTitle("Moderation")
-        .setDescription(`Une sanction automatique a ete prise a ton encontre.\nMotif: ${reason}`),
+        .setDescription(`Une sanction automatique a été prise à ton encontre.\nMotif : ${reason}`),
     ],
     components: [row],
   }).catch(() => undefined);
@@ -405,7 +441,7 @@ async function applyAutomaticSanction(args: {
           new EmbedBuilder()
             .setColor(0xe03030)
             .setTitle("Confirmation de bannissement requise")
-            .setDescription(`L'utilisateur ${args.target} a ete marque pour un bannissement potentiel.\nMotif: ${args.reason}`),
+            .setDescription(`L'utilisateur ${args.target} a été marqué pour un bannissement potentiel.\nMotif : ${args.reason}`),
         ],
       }).catch(() => undefined);
     }
@@ -416,7 +452,7 @@ async function applyAutomaticSanction(args: {
 
 async function processTicketSubmission(guild: Guild, channel: TextChannel) {
   const meta = decodeTicketMeta(channel.topic);
-  if (!meta) throw new Error("Metadonnees du ticket introuvables.");
+  if (!meta) throw new Error("Métadonnées du ticket introuvables.");
 
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = ticketMessagesToTranscript(ticketMessages);
@@ -448,7 +484,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
     const followUpRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`report:followup:${report!.id}`)
-        .setLabel("J'ai repondu")
+        .setLabel("J'ai répondu")
         .setStyle(ButtonStyle.Secondary),
     );
 
@@ -512,7 +548,7 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
 
   const meta = decodeTicketMeta(channel.topic);
   if (!meta) {
-    await interaction.reply({ content: "Metadonnees du ticket introuvables.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Métadonnées du ticket introuvables.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (interaction.user.id !== meta.reporterID) {
@@ -523,9 +559,9 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await processTicketSubmission(interaction.guild, channel);
   await interaction.editReply({
-    content: result.kind === "follow_up"
-      ? "Des informations supplementaires sont necessaires. Reponds dans le ticket puis clique sur `J'ai repondu`."
-      : "La synthese IA est prete. Confirme ou demande une unique modification dans le ticket.",
+      content: result.kind === "follow_up"
+      ? "Des informations supplémentaires sont nécessaires. Réponds dans le ticket puis clique sur `J'ai répondu`."
+      : "La synthèse IA est prête. Confirme ou demande une unique modification dans le ticket.",
   });
 }
 
@@ -542,7 +578,7 @@ async function handleTicketCancel(interaction: ButtonInteraction): Promise<void>
   }
 
   await interaction.update({ components: [] });
-  await channel.send({ content: "Ticket annule. Ce salon sera supprime dans 5 secondes." });
+  await channel.send({ content: "Ticket annulé. Ce salon sera supprimé dans 5 secondes." });
   setTimeout(() => void channel.delete().catch(() => undefined), 5000);
 }
 
@@ -584,7 +620,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     source: { kind: "report", id: report.id, channel },
   });
 
-  await interaction.reply({ content: "Signalement confirme et sanction appliquee.", flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: "Signalement confirmé et sanction appliquée.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleReportModify(interaction: ButtonInteraction): Promise<void> {
@@ -616,8 +652,8 @@ async function handleReportModify(interaction: ButtonInteraction): Promise<void>
     status: "awaiting_reporter",
     confirmationCount: report.confirmationCount + 1,
   });
-  await channel.send("Ajoute les corrections souhaitees dans le ticket puis clique de nouveau sur **Deposer le signalement**.");
-  await interaction.reply({ content: "Ticket repasse en mode edition.", flags: MessageFlags.Ephemeral });
+  await channel.send("Ajoute les corrections souhaitées dans le ticket puis clique de nouveau sur **Déposer le signalement**.");
+  await interaction.reply({ content: "Ticket repassé en mode édition.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleReportFollowUp(interaction: ButtonInteraction): Promise<void> {
@@ -645,8 +681,8 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   const result = await processTicketSubmission(interaction.guild, channel);
   await interaction.editReply({
     content: result.kind === "follow_up"
-      ? "De nouvelles informations sont encore necessaires."
-      : "La synthese IA a ete regeneree.",
+      ? "De nouvelles informations sont encore nécessaires."
+      : "La synthèse IA a été régénérée.",
   });
 }
 
@@ -654,7 +690,7 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   const parts = interaction.customId.split(":");
   // Format v2: appeal:sanction:<guildID>:<sanctionID>
   if (parts[1] !== "sanction" || parts.length < 4) {
-    await interaction.reply({ content: "Cette sanction n'est plus accessible. Contactez un moderateur.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Cette sanction n'est plus accessible. Contactez un modérateur.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -669,7 +705,7 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   }
 
   if (interaction.user.id !== sanction.userID) {
-    await interaction.reply({ content: "Seul l'utilisateur sanctionne peut faire appel.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: "Seul l'utilisateur sanctionné peut faire appel.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -700,7 +736,7 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
 
   const appealText = submitted.fields.getTextInputValue("appeal_text").trim();
   await appealApiService.create(guildID, sanctionID, appealText);
-  await submitted.reply({ content: "Appel enregistre.", flags: MessageFlags.Ephemeral });
+  await submitted.reply({ content: "Appel enregistré.", flags: MessageFlags.Ephemeral });
 }
 
 function registerModerationRouters() {
@@ -734,11 +770,11 @@ export default class ReportCommand extends Command {
   constructor() {
     super({
       name: "report",
-      description: "Signaler un utilisateur a la moderation",
+      description: "Signaler un utilisateur à la modération",
       options: [
         {
           name: "utilisateur",
-          description: "L'utilisateur a signaler",
+          description: "L'utilisateur à signaler",
           type: ApplicationCommandOptionType.User,
           required: true,
         },
@@ -748,7 +784,7 @@ export default class ReportCommand extends Command {
 
   async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!interaction.guild) {
-      await interaction.reply({ content: "Cette commande doit etre utilisee dans un serveur.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Cette commande doit être utilisée dans un serveur.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -764,7 +800,7 @@ export default class ReportCommand extends Command {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const channel = await openTicket(interaction.guild, interaction.user, target);
-    await interaction.editReply({ content: `Ton ticket a ete cree : ${channel}` });
+    await interaction.editReply({ content: `Ton ticket a été créé : ${channel}` });
   }
 }
 
@@ -775,7 +811,7 @@ export class ReportContextMenuCommand extends ContextMenuCommand {
 
   async execute(interaction: UserContextMenuCommandInteraction): Promise<void> {
     if (!interaction.guild) {
-      await interaction.reply({ content: "Cette commande doit etre utilisee dans un serveur.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Cette commande doit être utilisée dans un serveur.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -791,7 +827,7 @@ export class ReportContextMenuCommand extends ContextMenuCommand {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const channel = await openTicket(interaction.guild, interaction.user, target);
-    await interaction.editReply({ content: `Ton ticket a ete cree : ${channel}` });
+    await interaction.editReply({ content: `Ton ticket a été créé : ${channel}` });
   }
 }
 
@@ -802,7 +838,7 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
 
   async execute(interaction: MessageContextMenuCommandInteraction): Promise<void> {
     if (!interaction.guild) {
-      await interaction.reply({ content: "Cette commande doit etre utilisee dans un serveur.", flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: "Cette commande doit être utilisée dans un serveur.", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -821,6 +857,16 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const contextMessages = await collectContextMessages(targetMessage);
+    const reporterMember = interaction.member;
+    const reporterDisplayName =
+      reporterMember && typeof reporterMember === "object" && "displayName" in reporterMember
+        ? reporterMember.displayName
+        : interaction.user.globalName ?? interaction.user.username;
+    const messageMentions = [...targetMessage.mentions.users.values()].map((user) => ({
+      id: user.id,
+      username: user.username,
+      displayName: interaction.guild?.members.cache.get(user.id)?.displayName ?? user.globalName ?? user.username,
+    }));
 
     const flagged = await flaggedMessageApiService.create({
       guildID: interaction.guild.id,
@@ -834,32 +880,53 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
 
     const analysis = await analyzeFlag({
       reporterID: interaction.user.id,
+      reporterUsername: interaction.user.username,
+      reporterDisplayName,
       targetUserID: target.id,
+      targetUsername: target.username,
+      targetDisplayName: interaction.guild.members.cache.get(target.id)?.displayName ?? target.globalName ?? target.username,
+      messageMentions,
       messageContent: targetMessage.content,
       contextMessages,
     });
 
+    const resolvedTargetID = analysis.targetID;
+
+    logFlagTargetingDebug({
+      guildID: interaction.guild.id,
+      channelID: targetMessage.channelId,
+      messageID: targetMessage.id,
+      reporterID: interaction.user.id,
+      reporterUsername: interaction.user.username,
+      reporterDisplayName,
+      targetUserID: target.id,
+      messageContent: targetMessage.content,
+      messageMentions,
+      analysis,
+      resolvedTargetID,
+    });
+
     await flaggedMessageApiService.update(interaction.guild.id, flagged.id, {
-      aiAnalysis: analysis,
+      aiAnalysis: { ...analysis, targetID: resolvedTargetID },
       status: "analyzed",
     });
 
     if (!analysis.isViolation) {
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "dismissed" });
-      await interaction.editReply({ content: "Aucune violation suffisamment claire n'a ete detectee pour une sanction automatique." });
+      await interaction.editReply({ content: "Aucune violation suffisamment claire n'a été détectée pour une sanction automatique." });
       return;
     }
 
-    if (analysis.targetID && analysis.targetID !== interaction.user.id) {
+    if (resolvedTargetID && resolvedTargetID !== interaction.user.id) {
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "needs_certification" });
-      await interaction.editReply({ content: "Cette insulte ciblee ne peut etre signalee que par la personne visee. Utilise le flux de ticket si tu es la victime." });
+      await interaction.editReply({ content: "Cette insulte ciblée ne peut être signalée que par la personne visée. Utilise le flux de ticket si tu es la victime." });
       return;
     }
 
     if (analysis.needsMoreContext) {
       const channel = await openTicket(interaction.guild, interaction.user, target);
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "escalated" });
-      await interaction.editReply({ content: `Le message demande plus de contexte. Un ticket a ete cree : ${channel}` });
+      await interaction.editReply({ content: `Le message demande plus de contexte. Un ticket a été créé : ${channel}` });
       return;
     }
 

@@ -9,7 +9,7 @@ import styles from "./Moderation.module.css";
 type Tab = "appeals" | "sanctions";
 type Severity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
 type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
-type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism";
+type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism" | "Other";
 type SanctionState = "created" | "canceled";
 type AppealStatus = "pending_review" | "upheld" | "overturned";
 
@@ -39,6 +39,10 @@ type AppealItem = {
   sanctionID: string;
   text: string;
   status: AppealStatus;
+  reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith" | null;
+  resolutionReason: string | null;
+  revisedSanction: SanctionDraft | null;
+  reviewedAt: number | null;
   createdAt: number;
 };
 
@@ -64,8 +68,10 @@ type ContextMessage = {
   id: string;
   authorID: string;
   authorUsername: string;
+  authorAvatarURL?: string;
   content: string;
   createdAt: number;
+  referencedMessageID?: string | null;
 };
 
 type FlaggedMessageItem = {
@@ -122,6 +128,7 @@ const NATURE_LABELS: Record<SanctionNature, string> = {
   Spam: "Spam",
   Manipulation: "Manipulation",
   Recidivism: "Récidive",
+  Other: "Autre",
 };
 
 const TYPE_LABELS: Record<SanctionType, string> = {
@@ -166,13 +173,26 @@ async function fetchSanctions(guildID: string): Promise<SanctionItem[]> {
   return ((await r.json()) as SanctionItem[]).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-async function patchAppeal(guildID: string, appealID: string, status: AppealStatus) {
+async function patchAppeal(
+  guildID: string,
+  appealID: string,
+  patch: {
+    status?: AppealStatus;
+    reviewOutcome?: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith";
+    resolutionReason: string;
+    revisedSanction?: SanctionDraft;
+    badFaithSanction?: SanctionDraft;
+  },
+) {
   const r = await fetch(`/api/guilds/${guildID}/appeals/${appealID}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(patch),
   });
-  if (!r.ok) throw new Error("Failed to update appeal");
+  if (!r.ok) {
+    const payload = await r.json().catch(() => null) as { error?: string } | null;
+    throw new Error(payload?.error || "Failed to update appeal");
+  }
 }
 
 async function patchSanction(guildID: string, sanctionID: string, patch: Partial<SanctionDraft> & { state?: SanctionState }): Promise<SanctionItem> {
@@ -511,22 +531,39 @@ function AppealDetail({
   guildID: string;
   appeal: AppealItem;
   linkedSanction: SanctionItem | null;
-  onDecision: (decision: "upheld" | "overturned") => Promise<void>;
+  onDecision: (decision: {
+    reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith";
+    resolutionReason: string;
+    revisedSanction?: SanctionDraft;
+    badFaithSanction?: SanctionDraft;
+  }) => Promise<void>;
 }>) {
   const [draft, setDraft] = useState<SanctionDraft | null>(linkedSanction ? toDraft(linkedSanction) : null);
+  const [resolutionReason, setResolutionReason] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [reasonFlash, setReasonFlash] = useState(false);
+  const reasonMissing = resolutionReason.trim().length === 0;
   const [sourceMeta, setSourceMeta] = useState<{ kind: "flag"; data: FlaggedMessageItem } | { kind: "report"; data: ModerationReportItem } | null>(null);
+  const reasonTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setDraft(linkedSanction ? toDraft(linkedSanction) : null);
     setIsEditing(false);
+    setResolutionReason("");
+    setReasonFlash(false);
   }, [linkedSanction?.id]);
+
+  useEffect(() => {
+    if (!reasonFlash) return;
+    const timeout = window.setTimeout(() => setReasonFlash(false), 650);
+    return () => window.clearTimeout(timeout);
+  }, [reasonFlash]);
 
   useEffect(() => {
     setSourceMeta(null);
     if (!linkedSanction) return;
     // Try to find which source (flaggedMessage or report) is linked to this sanction
-    fetch(`/api/guilds/${guildID}/flagged-messages?state=sanctioned`, { cache: "no-store" })
+    fetch(`/api/guilds/${guildID}/flagged-messages?status=sanctioned`, { cache: "no-store" })
       .then((r) => r.json() as Promise<FlaggedMessageItem[]>)
       .then((flags) => {
         const flag = flags.find((f) => f.sanctionID === linkedSanction.id);
@@ -547,11 +584,23 @@ function AppealDetail({
   const reporterID = sourceMeta?.data.reporterID ?? null;
   const targetUserID = linkedSanction?.userID ?? null;
 
+  const triggerReasonFlash = () => {
+    setReasonFlash(false);
+    requestAnimationFrame(() => setReasonFlash(true));
+    reasonTextareaRef.current?.focus();
+  };
+
   const handleSanctionSave = async () => {
     if (!linkedSanction || !draft) return;
-    const updated = await patchSanction(guildID, linkedSanction.id, draft);
-    setDraft(toDraft(updated));
-    setIsEditing(false);
+    if (reasonMissing) {
+      triggerReasonFlash();
+      return;
+    }
+    await onDecision({
+      reviewOutcome: "modified",
+      resolutionReason,
+      revisedSanction: draft,
+    });
   };
 
   return (
@@ -575,13 +624,25 @@ function AppealDetail({
         <div className={styles.actionGroup}>
           <button
             className={`${styles.btn} ${styles.btnGhost}`}
-            onClick={() => void onDecision("upheld")}
+            onClick={() => {
+              if (reasonMissing) {
+                triggerReasonFlash();
+                return;
+              }
+              void onDecision({ reviewOutcome: "upheld", resolutionReason });
+            }}
           >
             Rejeter l'appel
           </button>
           <button
             className={`${styles.btn} ${styles.btnDanger}`}
-            onClick={() => void onDecision("overturned")}
+            onClick={() => {
+              if (reasonMissing) {
+                triggerReasonFlash();
+                return;
+              }
+              void onDecision({ reviewOutcome: "overturned", resolutionReason });
+            }}
           >
             Accepter · lever la sanction
           </button>
@@ -608,6 +669,20 @@ function AppealDetail({
               <p className={styles.blockText}>{appeal.text || "—"}</p>
             </div>
 
+            <div className={styles.field}>
+              <label className={styles.label}>Motif de décision modérateur</label>
+              <textarea
+                ref={reasonTextareaRef}
+                className={`${styles.textarea} ${reasonFlash ? styles.textareaFlashError : ""}`}
+                value={resolutionReason}
+                onChange={(e) => setResolutionReason(e.target.value)}
+                placeholder="Explique la décision humaine prise sur cet appel."
+              />
+              {reasonMissing && (
+                <div className={styles.panelHint}>Un motif de décision est requis avant de trancher cet appel.</div>
+              )}
+            </div>
+
             {aiAnalysis && (
               <div className={`${styles.block} ${styles.blockMuted}`}>
                 <div className={styles.label}>Analyse IA</div>
@@ -628,12 +703,10 @@ function AppealDetail({
             {sourceMeta?.kind === "flag" && (
               <a
                 className={styles.messageLink}
-                href={`https://discord.com/channels/${guildID}/${sourceMeta.data.channelID}/${sourceMeta.data.messageID}`}
-                target="_blank"
-                rel="noreferrer"
+                href={`/history?guild=${encodeURIComponent(guildID)}&channel=${encodeURIComponent(sourceMeta.data.channelID)}&message=${encodeURIComponent(sourceMeta.data.messageID)}`}
               >
                 <IconExternalLink />
-                Ouvrir dans Discord
+                Ouvrir dans l'historique
               </a>
             )}
           </section>
@@ -668,6 +741,26 @@ function AppealDetail({
                           title="Enregistrer"
                         >
                           <IconSave />
+                        </button>
+                        <button
+                          className={`${styles.btn} ${styles.btnDanger}`}
+                          onClick={() => {
+                            if (reasonMissing) {
+                              triggerReasonFlash();
+                              return;
+                            }
+                            void onDecision({
+                              reviewOutcome: "sanctioned_bad_faith",
+                              resolutionReason,
+                              badFaithSanction: {
+                                ...draft,
+                                reason: resolutionReason,
+                              },
+                            });
+                          }}
+                          title="Sanctionner l'appel de mauvaise foi"
+                        >
+                          Mauvaise foi
                         </button>
                         <button
                           className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
@@ -749,17 +842,45 @@ function ModerationInner() {
     }
   }, [selectedSanction?.id]);
 
-  const handleAppealDecision = useCallback(async (decision: "upheld" | "overturned") => {
+  const handleAppealDecision = useCallback(async (decision: {
+    reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith";
+    resolutionReason: string;
+    revisedSanction?: SanctionDraft;
+    badFaithSanction?: SanctionDraft;
+  }) => {
     if (!selectedAppeal) return;
+    if (!decision.resolutionReason.trim()) {
+      throw new Error("Un motif de décision est requis.");
+    }
     await patchAppeal(guildID, selectedAppeal.id, decision);
-    if (decision === "overturned" && selectedAppeal.sanctionID) {
-      const revoked = await patchSanction(guildID, selectedAppeal.sanctionID, { state: "canceled" });
-      setSanctions((cur) => cur?.map((i) => (i.id === revoked.id ? revoked : i)) ?? []);
+    if (decision.reviewOutcome === "overturned" && selectedAppeal.sanctionID) {
+      setSanctions((cur) => cur?.map((i) => (
+        i.id === selectedAppeal.sanctionID ? { ...i, state: "canceled" } : i
+      )) ?? []);
+    }
+    if (decision.reviewOutcome === "modified" && selectedAppeal.sanctionID && decision.revisedSanction) {
+      setSanctions((cur) => cur?.map((i) => (
+        i.id === selectedAppeal.sanctionID ? { ...i, ...decision.revisedSanction } : i
+      )) ?? []);
+    }
+    if (decision.reviewOutcome === "sanctioned_bad_faith" && decision.badFaithSanction && linkedSanction) {
+      setSanctions((cur) => [
+        {
+          id: `tmp-${Date.now()}`,
+          guildID,
+          userID: linkedSanction.userID,
+          moderatorID: linkedSanction.moderatorID,
+          state: "created",
+          createdAt: Date.now(),
+          ...decision.badFaithSanction,
+        },
+        ...(cur ?? []),
+      ]);
     }
     const next = (appeals ?? []).filter((i) => i.id !== selectedAppeal.id);
     setAppeals(next);
     setSelectedAppealId(next[0]?.id ?? null);
-  }, [guildID, selectedAppeal, appeals]);
+  }, [guildID, selectedAppeal, appeals, linkedSanction]);
 
   const handleSanctionSave = useCallback(async () => {
     if (!selectedSanction || !sanctionDraft) return;

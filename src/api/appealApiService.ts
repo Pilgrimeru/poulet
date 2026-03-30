@@ -7,11 +7,19 @@ export interface AppealDTO {
   sanctionID: string;
   text: string;
   status: AppealStatus;
+  reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith" | null;
+  resolutionReason: string | null;
+  revisedSanction: unknown;
+  reviewedAt: number | null;
   createdAt: number;
 }
 
 export interface UpdateAppealInput {
-  status: AppealStatus;
+  status?: AppealStatus;
+  reviewOutcome?: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith" | null;
+  resolutionReason?: string | null;
+  revisedSanction?: unknown;
+  reviewedAt?: number | null;
 }
 
 export const appealApiService = {

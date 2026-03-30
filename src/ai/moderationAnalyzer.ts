@@ -25,7 +25,12 @@ export interface ContextMessage {
 
 export interface FlagAnalysisInput {
   reporterID: string;
+  reporterUsername?: string | null;
+  reporterDisplayName?: string | null;
   targetUserID: string;
+  targetUsername?: string | null;
+  targetDisplayName?: string | null;
+  messageMentions?: Array<{ id: string; username?: string | null; displayName?: string | null }>;
   messageContent: string;
   contextMessages: ContextMessage[];
 }
@@ -34,6 +39,44 @@ export interface ReportAnalysisInput {
   reporterID: string;
   targetUserID: string;
   transcript: string;
+}
+
+function normalizeValue(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeSeverity(value: unknown): unknown {
+  const normalized = normalizeValue(value).replaceAll(/[\s-]+/g, "_");
+  if (normalized === "low" || normalized === "faible") return "LOW";
+  if (normalized === "medium" || normalized === "moyen" || normalized === "modere" || normalized === "moderee") return "MEDIUM";
+  if (normalized === "high" || normalized === "grave" || normalized === "eleve" || normalized === "elevee") return "HIGH";
+  if (normalized === "unforgivable" || normalized === "impardonnable") return "UNFORGIVABLE";
+  return value;
+}
+
+function normalizeNature(value: unknown): unknown {
+  const normalized = normalizeValue(value).replaceAll(/[\s_-]+/g, "");
+  if (["extremism", "extremisme"].includes(normalized)) return "Extremism";
+  if (["violence"].includes(normalized)) return "Violence";
+  if (["hate", "haine"].includes(normalized)) return "Hate";
+  if (["harassment", "harcelement", "harcelementcible", "insulte", "injure", "agressionverbale"].includes(normalized)) return "Harassment";
+  if (["spam", "flood"].includes(normalized)) return "Spam";
+  if (["manipulation", "negationnisme", "doxxing", "contournement"].includes(normalized)) return "Manipulation";
+  if (["recidivism", "recidive"].includes(normalized)) return "Recidivism";
+  if (["other", "autre", "unknown", "misc", "miscellaneous"].includes(normalized)) return "Other";
+  return value;
+}
+
+function normalizeStructuredPayload(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const payload = { ...(value as Record<string, unknown>) };
+  if ("severity" in payload) payload["severity"] = normalizeSeverity(payload["severity"]);
+  if ("nature" in payload) payload["nature"] = normalizeNature(payload["nature"]);
+  return payload;
 }
 
 function extractJSONObject(raw: string): string {
@@ -45,24 +88,32 @@ function extractJSONObject(raw: string): string {
   return raw.slice(start, end + 1);
 }
 
-function heuristicFlagAnalysis(input: FlagAnalysisInput): FlagAnalysisResult {
-  const text = `${input.messageContent}\n${input.contextMessages.map((msg) => msg.content).join("\n")}`.toLowerCase();
-  const insultWords = ["idiot", "connard", "pute", "fdp", "debile", "abruti", "salope", "encule"];
-  const isInsult = insultWords.some((word) => text.includes(word));
-  return {
-    isViolation: isInsult,
-    severity: isInsult ? "MEDIUM" : "LOW",
-    reason: isInsult ? "Detection heuristique d'une insulte dans le contenu signale." : "Aucune violation evidente detectee en mode degrade.",
-    nature: isInsult ? "Harassment" : "Spam",
-    targetID: isInsult ? input.targetUserID : null,
-    needsMoreContext: !isInsult && input.contextMessages.length < 3,
-    searchQuery: null,
-  };
-}
-
 async function parseStructuredResult<T>(messages: BaseMessage[], schema: { parse: (value: unknown) => T }): Promise<T> {
   const raw = await callWithFallback(messages);
-  return schema.parse(JSON.parse(extractJSONObject(raw)));
+  const parsed = JSON.parse(extractJSONObject(raw));
+  const normalized = normalizeStructuredPayload(parsed);
+
+  try {
+    return schema.parse(normalized);
+  } catch (error) {
+    const repairMessages: BaseMessage[] = [
+      ...messages,
+      new HumanMessage(
+        [
+          "Ta réponse JSON précédente est invalide pour le schéma attendu.",
+          `Erreur de validation: ${error instanceof Error ? error.message : String(error)}`,
+          `JSON précédent: ${JSON.stringify(normalized)}`,
+          "Régénère maintenant un JSON complet et valide.",
+          "Tous les champs requis doivent être présents, notamment reason, severity, nature, isViolation, targetID, needsMoreContext, searchQuery.",
+          "Ne réponds qu'avec un objet JSON valide.",
+        ].join("\n"),
+      ),
+    ];
+
+    const repairedRaw = await callWithFallback(repairMessages);
+    const repairedParsed = JSON.parse(extractJSONObject(repairedRaw));
+    return schema.parse(normalizeStructuredPayload(repairedParsed));
+  }
 }
 
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
@@ -75,7 +126,12 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
     new HumanMessage(
       [
         `Reporter ID: ${input.reporterID}`,
-        `Target ID: ${input.targetUserID}`,
+        `Reporter username: ${input.reporterUsername ?? "(unknown)"}`,
+        `Reporter display name: ${input.reporterDisplayName ?? "(unknown)"}`,
+        `Reported message author ID: ${input.targetUserID}`,
+        `Reported message author username: ${input.targetUsername ?? "(unknown)"}`,
+        `Reported message author display name: ${input.targetDisplayName ?? "(unknown)"}`,
+        `Mentions detectees: ${JSON.stringify(input.messageMentions ?? [])}`,
         `Message cible: ${input.messageContent}`,
         "Contexte:",
         contextText || "(vide)",
@@ -95,8 +151,22 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       result = await parseStructuredResult(followUpMessages, FlagAnalysisSchema);
     }
     return result;
-  } catch {
-    return heuristicFlagAnalysis(input);
+  } catch (error) {
+    console.error("[ai] analyzeFlag failed", {
+      reporterID: input.reporterID,
+      targetUserID: input.targetUserID,
+      messageContent: input.messageContent,
+      error,
+    });
+    return {
+      isViolation: false,
+      severity: "LOW",
+      reason: "L'analyse IA du signalement a échoué. Le cas doit être revu via le flux de ticket.",
+      nature: "Harassment",
+      targetID: null,
+      needsMoreContext: true,
+      searchQuery: null,
+    };
   }
 }
 

@@ -540,6 +540,25 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.textareaFlashError {
+  animation: textareaErrorFlash 650ms ease-out 1;
+}
+
+@keyframes textareaErrorFlash {
+  0% {
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 0 rgba(214, 69, 69, 0);
+  }
+  30% {
+    border-color: #d64545;
+    box-shadow: 0 0 0 4px rgba(214, 69, 69, 0.28);
+  }
+  100% {
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 0 rgba(214, 69, 69, 0);
+  }
+}
+
 .readValue {
   color: var(--text-primary);
   font-size: 14px;
