@@ -2,7 +2,7 @@ import { ActivityType } from "discord.js";
 import { startStatsReportScheduler } from "@/discord/components";
 import { bot } from "@/app/runtime";
 import { registerPollHandlers } from "@/discord/interactions";
-import { channelMetaService, flaggedMessageApiService, guildMetaService, messageSnapshotService, moderationReportApiService, sanctionApiService } from "@/api";
+import { appealApiService, channelMetaService, guildMetaService, messageSnapshotService, sanctionApiService } from "@/api";
 import { cacheGuildInvites } from "@/services/inviteTrackerService";
 import { Event } from "@/discord/types";
 
@@ -71,19 +71,11 @@ export default new Event("clientReady", () => {
 
 async function syncOverturnedAppeals(): Promise<void> {
   for (const guild of bot.guilds.cache.values()) {
-    const [flags, reports, sanctions] = await Promise.all([
-      flaggedMessageApiService.list(guild.id, { appealStatus: "overturned" }).catch(() => []),
-      moderationReportApiService.list(guild.id, { appealStatus: "overturned" }).catch(() => []),
-      sanctionApiService.list(guild.id, { activeOnly: true }).catch(() => []),
-    ]);
+    const appeals = await appealApiService.list(guild.id, { status: "overturned" }).catch(() => []);
 
-    const activeSanctions = new Map(sanctions.map((sanction) => [sanction.id, sanction]));
-    const targets = [...flags, ...reports];
-
-    for (const item of targets) {
-      if (!item.sanctionID) continue;
-      const sanction = activeSanctions.get(item.sanctionID);
-      if (!sanction) continue;
+    for (const appeal of appeals) {
+      const sanction = await sanctionApiService.get(guild.id, appeal.sanctionID).catch(() => null);
+      if (!sanction || sanction.state !== "created") continue;
 
       const member = await guild.members.fetch(sanction.userID).catch(() => null);
       if (member) {

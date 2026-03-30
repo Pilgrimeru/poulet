@@ -1,5 +1,15 @@
 import { FlaggedMessage } from "../models/FlaggedMessage";
 
+export interface ContextMessage {
+  id: string;
+  authorID: string;
+  authorUsername: string;
+  authorAvatarURL: string;
+  content: string;
+  createdAt: number;
+  referencedMessageID: string | null;
+}
+
 export interface FlaggedMessageDTO {
   id: string;
   guildID: string;
@@ -9,11 +19,8 @@ export interface FlaggedMessageDTO {
   targetUserID: string;
   status: string;
   aiAnalysis: unknown;
-  warnID: string | null;
   sanctionID: string | null;
-  appealText: string | null;
-  appealStatus: string | null;
-  appealAt: number | null;
+  context: ContextMessage[] | null;
   moderatorID: string | null;
   createdAt: number;
 }
@@ -26,11 +33,8 @@ export interface CreateFlaggedMessageInput {
   targetUserID: string;
   status?: string;
   aiAnalysis?: unknown;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ContextMessage[] | null;
   moderatorID?: string | null;
   createdAt?: number;
 }
@@ -38,11 +42,8 @@ export interface CreateFlaggedMessageInput {
 export interface UpdateFlaggedMessageInput {
   status?: string;
   aiAnalysis?: unknown;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ContextMessage[] | null;
   moderatorID?: string | null;
 }
 
@@ -65,11 +66,8 @@ function toDTO(row: FlaggedMessage): FlaggedMessageDTO {
     targetUserID: row.targetUserID,
     status: row.status,
     aiAnalysis: parseJSON(row.aiAnalysis),
-    warnID: row.warnID ?? null,
     sanctionID: row.sanctionID ?? null,
-    appealText: row.appealText ?? null,
-    appealStatus: row.appealStatus ?? null,
-    appealAt: row.appealAt === null ? null : Number(row.appealAt),
+    context: parseJSON(row.context) as ContextMessage[] | null,
     moderatorID: row.moderatorID ?? null,
     createdAt: Number(row.createdAt),
   };
@@ -84,11 +82,8 @@ export async function createFlaggedMessage(input: CreateFlaggedMessageInput): Pr
     targetUserID: input.targetUserID,
     status: input.status ?? "pending",
     aiAnalysis: input.aiAnalysis === undefined ? null : JSON.stringify(input.aiAnalysis),
-    warnID: input.warnID ?? null,
     sanctionID: input.sanctionID ?? null,
-    appealText: input.appealText ?? null,
-    appealStatus: input.appealStatus ?? null,
-    appealAt: input.appealAt ?? null,
+    context: input.context === undefined ? null : JSON.stringify(input.context),
     moderatorID: input.moderatorID ?? null,
     createdAt: input.createdAt ?? Date.now(),
   } as any);
@@ -97,13 +92,12 @@ export async function createFlaggedMessage(input: CreateFlaggedMessageInput): Pr
 
 export async function listFlaggedMessages(
   guildID: string,
-  options?: { targetUserID?: string; appealStatus?: string; status?: string },
+  options?: { targetUserID?: string; status?: string },
 ): Promise<FlaggedMessageDTO[]> {
   const rows = await FlaggedMessage.findAll({
     where: {
       guildID,
       ...(options?.targetUserID ? { targetUserID: options.targetUserID } : {}),
-      ...(options?.appealStatus ? { appealStatus: options.appealStatus } : {}),
       ...(options?.status ? { status: options.status } : {}),
     },
     order: [["createdAt", "DESC"]],
@@ -118,15 +112,12 @@ export async function updateFlaggedMessage(
 ): Promise<FlaggedMessageDTO | null> {
   const row = await FlaggedMessage.findOne({ where: { guildID, id: flagID } });
   if (!row) return null;
-  await row.update({
-    ...(patch.status !== undefined ? { status: patch.status } : {}),
-    ...(patch.aiAnalysis !== undefined ? { aiAnalysis: JSON.stringify(patch.aiAnalysis) } : {}),
-    ...(patch.warnID !== undefined ? { warnID: patch.warnID } : {}),
-    ...(patch.sanctionID !== undefined ? { sanctionID: patch.sanctionID } : {}),
-    ...(patch.appealText !== undefined ? { appealText: patch.appealText } : {}),
-    ...(patch.appealStatus !== undefined ? { appealStatus: patch.appealStatus } : {}),
-    ...(patch.appealAt !== undefined ? { appealAt: patch.appealAt } : {}),
-    ...(patch.moderatorID !== undefined ? { moderatorID: patch.moderatorID } : {}),
-  });
+  const updates: Record<string, unknown> = {};
+  if (patch.status !== undefined) updates["status"] = patch.status;
+  if (patch.aiAnalysis !== undefined) updates["aiAnalysis"] = JSON.stringify(patch.aiAnalysis);
+  if (patch.sanctionID !== undefined) updates["sanctionID"] = patch.sanctionID;
+  if (patch.context !== undefined) updates["context"] = patch.context === null ? null : JSON.stringify(patch.context);
+  if (patch.moderatorID !== undefined) updates["moderatorID"] = patch.moderatorID;
+  await row.update(updates);
   return toDTO(row);
 }

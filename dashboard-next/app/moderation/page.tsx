@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "./Moderation.module.css";
 
@@ -8,6 +8,10 @@ import styles from "./Moderation.module.css";
 
 type Tab = "appeals" | "sanctions";
 type Severity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
+type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
+type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism";
+type SanctionState = "created" | "canceled";
+type AppealStatus = "pending_review" | "upheld" | "overturned";
 
 type UserMeta = {
   userID: string;
@@ -16,68 +20,116 @@ type UserMeta = {
   avatarURL: string;
 };
 
-type FlagAnalysis = {
-  isViolation?: boolean;
-  severity?: Severity;
-  warnSuffices?: boolean;
-  category?: string;
-  reasoning?: string;
-  isBlackHumor?: boolean;
-  isInsult?: boolean;
-  insultTargetID?: string | null;
-  requiresCertification?: boolean;
-  needsMoreContext?: boolean;
-};
-
-type QQOQCCP = {
-  qui?: string;
-  quoi?: string;
-  ou?: string;
-  quand?: string;
-  comment?: string;
-  combien?: string;
-  pourquoi?: string;
-};
-
 type SanctionItem = {
   id: string;
   guildID: string;
   userID: string;
   moderatorID: string;
-  type: "MUTE" | "BAN_PENDING";
+  type: SanctionType;
+  severity: Severity;
+  nature: SanctionNature;
+  state: SanctionState;
   reason: string;
-  warnID: string | null;
-  isActive: boolean;
   durationMs: number | null;
   createdAt: number;
-  expiresAt: number | null;
 };
 
 type AppealItem = {
   id: string;
-  kind: "flag" | "report";
+  sanctionID: string;
+  text: string;
+  status: AppealStatus;
   createdAt: number;
-  targetUserID: string;
+};
+
+type FlagAnalysis = {
+  isViolation?: boolean;
+  severity?: Severity;
+  reason?: string;
+  nature?: SanctionNature;
+  targetID?: string | null;
+  needsMoreContext?: boolean;
+};
+
+type AiSummary = {
+  isViolation?: boolean;
+  severity?: Severity;
+  reason?: string;
+  nature?: SanctionNature;
+  targetID?: string | null;
+  summary?: string;
+};
+
+type ContextMessage = {
+  id: string;
+  authorID: string;
+  authorUsername: string;
+  content: string;
+  createdAt: number;
+};
+
+type FlaggedMessageItem = {
+  id: string;
+  guildID: string;
+  channelID: string;
+  messageID: string;
   reporterID: string;
-  appealText: string | null;
-  appealStatus: string | null;
-  sanctionID: string | null;
+  targetUserID: string;
   status: string;
-  // flag fields
-  channelID?: string;
-  messageID?: string;
-  aiAnalysis?: FlagAnalysis | null;
-  // report fields
-  reporterSummary?: string;
-  aiQQOQCCP?: string | null;
-  aiQuestions?: string[];
+  aiAnalysis: FlagAnalysis | null;
+  sanctionID: string | null;
+  context: ContextMessage[] | null;
+  createdAt: number;
+};
+
+type ModerationReportItem = {
+  id: string;
+  guildID: string;
+  reporterID: string;
+  targetUserID: string;
+  ticketChannelID: string;
+  status: string;
+  reporterSummary: string;
+  sanctionID: string | null;
+  context: { messages: ContextMessage[]; aiSummary?: AiSummary } | null;
+  createdAt: number;
 };
 
 type SanctionDraft = {
-  type: "MUTE" | "BAN_PENDING";
+  type: SanctionType;
+  severity: Severity;
+  nature: SanctionNature;
   reason: string;
   durationMs: number | null;
-  isActive: boolean;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SEVERITY_LEVELS: Severity[] = ["LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"];
+
+const SEVERITY_LABELS: Record<Severity, string> = {
+  LOW: "Faible",
+  MEDIUM: "Modérée",
+  HIGH: "Grave",
+  UNFORGIVABLE: "Impardonnable",
+};
+
+const NATURE_LABELS: Record<SanctionNature, string> = {
+  Extremism: "Extrémisme",
+  Violence: "Violence",
+  Hate: "Haine",
+  Harassment: "Harcèlement",
+  Spam: "Spam",
+  Manipulation: "Manipulation",
+  Recidivism: "Récidive",
+};
+
+const TYPE_LABELS: Record<SanctionType, string> = {
+  WARN_LOW: "Avertissement faible",
+  WARN_MEDIUM: "Avertissement moyen",
+  WARN_HIGH: "Avertissement élevé",
+  MUTE: "Exclusion",
+  BAN_PENDING: "Ban en attente",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -88,7 +140,7 @@ function formatDate(value: number | null): string {
 }
 
 function formatDuration(value: number | null): string {
-  if (value === null) return "Permanente";
+  if (value === null) return "—";
   const minutes = Math.ceil(value / 60_000);
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.ceil(minutes / 60);
@@ -97,34 +149,15 @@ function formatDuration(value: number | null): string {
 }
 
 function toDraft(s: SanctionItem): SanctionDraft {
-  return { type: s.type, reason: s.reason, durationMs: s.durationMs, isActive: s.isActive };
-}
-
-function parseSafeJSON<T>(value: unknown): T | null {
-  if (!value) return null;
-  if (typeof value === "object") return value as T;
-  try { return JSON.parse(value as string) as T; } catch { return null; }
-}
-
-function normalizeText(value: string | null | undefined): string {
-  return (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  return { type: s.type, severity: s.severity, nature: s.nature, reason: s.reason, durationMs: s.durationMs };
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 async function fetchAppeals(guildID: string): Promise<AppealItem[]> {
-  const [flagsRes, reportsRes] = await Promise.all([
-    fetch(`/api/guilds/${guildID}/flagged-messages?appealStatus=pending_review`, { cache: "no-store" }),
-    fetch(`/api/guilds/${guildID}/moderation-reports?appealStatus=pending_review`, { cache: "no-store" }),
-  ]);
-  const [flags, reports] = await Promise.all([
-    flagsRes.json() as Promise<AppealItem[]>,
-    reportsRes.json() as Promise<AppealItem[]>,
-  ]);
-  return [
-    ...flags.map((item) => ({ ...item, kind: "flag" as const })),
-    ...reports.map((item) => ({ ...item, kind: "report" as const })),
-  ].sort((a, b) => b.createdAt - a.createdAt);
+  const r = await fetch(`/api/guilds/${guildID}/appeals?status=pending_review`, { cache: "no-store" });
+  if (!r.ok) throw new Error("Failed to fetch appeals");
+  return ((await r.json()) as AppealItem[]).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 async function fetchSanctions(guildID: string): Promise<SanctionItem[]> {
@@ -133,28 +166,35 @@ async function fetchSanctions(guildID: string): Promise<SanctionItem[]> {
   return ((await r.json()) as SanctionItem[]).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-async function patchAppeal(guildID: string, item: AppealItem, appealStatus: "rejected" | "overturned") {
-  const path = item.kind === "flag"
-    ? `/api/guilds/${guildID}/flagged-messages/${item.id}`
-    : `/api/guilds/${guildID}/moderation-reports/${item.id}`;
-  const r = await fetch(path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appealStatus }) });
+async function patchAppeal(guildID: string, appealID: string, status: AppealStatus) {
+  const r = await fetch(`/api/guilds/${guildID}/appeals/${appealID}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
   if (!r.ok) throw new Error("Failed to update appeal");
 }
 
-async function patchSanction(guildID: string, sanctionID: string, patch: Partial<SanctionDraft>) {
+async function patchSanction(guildID: string, sanctionID: string, patch: Partial<SanctionDraft> & { state?: SanctionState }): Promise<SanctionItem> {
   const r = await fetch(`/api/guilds/${guildID}/sanctions/${sanctionID}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
   });
   if (!r.ok) throw new Error("Failed to update sanction");
   return r.json() as Promise<SanctionItem>;
 }
 
-// ─── User meta ────────────────────────────────────────────────────────────────
+// ─── User meta cache + hooks ──────────────────────────────────────────────────
 
 const userMetaCache = new Map<string, UserMeta>();
 
 function useUserMeta(guildID: string, userID: string | null | undefined): UserMeta | null {
-  const [meta, setMeta] = useState<UserMeta | null>(null);
+  const [meta, setMeta] = useState<UserMeta | null>(() => {
+    if (!guildID || !userID) return null;
+    return userMetaCache.get(`${guildID}:${userID}`) ?? null;
+  });
+
   useEffect(() => {
     if (!guildID || !userID) return;
     const key = `${guildID}:${userID}`;
@@ -164,6 +204,7 @@ function useUserMeta(guildID: string, userID: string | null | undefined): UserMe
       .then((data) => { userMetaCache.set(key, data); setMeta(data); })
       .catch(() => null);
   }, [guildID, userID]);
+
   return meta;
 }
 
@@ -183,6 +224,42 @@ function usePreloadUserMetas(guildID: string, userIDs: string[]) {
   }, [guildID, joined]);
 }
 
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+
+function IconEdit() {
+  return (
+    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function IconSave() {
+  return (
+    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+      <path d="M17 21v-8H7v8" /><path d="M7 3v5h8" />
+    </svg>
+  );
+}
+
+function IconUndo() {
+  return (
+    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 14 4 9l5-5" /><path d="M4 9h9a7 7 0 1 1 0 14h-1" />
+    </svg>
+  );
+}
+
+function IconExternalLink() {
+  return (
+    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ src, name, size = 32 }: Readonly<{ src: string; name: string; size?: number }>) {
@@ -197,53 +274,7 @@ function Avatar({ src, name, size = 32 }: Readonly<{ src: string; name: string; 
   return <img src={src} alt={name} className={styles.avatarImg} style={{ width: size, height: size }} onError={() => setErr(true)} />;
 }
 
-function EditIcon() {
-  return (
-    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-function SaveIcon() {
-  return (
-    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
-      <path d="M17 21v-8H7v8" />
-      <path d="M7 3v5h8" />
-    </svg>
-  );
-}
-
-function UndoIcon() {
-  return (
-    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 14 4 9l5-5" />
-      <path d="M4 9h9a7 7 0 1 1 0 14h-1" />
-    </svg>
-  );
-}
-
-function RejectIcon() {
-  return (
-    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m15 9-6 6" />
-      <path d="m9 9 6 6" />
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  );
-}
-
-function AcceptIcon() {
-  return (
-    <svg className={styles.iconGlyph} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-// ─── UserCard: photo + pseudo, ID au click ────────────────────────────────────
+// ─── UserCard ─────────────────────────────────────────────────────────────────
 
 function UserCard({ guildID, userID, label }: Readonly<{ guildID: string; userID: string; label: string }>) {
   const meta = useUserMeta(guildID, userID);
@@ -253,14 +284,14 @@ function UserCard({ guildID, userID, label }: Readonly<{ guildID: string; userID
 
   return (
     <div className={styles.userCard}>
-      <div className={styles.userCardLabel}>{label}</div>
+      <div className={styles.label}>{label}</div>
       <div className={styles.userCardBody}>
-        <Avatar src={meta?.avatarURL ?? ""} name={name} size={40} />
+        <Avatar src={meta?.avatarURL ?? ""} name={name} size={38} />
         <div className={styles.userCardInfo}>
           <span className={styles.userCardName}>{name}</span>
           {sub && <span className={styles.userCardSub}>{sub}</span>}
           <button className={styles.userCardIdBtn} onClick={() => setShowID((v) => !v)}>
-            {showID ? <span className={styles.userCardIdValue}>{userID}</span> : "ID"}
+            {showID ? <span className={styles.userCardIdValue}>{userID}</span> : "Voir ID"}
           </button>
         </div>
       </div>
@@ -268,16 +299,7 @@ function UserCard({ guildID, userID, label }: Readonly<{ guildID: string; userID
   );
 }
 
-// ─── SeverityTag: badge cliquable avec dropdown ───────────────────────────────
-
-const SEVERITY_LEVELS: Severity[] = ["LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"];
-
-const SEVERITY_LABELS: Record<Severity, string> = {
-  LOW: "Faible",
-  MEDIUM: "Modérée",
-  HIGH: "Élevée",
-  UNFORGIVABLE: "Impardonnable",
-};
+// ─── SeverityTag ─────────────────────────────────────────────────────────────
 
 function SeverityTag({ value, onChange }: Readonly<{ value: Severity; onChange?: (v: Severity) => void }>) {
   const [open, setOpen] = useState(false);
@@ -285,29 +307,33 @@ function SeverityTag({ value, onChange }: Readonly<{ value: Severity; onChange?:
 
   useEffect(() => {
     if (!open) return;
-    function onClickOutside(e: MouseEvent) {
+    function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   return (
     <div className={styles.severityWrap} ref={ref}>
       <button
-        className={[styles.severityTag, styles[`sev${value}`]].join(" ")}
+        className={`${styles.severityTag} ${styles[`sev${value}`]}`}
         onClick={() => onChange && setOpen((v) => !v)}
         title={onChange ? "Changer la sévérité" : undefined}
+        aria-haspopup={onChange ? "listbox" : undefined}
+        aria-expanded={onChange ? open : undefined}
       >
         {SEVERITY_LABELS[value]}
-        {onChange && <span className={styles.severityArrow}>▾</span>}
+        {onChange && <span className={styles.severityArrow} aria-hidden>▾</span>}
       </button>
       {open && onChange && (
-        <div className={styles.severityDropdown}>
+        <div className={styles.severityDropdown} role="listbox" aria-label="Changer la sévérité">
           {SEVERITY_LEVELS.map((level) => (
             <button
               key={level}
-              className={[styles.severityOption, level === value ? styles.severityOptionActive : "", styles[`sev${level}`]].join(" ")}
+              role="option"
+              aria-selected={level === value}
+              className={`${styles.severityOption} ${level === value ? styles.severityOptionActive : ""} ${styles[`sev${level}`]}`}
               onClick={() => { onChange(level); setOpen(false); }}
             >
               {SEVERITY_LABELS[level]}
@@ -316,35 +342,6 @@ function SeverityTag({ value, onChange }: Readonly<{ value: Severity; onChange?:
         </div>
       )}
     </div>
-  );
-}
-
-// ─── QQOQCCP table ───────────────────────────────────────────────────────────
-
-const QQOQCCP_LABELS: [keyof QQOQCCP, string][] = [
-  ["qui", "Qui"],
-  ["quoi", "Quoi"],
-  ["ou", "Où"],
-  ["quand", "Quand"],
-  ["comment", "Comment"],
-  ["combien", "Combien"],
-  ["pourquoi", "Pourquoi"],
-];
-
-function QQOQCCPTable({ data }: Readonly<{ data: QQOQCCP }>) {
-  return (
-    <dl className={styles.qqoqccp}>
-      {QQOQCCP_LABELS.map(([key, label]) => {
-        const value = data[key];
-        if (!value) return null;
-        return (
-          <div key={key} className={styles.qqoqccpRow}>
-            <dt className={styles.qqoqccpLabel}>{label}</dt>
-            <dd className={styles.qqoqccpValue}>{value}</dd>
-          </div>
-        );
-      })}
-    </dl>
   );
 }
 
@@ -358,32 +355,40 @@ function SidebarCard(props: {
   active?: boolean;
   onClick: () => void;
   severity?: Severity;
-  isActive?: boolean;
+  state?: SanctionState;
   date: string;
 }) {
   const meta = useUserMeta(props.guildID, props.userID);
   const name = meta?.displayName || meta?.username || props.userID;
 
   return (
-    <button className={`${styles.card} ${props.active ? styles.cardActive : ""}`} onClick={props.onClick}>
+    <button
+      className={`${styles.card} ${props.active ? styles.cardActive : ""}`}
+      onClick={props.onClick}
+      aria-pressed={props.active}
+    >
       <div className={styles.cardRow}>
-        <Avatar src={meta?.avatarURL ?? ""} name={name} size={28} />
+        <Avatar src={meta?.avatarURL ?? ""} name={name} size={30} />
         <div className={styles.cardInfo}>
           <div className={styles.cardName}>{name}</div>
           <div className={styles.cardDate}>{props.date}</div>
         </div>
         {props.severity && (
-          <span className={`${styles.cardSevPill} ${styles[`sev${props.severity}`]}`}>
+          <span className={`${styles.pill} ${styles[`sev${props.severity}`]}`}>
             {SEVERITY_LABELS[props.severity]}
           </span>
         )}
-        {props.isActive !== undefined && (
-          <span className={`${styles.cardSevPill} ${props.isActive ? styles.pillActive : styles.pillInactive}`}>
-            {props.isActive ? "Active" : "Levée"}
+        {props.state !== undefined && (
+          <span className={`${styles.pill} ${props.state === "created" ? styles.pillActive : styles.pillInactive}`}>
+            {props.state === "created" ? "Active" : "Levée"}
           </span>
         )}
       </div>
-      <div className={styles.cardTitle}>{props.title}</div>
+
+      <div className={styles.cardBadgeRow}>
+        <span className={styles.cardKindBadge}>{props.title}</span>
+      </div>
+
       {props.body && <div className={styles.cardExcerpt}>{props.body}</div>}
     </button>
   );
@@ -393,13 +398,295 @@ function SidebarCard(props: {
 
 function Collapsible({ title, children, defaultOpen = false }: Readonly<{ title: string; children: React.ReactNode; defaultOpen?: boolean }>) {
   const [open, setOpen] = useState(defaultOpen);
+  const id = useRef(`collapsible-${Math.random().toString(36).slice(2)}`);
   return (
     <section className={styles.section}>
-      <button className={styles.collapsibleBtn} onClick={() => setOpen((v) => !v)}>
+      <button
+        className={styles.collapsibleBtn}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={id.current}
+      >
         <span>{title}</span>
         <span className={styles.collapsibleIcon} aria-hidden>{open ? "▲" : "▼"}</span>
       </button>
-      {open && <div className={styles.sectionBody}>{children}</div>}
+      {open && <div id={id.current} className={styles.sectionBody}>{children}</div>}
+    </section>
+  );
+}
+
+// ─── SanctionEditor ──────────────────────────────────────────────────────────
+
+function SanctionEditor({
+  draft,
+  onChange,
+  isEditing,
+}: Readonly<{
+  draft: SanctionDraft;
+  onChange: (d: SanctionDraft) => void;
+  isEditing: boolean;
+}>) {
+  return (
+    <>
+      <div className={styles.formRow}>
+        <div className={styles.field}>
+          <label className={styles.label}>Gravité</label>
+          {isEditing ? (
+            <select
+              className={styles.select}
+              value={draft.severity}
+              onChange={(e) => onChange({ ...draft, severity: e.target.value as Severity })}
+            >
+              {SEVERITY_LEVELS.map((level) => (
+                <option key={level} value={level}>{SEVERITY_LABELS[level]}</option>
+              ))}
+            </select>
+          ) : (
+            <div className={styles.readValue}>{SEVERITY_LABELS[draft.severity]}</div>
+          )}
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Type</label>
+          {isEditing ? (
+            <select
+              className={styles.select}
+              value={draft.type}
+              onChange={(e) => onChange({ ...draft, type: e.target.value as SanctionType })}
+            >
+              <option value="WARN_LOW">Avertissement faible</option>
+              <option value="WARN_MEDIUM">Avertissement moyen</option>
+              <option value="WARN_HIGH">Avertissement élevé</option>
+              <option value="MUTE">Exclusion</option>
+              <option value="BAN_PENDING">Ban en attente</option>
+            </select>
+          ) : (
+            <div className={styles.readValue}>{TYPE_LABELS[draft.type]}</div>
+          )}
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Durée (min)</label>
+          {isEditing ? (
+            <input
+              className={styles.input}
+              type="number"
+              min={0}
+              placeholder="—"
+              value={draft.durationMs === null ? "" : Math.floor(draft.durationMs / 60_000)}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                onChange({ ...draft, durationMs: v === "" ? null : Number(v) * 60_000 });
+              }}
+            />
+          ) : (
+            <div className={styles.readValue}>{formatDuration(draft.durationMs)}</div>
+          )}
+        </div>
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label}>Motif</label>
+        {isEditing ? (
+          <textarea
+            className={styles.textarea}
+            value={draft.reason}
+            onChange={(e) => onChange({ ...draft, reason: e.target.value })}
+          />
+        ) : (
+          <div className={styles.block}>
+            <p className={styles.blockText}>{draft.reason}</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── AppealDetail ─────────────────────────────────────────────────────────────
+
+function AppealDetail({
+  guildID,
+  appeal,
+  linkedSanction,
+  onDecision,
+}: Readonly<{
+  guildID: string;
+  appeal: AppealItem;
+  linkedSanction: SanctionItem | null;
+  onDecision: (decision: "upheld" | "overturned") => Promise<void>;
+}>) {
+  const [draft, setDraft] = useState<SanctionDraft | null>(linkedSanction ? toDraft(linkedSanction) : null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [sourceMeta, setSourceMeta] = useState<{ kind: "flag"; data: FlaggedMessageItem } | { kind: "report"; data: ModerationReportItem } | null>(null);
+
+  useEffect(() => {
+    setDraft(linkedSanction ? toDraft(linkedSanction) : null);
+    setIsEditing(false);
+  }, [linkedSanction?.id]);
+
+  useEffect(() => {
+    setSourceMeta(null);
+    if (!linkedSanction) return;
+    // Try to find which source (flaggedMessage or report) is linked to this sanction
+    fetch(`/api/guilds/${guildID}/flagged-messages?state=sanctioned`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<FlaggedMessageItem[]>)
+      .then((flags) => {
+        const flag = flags.find((f) => f.sanctionID === linkedSanction.id);
+        if (flag) { setSourceMeta({ kind: "flag", data: flag }); return; }
+        return fetch(`/api/guilds/${guildID}/moderation-reports?status=sanctioned`, { cache: "no-store" })
+          .then((r) => r.json() as Promise<ModerationReportItem[]>)
+          .then((reports) => {
+            const report = reports.find((rep) => rep.sanctionID === linkedSanction.id);
+            if (report) setSourceMeta({ kind: "report", data: report });
+          });
+      })
+      .catch(() => null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guildID, linkedSanction?.id]);
+
+  const aiSummary = sourceMeta?.kind === "report" ? sourceMeta.data.context?.aiSummary : null;
+  const aiAnalysis = sourceMeta?.kind === "flag" ? sourceMeta.data.aiAnalysis : null;
+  const reporterID = sourceMeta?.data.reporterID ?? null;
+  const targetUserID = linkedSanction?.userID ?? null;
+
+  const handleSanctionSave = async () => {
+    if (!linkedSanction || !draft) return;
+    const updated = await patchSanction(guildID, linkedSanction.id, draft);
+    setDraft(toDraft(updated));
+    setIsEditing(false);
+  };
+
+  return (
+    <section className={styles.hero} aria-label="Détail de l'appel">
+      <div className={styles.heroHeader}>
+        <div className={styles.heroTitleGroup}>
+          <span className={styles.heroKind}>Appel en attente</span>
+          <div className={styles.heroMeta}>
+            <span className={styles.heroDate}>{formatDate(appeal.createdAt)}</span>
+            {linkedSanction && (
+              <span className={`${styles.pill} ${styles[`sev${linkedSanction.severity}`]}`}>
+                {SEVERITY_LABELS[linkedSanction.severity]}
+              </span>
+            )}
+            {linkedSanction && (
+              <span className={styles.categoryBadge}>{NATURE_LABELS[linkedSanction.nature]}</span>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.actionGroup}>
+          <button
+            className={`${styles.btn} ${styles.btnGhost}`}
+            onClick={() => void onDecision("upheld")}
+          >
+            Rejeter l'appel
+          </button>
+          <button
+            className={`${styles.btn} ${styles.btnDanger}`}
+            onClick={() => void onDecision("overturned")}
+          >
+            Accepter · lever la sanction
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.heroBody}>
+        <div className={styles.primaryGrid}>
+          {/* Dossier */}
+          <section className={styles.panel} aria-label="Dossier">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Dossier</h2>
+            </div>
+
+            {(targetUserID || reporterID) && (
+              <div className={styles.userGrid}>
+                {targetUserID && <UserCard guildID={guildID} userID={targetUserID} label="Utilisateur sanctionné" />}
+                {reporterID && <UserCard guildID={guildID} userID={reporterID} label="Signalé par" />}
+              </div>
+            )}
+
+            <div className={styles.block}>
+              <div className={styles.label}>Déclaration d'appel</div>
+              <p className={styles.blockText}>{appeal.text || "—"}</p>
+            </div>
+
+            {aiAnalysis && (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Analyse IA</div>
+                <p className={styles.blockTextMuted}>{aiAnalysis.reason}</p>
+                {aiAnalysis.needsMoreContext && (
+                  <span className={styles.aiFlag} style={{ marginTop: 6, display: "inline-flex" }}>Contexte insuffisant</span>
+                )}
+              </div>
+            )}
+
+            {aiSummary?.summary && (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Synthèse IA (QQOQCCP)</div>
+                <p className={styles.blockTextMuted}>{aiSummary.summary}</p>
+              </div>
+            )}
+
+            {sourceMeta?.kind === "flag" && (
+              <a
+                className={styles.messageLink}
+                href={`https://discord.com/channels/${guildID}/${sourceMeta.data.channelID}/${sourceMeta.data.messageID}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <IconExternalLink />
+                Ouvrir dans Discord
+              </a>
+            )}
+          </section>
+
+          {/* Sanction liée */}
+          <section className={styles.panel} aria-label="Sanction liée">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Sanction liée</h2>
+              <div className={styles.panelHint}>Vérifie ou ajuste avant de trancher</div>
+            </div>
+
+            {linkedSanction && draft ? (
+              <>
+                <SanctionEditor draft={draft} onChange={setDraft} isEditing={isEditing} />
+
+                <div className={styles.actionBar}>
+                  <div className={styles.actionGroup}>
+                    {!isEditing ? (
+                      <button
+                        className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                        onClick={() => setIsEditing(true)}
+                        title="Modifier la sanction"
+                        aria-label="Modifier la sanction"
+                      >
+                        <IconEdit />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          className={`${styles.btn} ${styles.btnPrimary} ${styles.iconOnly}`}
+                          onClick={() => void handleSanctionSave()}
+                          title="Enregistrer"
+                        >
+                          <IconSave />
+                        </button>
+                        <button
+                          className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                          onClick={() => { setDraft(toDraft(linkedSanction)); setIsEditing(false); }}
+                          title="Annuler"
+                        >
+                          <IconUndo />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Aucune sanction liée à cet appel.</p>
+            )}
+          </section>
+        </div>
+      </div>
     </section>
   );
 }
@@ -416,11 +703,8 @@ function ModerationInner() {
   const [selectedAppealId, setSelectedAppealId] = useState<string | null>(null);
   const [selectedSanctionId, setSelectedSanctionId] = useState<string | null>(null);
   const [sanctionDraft, setSanctionDraft] = useState<SanctionDraft | null>(null);
-  const [appealDraft, setAppealDraft] = useState<SanctionDraft | null>(null);
-  const [isAppealEditing, setIsAppealEditing] = useState(false);
-
-  // Local override of severity before submitting decision
-  const [localSeverity, setLocalSeverity] = useState<Severity | null>(null);
+  const [isEditingSanction, setIsEditingSanction] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   useEffect(() => {
     if (!guildID) return;
@@ -434,13 +718,6 @@ function ModerationInner() {
       .catch(() => { setAppeals([]); setSanctions([]); });
   }, [guildID]);
 
-  const appealUserIDs = useMemo(() => {
-    if (!appeals) return [];
-    const ids = new Set<string>();
-    for (const a of appeals) { ids.add(a.targetUserID); ids.add(a.reporterID); }
-    return [...ids];
-  }, [appeals]);
-
   const sanctionUserIDs = useMemo(() => {
     if (!sanctions) return [];
     const ids = new Set<string>();
@@ -448,7 +725,6 @@ function ModerationInner() {
     return [...ids];
   }, [sanctions]);
 
-  usePreloadUserMetas(guildID, appealUserIDs);
   usePreloadUserMetas(guildID, sanctionUserIDs);
 
   const selectedAppeal = useMemo(
@@ -460,450 +736,263 @@ function ModerationInner() {
     [sanctions, selectedSanctionId],
   );
 
-  useEffect(() => {
-    if (selectedSanction) setSanctionDraft(toDraft(selectedSanction));
-  }, [selectedSanction]);
-
-  // Reset local severity when appeal changes
-  useEffect(() => { setLocalSeverity(null); }, [selectedAppealId]);
-
   const linkedSanction = useMemo(
     () => sanctions?.find((i) => i.id === selectedAppeal?.sanctionID) ?? null,
     [sanctions, selectedAppeal],
   );
 
   useEffect(() => {
-    setAppealDraft(linkedSanction ? toDraft(linkedSanction) : null);
-    setIsAppealEditing(false);
-  }, [linkedSanction?.id]);
+    if (selectedSanction) {
+      setSanctionDraft(toDraft(selectedSanction));
+      setIsEditingSanction(false);
+      setConfirmRevoke(false);
+    }
+  }, [selectedSanction?.id]);
 
-  const flagAnalysis = useMemo(() => {
-    if (selectedAppeal?.kind !== "flag") return null;
-    return parseSafeJSON<FlagAnalysis>(selectedAppeal.aiAnalysis) ?? null;
-  }, [selectedAppeal]);
-
-  const qqoqccp = useMemo(() => {
-    if (selectedAppeal?.kind !== "report") return null;
-    return parseSafeJSON<QQOQCCP>(selectedAppeal.aiQQOQCCP) ?? null;
-  }, [selectedAppeal]);
-
-  const effectiveSeverity: Severity | null = localSeverity ?? flagAnalysis?.severity ?? null;
-  const analysisMatchesReason = normalizeText(flagAnalysis?.reasoning) !== "" && normalizeText(flagAnalysis?.reasoning) === normalizeText(appealDraft?.reason);
-
-  if (!guildID) return <div className={styles.emptyState}>Sélectionne un serveur dans la barre du haut.</div>;
-  if (appeals === null || sanctions === null) return <div className={styles.emptyState}>Chargement…</div>;
-
-  async function handleAppealDecision(decision: "rejected" | "overturned") {
+  const handleAppealDecision = useCallback(async (decision: "upheld" | "overturned") => {
     if (!selectedAppeal) return;
-    await patchAppeal(guildID, selectedAppeal, decision);
+    await patchAppeal(guildID, selectedAppeal.id, decision);
     if (decision === "overturned" && selectedAppeal.sanctionID) {
-      const revoked = await patchSanction(guildID, selectedAppeal.sanctionID, { isActive: false });
+      const revoked = await patchSanction(guildID, selectedAppeal.sanctionID, { state: "canceled" });
       setSanctions((cur) => cur?.map((i) => (i.id === revoked.id ? revoked : i)) ?? []);
     }
     const next = (appeals ?? []).filter((i) => i.id !== selectedAppeal.id);
     setAppeals(next);
     setSelectedAppealId(next[0]?.id ?? null);
-  }
+  }, [guildID, selectedAppeal, appeals]);
 
-  async function handleAppealSanctionSave() {
-    if (!linkedSanction || !appealDraft) return;
-    const updated = await patchSanction(guildID, linkedSanction.id, appealDraft);
-    setSanctions((cur) => cur?.map((i) => (i.id === updated.id ? updated : i)) ?? []);
-    setAppealDraft(toDraft(updated));
-    setIsAppealEditing(false);
-  }
-
-  async function handleSanctionSave() {
+  const handleSanctionSave = useCallback(async () => {
     if (!selectedSanction || !sanctionDraft) return;
     const updated = await patchSanction(guildID, selectedSanction.id, sanctionDraft);
     setSanctions((cur) => cur?.map((i) => (i.id === updated.id ? updated : i)) ?? []);
     setSanctionDraft(toDraft(updated));
-  }
+    setIsEditingSanction(false);
+  }, [guildID, selectedSanction, sanctionDraft]);
 
-  async function handleSanctionRevoke() {
+  const handleSanctionRevoke = useCallback(async () => {
     if (!selectedSanction) return;
-    const updated = await patchSanction(guildID, selectedSanction.id, { isActive: false });
+    const updated = await patchSanction(guildID, selectedSanction.id, { state: "canceled" });
     setSanctions((cur) => cur?.map((i) => (i.id === updated.id ? updated : i)) ?? []);
     setSanctionDraft(toDraft(updated));
+    setConfirmRevoke(false);
+  }, [guildID, selectedSanction]);
+
+  if (!guildID) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyStateIcon}>⚙️</div>
+        Sélectionne un serveur dans la barre du haut.
+      </div>
+    );
+  }
+
+  if (appeals === null || sanctions === null) {
+    return <div className={styles.emptyState}>Chargement…</div>;
   }
 
   return (
     <div className={styles.page}>
-      {/* ── Header ─────────────────────────────────────── */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <div className={styles.title}>Modération</div>
-        </div>
-        <div className={styles.tabs}>
-          <button className={`${styles.tab} ${tab === "appeals" ? styles.tabActive : ""}`} onClick={() => setTab("appeals")}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Modération</h1>
+        <div className={styles.tabs} role="tablist">
+          <button
+            role="tab"
+            aria-selected={tab === "appeals"}
+            className={`${styles.tab} ${tab === "appeals" ? styles.tabActive : ""}`}
+            onClick={() => setTab("appeals")}
+          >
             Appels
-            {appeals.length > 0 && <span className={styles.tabBadge}>{appeals.length}</span>}
+            {appeals.length > 0 && (
+              <span className={styles.tabBadge} aria-label={`${appeals.length} en attente`}>
+                {appeals.length}
+              </span>
+            )}
           </button>
-          <button className={`${styles.tab} ${tab === "sanctions" ? styles.tabActive : ""}`} onClick={() => setTab("sanctions")}>
+          <button
+            role="tab"
+            aria-selected={tab === "sanctions"}
+            className={`${styles.tab} ${tab === "sanctions" ? styles.tabActive : ""}`}
+            onClick={() => setTab("sanctions")}
+          >
             Sanctions
+            {sanctions.length > 0 && <span className={styles.tabBadge}>{sanctions.length}</span>}
           </button>
         </div>
-      </div>
+      </header>
 
       <div className={styles.layout}>
-        {/* ── Sidebar ──────────────────────────────────── */}
-        <aside className={styles.sidebar}>
+        {/* Sidebar */}
+        <aside className={styles.sidebar} aria-label={tab === "appeals" ? "Liste des appels" : "Liste des sanctions"}>
           <div className={styles.sidebarMeta}>
             <span className={styles.sidebarTitle}>{tab === "appeals" ? "En attente" : "Toutes"}</span>
             <span className={styles.sidebarCount}>{tab === "appeals" ? appeals.length : sanctions.length}</span>
           </div>
           <div className={styles.list}>
-            {tab === "appeals" && appeals.length === 0 && <div className={styles.listEmpty}>Aucun appel en attente</div>}
+            {tab === "appeals" && appeals.length === 0 && (
+              <div className={styles.listEmpty}>Aucun appel en attente</div>
+            )}
             {tab === "appeals" && appeals.map((appeal) => {
-              const analysis = parseSafeJSON<FlagAnalysis>(appeal.aiAnalysis);
+              const sanction = sanctions.find((s) => s.id === appeal.sanctionID);
               return (
                 <SidebarCard
-                  key={`${appeal.kind}:${appeal.id}`}
+                  key={appeal.id}
                   guildID={guildID}
-                  title={appeal.kind === "flag" ? "Signalement de message" : "Dossier de report"}
-                  userID={appeal.targetUserID}
-                  body={appeal.appealText}
+                  title={sanction ? TYPE_LABELS[sanction.type] : "Appel"}
+                  userID={sanction?.userID ?? ""}
+                  body={appeal.text}
                   active={selectedAppeal?.id === appeal.id}
                   onClick={() => setSelectedAppealId(appeal.id)}
-                  severity={analysis?.severity}
+                  severity={sanction?.severity}
                   date={new Date(appeal.createdAt).toLocaleDateString("fr-FR")}
                 />
               );
             })}
 
-            {tab === "sanctions" && sanctions.length === 0 && <div className={styles.listEmpty}>Aucune sanction</div>}
+            {tab === "sanctions" && sanctions.length === 0 && (
+              <div className={styles.listEmpty}>Aucune sanction</div>
+            )}
             {tab === "sanctions" && sanctions.map((sanction) => (
               <SidebarCard
                 key={sanction.id}
                 guildID={guildID}
-                title={sanction.type === "BAN_PENDING" ? "Ban en attente" : "Mute · " + formatDuration(sanction.durationMs)}
+                title={TYPE_LABELS[sanction.type]}
                 userID={sanction.userID}
                 body={sanction.reason}
                 active={selectedSanction?.id === sanction.id}
                 onClick={() => setSelectedSanctionId(sanction.id)}
-                isActive={sanction.isActive}
+                severity={sanction.severity}
+                state={sanction.state}
                 date={new Date(sanction.createdAt).toLocaleDateString("fr-FR")}
               />
             ))}
           </div>
         </aside>
 
-        {/* ── Main ─────────────────────────────────────── */}
-        <main className={styles.main}>
+        {/* Main */}
+        <main className={styles.main} role="tabpanel">
 
-          {/* ════ APPEALS ════ */}
+          {/* APPEALS */}
           {tab === "appeals" && !selectedAppeal && (
-            <div className={styles.emptyState}>Aucun appel en attente.</div>
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>✅</div>
+              Aucun appel en attente.
+            </div>
           )}
 
           {tab === "appeals" && selectedAppeal && (
-            <>
-              <section className={styles.hero}>
-                <div className={styles.heroTopRow}>
-                  <div className={styles.heroIdentity}>
-                    <span className={styles.heroKind}>
-                      {selectedAppeal.kind === "flag" ? "Signalement de message" : "Dossier de report"}
-                    </span>
-                    <div className={styles.heroDate}>{formatDate(selectedAppeal.createdAt)}</div>
-                  </div>
-                  <div className={styles.heroTopRight}>
-                    {effectiveSeverity && (
-                      <SeverityTag
-                        value={effectiveSeverity}
-                        onChange={flagAnalysis ? setLocalSeverity : undefined}
-                      />
-                    )}
-                    {flagAnalysis?.category && <span className={styles.categoryBadge}>{flagAnalysis.category}</span>}
-                  </div>
-                </div>
-
-                <div className={styles.primaryGrid}>
-                  <section className={styles.panel}>
-                    <div className={styles.panelHeader}>
-                      <h2 className={styles.panelTitle}>Dossier</h2>
-                      <div className={styles.panelHint}>Contexte du signalement et personnes concernées</div>
-                    </div>
-
-                    <div className={styles.userGrid}>
-                      <UserCard guildID={guildID} userID={selectedAppeal.targetUserID} label="Utilisateur visé" />
-                      <UserCard guildID={guildID} userID={selectedAppeal.reporterID} label="Auteur du signalement" />
-                    </div>
-
-                    {selectedAppeal.appealText && (
-                      <div className={styles.contentBlock}>
-                        <div className={styles.blockLabel}>Déclaration</div>
-                        <div className={styles.blockText}>{selectedAppeal.appealText}</div>
-                      </div>
-                    )}
-
-                    {flagAnalysis?.reasoning && !analysisMatchesReason && (
-                      <div className={styles.contentBlockMuted}>
-                        <div className={styles.blockLabel}>Analyse IA</div>
-                        <div className={styles.blockTextSecondary}>{flagAnalysis.reasoning}</div>
-                      </div>
-                    )}
-
-                    {selectedAppeal.kind === "flag" && selectedAppeal.channelID && selectedAppeal.messageID && (
-                      <a
-                        className={styles.messageLink}
-                        href={`https://discord.com/channels/${guildID}/${selectedAppeal.channelID}/${selectedAppeal.messageID}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Ouvrir le message dans Discord
-                      </a>
-                    )}
-                  </section>
-
-                  <section className={styles.panel}>
-                    <div className={styles.panelHeader}>
-                      <h2 className={styles.panelTitle}>Sanction proposée</h2>
-                      <div className={styles.panelHint}>Vérifie ou ajuste la sanction avant de trancher l’appel</div>
-                    </div>
-
-                    {linkedSanction && appealDraft ? (
-                      <>
-                        <div className={styles.sanctionSummary}>
-                          <div>
-                            <div className={styles.blockLabel}>État de la sanction</div>
-                            <div className={styles.sanctionSummaryTitle}>Sanction actuellement appliquée</div>
-                          </div>
-                          <span className={`${styles.statusPill} ${linkedSanction.isActive ? styles.pillActive : styles.pillInactive}`}>
-                            {linkedSanction.isActive ? "Active" : "Levée"}
-                          </span>
-                        </div>
-
-                        <div className={styles.editorGrid}>
-                          <div className={styles.editorField}>
-                            <label className={styles.fieldLabel}>Type</label>
-                            {isAppealEditing ? (
-                              <select
-                                className={styles.select}
-                                value={appealDraft.type}
-                                onChange={(e) => setAppealDraft({ ...appealDraft, type: e.target.value as SanctionDraft["type"] })}
-                              >
-                                <option value="MUTE">Mute</option>
-                                <option value="BAN_PENDING">Ban en attente</option>
-                              </select>
-                            ) : (
-                              <div className={styles.readValue}>{appealDraft.type === "BAN_PENDING" ? "Ban en attente" : "Mute"}</div>
-                            )}
-                          </div>
-
-                          <div className={styles.editorField}>
-                            <label className={styles.fieldLabel}>Durée</label>
-                            {isAppealEditing ? (
-                              <input
-                                className={styles.input}
-                                type="number"
-                                min={0}
-                                value={appealDraft.durationMs === null ? "" : Math.floor(appealDraft.durationMs / 60_000)}
-                                onChange={(e) => {
-                                  const v = e.target.value.trim();
-                                  setAppealDraft({ ...appealDraft, durationMs: v === "" ? null : Number(v) * 60_000 });
-                                }}
-                              />
-                            ) : (
-                              <div className={styles.readValue}>{formatDuration(appealDraft.durationMs)}</div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className={styles.editorField}>
-                          <label className={styles.fieldLabel}>Motif de la sanction</label>
-                          {isAppealEditing ? (
-                            <textarea
-                              className={styles.textarea}
-                              value={appealDraft.reason}
-                              onChange={(e) => setAppealDraft({ ...appealDraft, reason: e.target.value })}
-                            />
-                          ) : (
-                            <div className={styles.reasonCard}>{appealDraft.reason}</div>
-                          )}
-                        </div>
-
-                        <div className={styles.actionBar}>
-                          <div className={styles.actionBarGroup}>
-                            {!isAppealEditing && (
-                              <button
-                                className={`${styles.btn} ${styles.btnPrimary} ${styles.iconBtn}`}
-                                onClick={() => setIsAppealEditing(true)}
-                                title="Modifier la sanction"
-                                aria-label="Modifier la sanction"
-                              >
-                                <EditIcon />
-                              </button>
-                            )}
-                            {isAppealEditing && (
-                              <>
-                                <button
-                                  className={`${styles.btn} ${styles.btnPrimary} ${styles.iconBtn}`}
-                                  onClick={() => void handleAppealSanctionSave()}
-                                  title="Enregistrer la sanction"
-                                  aria-label="Enregistrer la sanction"
-                                >
-                                  <SaveIcon />
-                                </button>
-                                <button
-                                  className={`${styles.btn} ${styles.btnGhost} ${styles.iconBtn}`}
-                                  onClick={() => {
-                                    setAppealDraft(toDraft(linkedSanction));
-                                    setIsAppealEditing(false);
-                                  }}
-                                  title="Annuler l'édition"
-                                  aria-label="Annuler l'édition"
-                                >
-                                  <UndoIcon />
-                                </button>
-                              </>
-                            )}
-                          </div>
-
-                          <div className={styles.actionBarGroup}>
-                            <button
-                              className={`${styles.btn} ${styles.btnGhost} ${styles.iconBtn}`}
-                              onClick={() => void handleAppealDecision("rejected")}
-                              title="Rejeter l'appel"
-                              aria-label="Rejeter l'appel"
-                            >
-                              <RejectIcon />
-                            </button>
-                            <button
-                              className={`${styles.btn} ${styles.btnDanger} ${styles.iconBtn}`}
-                              onClick={() => void handleAppealDecision("overturned")}
-                              title="Accepter l'appel"
-                              aria-label="Accepter l'appel"
-                            >
-                              <AcceptIcon />
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className={styles.emptyPanel}>Aucune sanction liée à cet appel.</div>
-                    )}
-                  </section>
-                </div>
-              </section>
-
-              {/* Fiche QQOQCCP pour les reports */}
-              {qqoqccp && (
-                <Collapsible title="Fiche de synthèse" defaultOpen>
-                  <QQOQCCPTable data={qqoqccp} />
-                </Collapsible>
-              )}
-
-              {/* Questions de suivi */}
-              {selectedAppeal.kind === "report" && selectedAppeal.aiQuestions && selectedAppeal.aiQuestions.length > 0 && (
-                <Collapsible title="Questions de suivi posées">
-                  <ul className={styles.questionList}>
-                    {selectedAppeal.aiQuestions.map((q, i) => <li key={i}>{q}</li>)}
-                  </ul>
-                </Collapsible>
-              )}
-
-              {/* Dossier reporter */}
-              {selectedAppeal.kind === "report" && selectedAppeal.reporterSummary && (
-                <Collapsible title="Récit du reporter">
-                  <p className={styles.prose}>{selectedAppeal.reporterSummary}</p>
-                </Collapsible>
-              )}
-            </>
+            <AppealDetail
+              guildID={guildID}
+              appeal={selectedAppeal}
+              linkedSanction={linkedSanction}
+              onDecision={handleAppealDecision}
+            />
           )}
 
-          {/* ════ SANCTIONS ════ */}
+          {/* SANCTIONS */}
           {tab === "sanctions" && !selectedSanction && (
-            <div className={styles.emptyState}>Aucune sanction enregistrée.</div>
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>🛡️</div>
+              Aucune sanction enregistrée.
+            </div>
           )}
 
           {tab === "sanctions" && selectedSanction && sanctionDraft && (
             <>
-              <section className={styles.hero}>
-                <div className={styles.heroTopRow}>
-                  <span className={styles.heroKind}>
-                    {selectedSanction.type === "BAN_PENDING" ? "Ban en attente" : "Mute"}
-                  </span>
-                  <span className={`${styles.cardSevPill} ${selectedSanction.isActive ? styles.pillActive : styles.pillInactive}`}>
-                    {selectedSanction.isActive ? "Active" : "Levée"}
-                  </span>
-                </div>
-
-                <div className={styles.heroUsers}>
-                  <UserCard guildID={guildID} userID={selectedSanction.userID} label="Utilisateur" />
-                  <UserCard guildID={guildID} userID={selectedSanction.moderatorID} label="Modérateur" />
-                </div>
-
-                <div className={styles.appealBox}>
-                  <div className={styles.appealBoxLabel}>Motif</div>
-                  <div className={styles.appealBoxText}>{selectedSanction.reason}</div>
-                </div>
-
-                {selectedSanction.isActive && (
-                  <div className={styles.heroActions}>
-                    <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => void handleSanctionRevoke()}>
-                      Révoquer la sanction
-                    </button>
+              <section className={styles.hero} aria-label="Détail de la sanction">
+                <div className={styles.heroHeader}>
+                  <div className={styles.heroTitleGroup}>
+                    <span className={styles.heroKind}>{TYPE_LABELS[selectedSanction.type]}</span>
+                    <div className={styles.heroMeta}>
+                      <span className={styles.heroDate}>{formatDate(selectedSanction.createdAt)}</span>
+                      <SeverityTag value={selectedSanction.severity} />
+                      <span className={styles.categoryBadge}>{NATURE_LABELS[selectedSanction.nature]}</span>
+                      <span className={`${styles.pill} ${selectedSanction.state === "created" ? styles.pillActive : styles.pillInactive}`}>
+                        {selectedSanction.state === "created" ? "Active" : "Levée"}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </section>
 
-              <section className={styles.section}>
-                <div className={styles.sectionHeader}>Détails</div>
-                <div className={styles.sectionBody}>
-                  <div className={styles.sanctionRow}>
-                    <div className={styles.sanctionFact}>
-                      <span className={styles.factLabel}>Durée</span>
+                  {selectedSanction.state === "created" && !confirmRevoke && (
+                    <button
+                      className={`${styles.btn} ${styles.btnDanger}`}
+                      onClick={() => setConfirmRevoke(true)}
+                    >
+                      Révoquer
+                    </button>
+                  )}
+                  {selectedSanction.state === "created" && confirmRevoke && (
+                    <div className={styles.actionGroup}>
+                      <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => setConfirmRevoke(false)}>
+                        Annuler
+                      </button>
+                      <button className={`${styles.btn} ${styles.btnDanger}`} onClick={() => void handleSanctionRevoke()}>
+                        Confirmer la révocation
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.heroBody}>
+                  <div className={styles.userGrid}>
+                    <UserCard guildID={guildID} userID={selectedSanction.userID} label="Utilisateur sanctionné" />
+                    <UserCard guildID={guildID} userID={selectedSanction.moderatorID} label="Modérateur" />
+                  </div>
+
+                  <div className={styles.factsGrid}>
+                    <div className={styles.fact}>
+                      <span className={styles.label}>Type</span>
+                      <span className={styles.factValue}>{TYPE_LABELS[selectedSanction.type]}</span>
+                    </div>
+                    <div className={styles.fact}>
+                      <span className={styles.label}>Durée</span>
                       <span className={styles.factValue}>{formatDuration(selectedSanction.durationMs)}</span>
                     </div>
-                    <div className={styles.sanctionFact}>
-                      <span className={styles.factLabel}>Créé le</span>
+                    <div className={styles.fact}>
+                      <span className={styles.label}>Créé le</span>
                       <span className={styles.factValue}>{formatDate(selectedSanction.createdAt)}</span>
                     </div>
-                    <div className={styles.sanctionFact}>
-                      <span className={styles.factLabel}>Expire le</span>
-                      <span className={styles.factValue}>{formatDate(selectedSanction.expiresAt)}</span>
+                    <div className={styles.fact}>
+                      <span className={styles.label}>ID</span>
+                      <span className={`${styles.factValue} ${styles.factMono}`}>{selectedSanction.id}</span>
                     </div>
-                    {selectedSanction.warnID && (
-                      <div className={styles.sanctionFact}>
-                        <span className={styles.factLabel}>Warn lié</span>
-                        <span className={styles.factValue}>{selectedSanction.warnID}</span>
-                      </div>
-                    )}
+                  </div>
+
+                  <div className={styles.block}>
+                    <div className={styles.label}>Motif</div>
+                    <p className={styles.blockText}>{selectedSanction.reason}</p>
                   </div>
                 </div>
               </section>
 
-              <Collapsible title="Modifier la sanction">
-                <div className={styles.editForm}>
-                  <div className={styles.formRow}>
-                    <div className={styles.field}>
-                      <label className={styles.fieldLabel}>Type</label>
-                      <select className={styles.select} value={sanctionDraft.type}
-                        onChange={(e) => setSanctionDraft({ ...sanctionDraft, type: e.target.value as SanctionDraft["type"] })}>
-                        <option value="MUTE">Mute</option>
-                        <option value="BAN_PENDING">Ban en attente</option>
-                      </select>
+              {selectedSanction.state === "created" && (
+                <Collapsible title="Modifier la sanction">
+                  <SanctionEditor
+                    draft={sanctionDraft}
+                    onChange={setSanctionDraft}
+                    isEditing={isEditingSanction}
+                  />
+                  {!isEditingSanction ? (
+                    <button
+                      className={`${styles.btn} ${styles.btnGhost}`}
+                      onClick={() => setIsEditingSanction(true)}
+                    >
+                      <IconEdit /> Modifier
+                    </button>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void handleSanctionSave()}>
+                        <IconSave /> Enregistrer
+                      </button>
+                      <button
+                        className={`${styles.btn} ${styles.btnGhost}`}
+                        onClick={() => { setSanctionDraft(toDraft(selectedSanction)); setIsEditingSanction(false); }}
+                      >
+                        <IconUndo /> Réinitialiser
+                      </button>
                     </div>
-                    <div className={styles.field}>
-                      <label className={styles.fieldLabel}>Durée (min)</label>
-                      <input className={styles.input} type="number" min={0}
-                        value={sanctionDraft.durationMs === null ? "" : Math.floor(sanctionDraft.durationMs / 60_000)}
-                        onChange={(e) => {
-                          const v = e.target.value.trim();
-                          setSanctionDraft({ ...sanctionDraft, durationMs: v === "" ? null : Number(v) * 60_000 });
-                        }} />
-                    </div>
-                  </div>
-                  <div className={styles.field}>
-                    <label className={styles.fieldLabel}>Motif</label>
-                    <textarea className={styles.textarea} value={sanctionDraft.reason}
-                      onChange={(e) => setSanctionDraft({ ...sanctionDraft, reason: e.target.value })} />
-                  </div>
-                  <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => void handleSanctionSave()}>
-                    Enregistrer
-                  </button>
-                </div>
-              </Collapsible>
+                  )}
+                </Collapsible>
+              )}
             </>
           )}
         </main>
@@ -914,7 +1003,7 @@ function ModerationInner() {
 
 export default function ModerationPage() {
   return (
-    <Suspense fallback={<div className={styles.emptyState}>Chargement…</div>}>
+    <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</div>}>
       <ModerationInner />
     </Suspense>
   );

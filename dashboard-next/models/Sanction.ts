@@ -1,7 +1,11 @@
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model, NonAttribute } from "sequelize";
 import { sequelize } from "../lib/db";
+import type { Appeal } from "./Appeal";
 
-export type SanctionType = "MUTE" | "BAN_PENDING";
+export type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
+export type SanctionSeverity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
+export type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism";
+export type SanctionState = "created" | "canceled";
 
 export interface SanctionAttributes {
   id?: string;
@@ -9,12 +13,12 @@ export interface SanctionAttributes {
   userID: string;
   moderatorID: string;
   type: SanctionType;
+  severity: SanctionSeverity;
+  nature: SanctionNature;
+  state: SanctionState;
   reason: string;
-  warnID?: string | null;
-  isActive: boolean;
   durationMs?: number | null;
   createdAt: number;
-  expiresAt?: number | null;
 }
 
 class Sanction extends Model<SanctionAttributes> {
@@ -23,12 +27,13 @@ class Sanction extends Model<SanctionAttributes> {
   declare userID: string;
   declare moderatorID: string;
   declare type: SanctionType;
+  declare severity: SanctionSeverity;
+  declare nature: SanctionNature;
+  declare state: SanctionState;
   declare reason: string;
-  declare warnID: string | null;
-  declare isActive: boolean;
   declare durationMs: number | null;
   declare createdAt: number;
-  declare expiresAt: number | null;
+  declare appeals?: NonAttribute<Appeal[]>;
 }
 
 Sanction.init(
@@ -38,12 +43,12 @@ Sanction.init(
     userID: { type: DataTypes.STRING, allowNull: false },
     moderatorID: { type: DataTypes.STRING, allowNull: false },
     type: { type: DataTypes.STRING, allowNull: false },
+    severity: { type: DataTypes.STRING, allowNull: false },
+    nature: { type: DataTypes.STRING, allowNull: false },
+    state: { type: DataTypes.STRING, allowNull: false, defaultValue: "created" },
     reason: { type: DataTypes.TEXT, allowNull: false, defaultValue: "" },
-    warnID: { type: DataTypes.UUID, allowNull: true, defaultValue: null },
-    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     durationMs: { type: DataTypes.BIGINT, allowNull: true, defaultValue: null },
     createdAt: { type: DataTypes.BIGINT, allowNull: false },
-    expiresAt: { type: DataTypes.BIGINT, allowNull: true, defaultValue: null },
   },
   {
     sequelize,
@@ -51,8 +56,8 @@ Sanction.init(
     timestamps: false,
     indexes: [
       { fields: ["guildID", "userID"] },
-      { fields: ["guildID", "isActive"] },
-      { fields: ["warnID"] },
+      { fields: ["guildID", "state"] },
+      { fields: ["state", "nature"] },
     ],
   },
 );

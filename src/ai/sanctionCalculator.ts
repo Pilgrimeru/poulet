@@ -1,11 +1,11 @@
-export type SanctionSeverity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
-export type WarnSeverity = "LOW" | "MEDIUM" | "HIGH";
-export type SanctionType = "MUTE" | "BAN_PENDING";
+import type { SanctionNature, SanctionSeverity, SanctionType } from "@/api/sanctionApiService";
+
+export type { SanctionSeverity, SanctionType, SanctionNature };
 
 export interface SanctionComputation {
   durationMs: number;
-  warnSeverity: WarnSeverity;
   sanctionType: SanctionType;
+  severity: SanctionSeverity;
   requiresBanConfirmation: boolean;
 }
 
@@ -18,29 +18,10 @@ const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
   UNFORGIVABLE: 7 * 24 * 60 * 60 * 1000,
 };
 
-const WARN_SEVERITY: Record<SanctionSeverity, WarnSeverity> = {
-  LOW: "LOW",
-  MEDIUM: "MEDIUM",
-  HIGH: "HIGH",
-  UNFORGIVABLE: "HIGH",
-};
-
-export function computeSanction(
-  severity: SanctionSeverity,
-  multiplier: number,
-  similarPriorLevel: 0 | 1 | 2 | 3,
-): SanctionComputation {
-  const effectiveSeverity = escalateSeverity(severity, similarPriorLevel);
-  const baseDurationMs = BASE_DURATION_MS[effectiveSeverity];
-  const durationMs = Math.ceil(baseDurationMs * (1 + Math.max(0, multiplier)) / 60_000) * 60_000;
-  const requiresBanConfirmation = effectiveSeverity === "UNFORGIVABLE";
-
-  return {
-    durationMs,
-    warnSeverity: WARN_SEVERITY[effectiveSeverity],
-    sanctionType: requiresBanConfirmation ? "BAN_PENDING" : "MUTE",
-    requiresBanConfirmation,
-  };
+function severityToWarnType(severity: SanctionSeverity): SanctionType {
+  if (severity === "LOW") return "WARN_LOW";
+  if (severity === "MEDIUM") return "WARN_MEDIUM";
+  return "WARN_HIGH";
 }
 
 export function escalateSeverity(
@@ -50,4 +31,38 @@ export function escalateSeverity(
   const currentIndex = SEVERITY_ORDER.indexOf(severity);
   const nextIndex = Math.min(SEVERITY_ORDER.length - 1, currentIndex + similarPriorLevel);
   return SEVERITY_ORDER[nextIndex];
+}
+
+/**
+ * Compute a sanction given severity, multiplier, and prior recidivism level.
+ * UNFORGIVABLE always results in MUTE (7 days) + BAN_PENDING (caller must create both).
+ * For other severities, if multiplier <= 1 (no prior active sanctions), a warn is issued.
+ * Otherwise a mute is applied with multiplied duration.
+ */
+export function computeSanction(
+  severity: SanctionSeverity,
+  multiplier: number,
+  similarPriorLevel: 0 | 1 | 2 | 3,
+): SanctionComputation {
+  const effectiveSeverity = escalateSeverity(severity, similarPriorLevel);
+  const requiresBanConfirmation = effectiveSeverity === "UNFORGIVABLE";
+  const baseDurationMs = BASE_DURATION_MS[effectiveSeverity];
+  const durationMs = Math.ceil((baseDurationMs * multiplier) / 60_000) * 60_000;
+
+  if (requiresBanConfirmation) {
+    return {
+      durationMs,
+      sanctionType: "MUTE",
+      severity: effectiveSeverity,
+      requiresBanConfirmation: true,
+    };
+  }
+
+  const isWarn = multiplier <= 1;
+  return {
+    durationMs: isWarn ? 0 : durationMs,
+    sanctionType: isWarn ? severityToWarnType(effectiveSeverity) : "MUTE",
+    severity: effectiveSeverity,
+    requiresBanConfirmation: false,
+  };
 }

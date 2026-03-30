@@ -1,11 +1,20 @@
 import { Command } from "@/discord/types";
-import { sendWarn, WarnSeverity } from "@/services/warnService";
+import { buildSanctionEmbed } from "@/services/sanctionService";
 import {
   ApplicationCommandOptionType,
   ChatInputCommandInteraction,
   MessageFlags,
   PermissionFlagsBits,
+  TextChannel,
 } from "discord.js";
+
+type WarnSeverity = "LOW" | "MEDIUM" | "HIGH";
+
+function warnSeverityToType(severity: WarnSeverity): "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" {
+  if (severity === "LOW") return "WARN_LOW";
+  if (severity === "MEDIUM") return "WARN_MEDIUM";
+  return "WARN_HIGH";
+}
 
 export default class WarnCommand extends Command {
   constructor() {
@@ -62,11 +71,33 @@ export default class WarnCommand extends Command {
       return;
     }
 
-    await sendWarn(interaction, {
-      target,
+    const embed = buildSanctionEmbed({
+      targetTag: target.tag ?? target.username,
+      targetAvatarURL: target.displayAvatarURL(),
+      moderatorTag: interaction.user.tag ?? interaction.user.username,
+      type: warnSeverityToType(severity),
       severity,
-      message,
-      moderator: interaction.user,
+      nature: "Harassment",
+      reason: message,
+    });
+
+    const channel = interaction.channel as TextChannel | null;
+    if (!channel) {
+      await interaction.reply({
+        content: "Salon introuvable.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await channel.send({
+      content: `${target}`,
+      embeds: [embed],
+    });
+
+    await interaction.reply({
+      content: "Signalement envoyé.",
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

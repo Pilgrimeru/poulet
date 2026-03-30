@@ -6,8 +6,8 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
     const { guildId } = await context.params;
     const { searchParams } = new URL(request.url);
     const userID = searchParams.get("userId") ?? undefined;
-    const activeOnly = searchParams.get("activeOnly") === "true";
-    return NextResponse.json(await listSanctions(guildId, userID, { activeOnly }));
+    const state = (searchParams.get("state") ?? undefined) as "created" | "canceled" | undefined;
+    return NextResponse.json(await listSanctions(guildId, userID, { state }));
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { createWarn, listWarns } from "@/services/warnService";
+import { createAppeal, listAppeals } from "@/services/appealService";
+import type { AppealStatus } from "@/services/appealService";
 
 export async function GET(request: Request, context: { params: Promise<{ guildId: string }> }) {
   try {
     const { guildId } = await context.params;
     const { searchParams } = new URL(request.url);
-    const userID = searchParams.get("userId") ?? undefined;
-    return NextResponse.json(await listWarns(guildId, userID));
+    return NextResponse.json(
+      await listAppeals(guildId, {
+        sanctionID: searchParams.get("sanctionId") ?? undefined,
+        status: (searchParams.get("status") ?? undefined) as AppealStatus | undefined,
+      }),
+    );
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
@@ -14,9 +19,10 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
 
 export async function POST(request: Request, context: { params: Promise<{ guildId: string }> }) {
   try {
-    const { guildId } = await context.params;
+    await context.params;
     const body = await request.json();
-    return NextResponse.json(await createWarn({ ...body, guildID: guildId }));
+    const { sanctionID, text } = body as { sanctionID: string; text: string };
+    return NextResponse.json(await createAppeal(sanctionID, text));
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

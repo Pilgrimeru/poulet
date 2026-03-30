@@ -1,9 +1,11 @@
 import { config } from "@/app";
-import { flaggedMessageApiService, moderationReportApiService, sanctionApiService, warnApiService } from "@/api";
-import { analyzeFlag, analyzeReport, computeSanction } from "@/ai";
+import { appealApiService, flaggedMessageApiService, guildSettingsService, moderationReportApiService, sanctionApiService } from "@/api";
+import type { ContextMessage } from "@/api";
+import { analyzeFlag, askReportQuestions, summarizeReport, computeSanction } from "@/ai";
+import type { SummaryResult } from "@/ai/prompts";
+import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
 import { componentRouter } from "@/discord/interactions";
 import { Command, ContextMenuCommand } from "@/discord/types";
-import { buildWarnEmbed } from "@/services/warnService";
 import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
@@ -38,22 +40,7 @@ type TicketMeta = {
   targetUserID: string;
 };
 
-type StoredReportAnalysis = {
-  needsFollowUp: boolean;
-  followUpQuestions: string[];
-  warnSuffices: boolean;
-  qqoqccp: {
-    qui: string;
-    quoi: string;
-    ou: string;
-    quand: string;
-    comment: string;
-    combien: string;
-    pourquoi: string;
-  };
-  severity: "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
-  reasoning: string;
-};
+type StoredReportAnalysis = SummaryResult;
 
 function encodeTicketMeta(meta: TicketMeta): string {
   return `${TICKET_TOPIC_PREFIX}${JSON.stringify(meta)}`;
@@ -68,8 +55,10 @@ function decodeTicketMeta(topic: string | null): TicketMeta | null {
   }
 }
 
-function safeParseJSON<T>(value: string | null): T | null {
+function safeParseJSON<T>(value: unknown): T | null {
   if (!value) return null;
+  if (typeof value === "object") return value as T;
+  if (typeof value !== "string") return null;
   try {
     return JSON.parse(value) as T;
   } catch {
@@ -88,14 +77,60 @@ function formatDuration(durationMs: number): string {
   return `${Math.ceil(durationMs / 86_400_000)}j`;
 }
 
-function severityWeightFromWarn(severity: "LOW" | "MEDIUM" | "HIGH"): number {
-  return severity === "HIGH" ? 0.5 : 0.25;
+function similarPriorLevelForType(type: string): 1 | 2 | 3 {
+  if (type === "WARN_LOW") return 1;
+  if (type === "WARN_MEDIUM") return 2;
+  return 3;
 }
 
-function similarPriorLevelForSeverity(severity: "LOW" | "MEDIUM" | "HIGH"): 1 | 2 | 3 {
-  if (severity === "LOW") return 1;
-  if (severity === "MEDIUM") return 2;
-  return 3;
+const SEVERITY_EMBED_CONFIG: Record<SanctionSeverity, { color: number; label: string; emoji: string }> = {
+  LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
+  MEDIUM: { color: 0xe07820, label: "Moyen", emoji: "🟠" },
+  HIGH: { color: 0xe03030, label: "Élevé", emoji: "🔴" },
+  UNFORGIVABLE: { color: 0x800000, label: "Impardonnable", emoji: "⛔" },
+};
+
+function buildSanctionEmbed(opts: {
+  target: User;
+  severity: SanctionSeverity;
+  type: string;
+  reason: string;
+  moderator: User;
+  durationMs?: number | null;
+  originalMessage?: Message;
+}): EmbedBuilder {
+  const sev = SEVERITY_EMBED_CONFIG[opts.severity];
+  const sanctionLabel = opts.type.startsWith("WARN")
+    ? `Warn formel (${sev.label})`
+    : opts.type === "MUTE"
+      ? `Exclusion${opts.durationMs ? ` (${formatDuration(opts.durationMs)})` : ""}`
+      : "En attente de bannissement";
+
+  const embed = new EmbedBuilder()
+    .setColor(sev.color)
+    .setAuthor({
+      name: `${sev.emoji} Gravité : ${sev.label}`,
+      iconURL: opts.target.displayAvatarURL(),
+    })
+    .setTitle(`Sanction : ${opts.target.username}`)
+    .setDescription(`Motif : ${opts.reason.trim() || "*[Non communiqué]*"}`)
+    .addFields(
+      { name: "👤 Utilisateur", value: `${opts.target}`, inline: true },
+      { name: "🛡️ Modérateur", value: `${opts.moderator}`, inline: true },
+      { name: "⚖️ Décision", value: sanctionLabel, inline: false },
+    )
+    .setThumbnail(opts.target.displayAvatarURL())
+    .setTimestamp();
+
+  if (opts.originalMessage) {
+    const url = opts.originalMessage.url;
+    const preview = opts.originalMessage.content.length > 100
+      ? `${opts.originalMessage.content.slice(0, 100)}…`
+      : opts.originalMessage.content || "*[Pas de texte]*";
+    embed.addFields({ name: "💬 Message d'origine", value: `[Voir le message](${url})\n> ${preview}` });
+  }
+
+  return embed;
 }
 
 async function getOrCreateCategory(guild: Guild): Promise<CategoryChannel> {
@@ -189,15 +224,18 @@ async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: Us
   await welcome.pin().catch(() => undefined);
 }
 
-async function collectContextMessages(targetMessage: Message): Promise<Array<{ authorID: string; authorName: string; content: string; createdAt: number }>> {
+async function collectContextMessages(targetMessage: Message): Promise<ContextMessage[]> {
   const fetched = await targetMessage.channel.messages.fetch({ limit: 60, around: targetMessage.id }).catch(() => null);
   if (!fetched) {
     return [
       {
+        id: targetMessage.id,
         authorID: targetMessage.author.id,
-        authorName: targetMessage.author.username,
+        authorUsername: targetMessage.author.username,
+        authorAvatarURL: targetMessage.author.displayAvatarURL(),
         content: targetMessage.content,
         createdAt: targetMessage.createdTimestamp,
+        referencedMessageID: targetMessage.reference?.messageId ?? null,
       },
     ];
   }
@@ -205,54 +243,66 @@ async function collectContextMessages(targetMessage: Message): Promise<Array<{ a
   return [...fetched.values()]
     .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
     .map((message) => ({
+      id: message.id,
       authorID: message.author.id,
-      authorName: message.member?.displayName ?? message.author.username,
+      authorUsername: message.member?.displayName ?? message.author.username,
+      authorAvatarURL: message.author.displayAvatarURL(),
       content: message.content,
       createdAt: message.createdTimestamp,
+      referencedMessageID: message.reference?.messageId ?? null,
     }));
 }
 
-async function getSimilarityInputs(guildID: string, userID: string, category: string): Promise<{
+async function collectTicketMessages(channel: TextChannel): Promise<ContextMessage[]> {
+  const messages = await channel.messages.fetch({ limit: 100 });
+  return [...messages.values()]
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+    .filter((message) => !message.author.bot)
+    .map((message) => ({
+      id: message.id,
+      authorID: message.author.id,
+      authorUsername: message.author.username,
+      authorAvatarURL: message.author.displayAvatarURL(),
+      content: message.content,
+      createdAt: message.createdTimestamp,
+      referencedMessageID: message.reference?.messageId ?? null,
+    }));
+}
+
+function ticketMessagesToTranscript(messages: ContextMessage[]): string {
+  return messages
+    .map((msg) => `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername}: ${msg.content}`)
+    .join("\n");
+}
+
+async function getSimilarityInputs(guildID: string, userID: string, nature: string): Promise<{
   multiplier: number;
   similarPriorLevel: 0 | 1 | 2 | 3;
 }> {
-  const [warns, sanctions] = await Promise.all([
-    warnApiService.list(guildID, userID),
-    sanctionApiService.list(guildID, { userID, activeOnly: true }),
-  ]);
-  const needle = normalizeText(category);
-  const now = Date.now();
-  const activeWarns = warns.filter((warn) => warn.isActive && (warn.expiresAt === null || warn.expiresAt > now));
-  const warnById = new Map(warns.map((warn) => [warn.id, warn] as const));
+  const settings = await guildSettingsService.getByGuildID(guildID).catch(() => null);
+  const sanctionDurationMs = (settings as unknown as { sanctionDurationMs?: number | null })?.sanctionDurationMs ?? null;
 
-  let multiplier = activeWarns.reduce((sum, warn) => sum + severityWeightFromWarn(warn.severity), 0);
+  const [multiplier, sanctions] = await Promise.all([
+    sanctionApiService.getActiveMultiplier(guildID, userID, sanctionDurationMs),
+    sanctionApiService.list(guildID, { userID }),
+  ]);
+
+  const needle = normalizeText(nature);
   let similarPriorLevel: 0 | 1 | 2 | 3 = 0;
 
   for (const sanction of sanctions) {
-    const linkedWarn = sanction.warnID ? warnById.get(sanction.warnID) ?? null : null;
-    if (linkedWarn) {
-      multiplier += severityWeightFromWarn(linkedWarn.severity);
-      if (normalizeText(sanction.reason).includes(needle) || normalizeText(linkedWarn.reason).includes(needle)) {
-        similarPriorLevel = Math.max(similarPriorLevel, similarPriorLevelForSeverity(linkedWarn.severity)) as 0 | 1 | 2 | 3;
-      }
-    } else if (normalizeText(sanction.reason).includes(needle)) {
-      similarPriorLevel = Math.max(similarPriorLevel, sanction.type === "BAN_PENDING" ? 3 : 2) as 0 | 1 | 2 | 3;
+    if (normalizeText(sanction.nature).includes(needle) || normalizeText(sanction.reason).includes(needle)) {
+      similarPriorLevel = Math.max(similarPriorLevel, similarPriorLevelForType(sanction.type)) as 0 | 1 | 2 | 3;
     }
   }
 
-  for (const warn of activeWarns) {
-    if (normalizeText(warn.reason).includes(needle)) {
-      similarPriorLevel = Math.max(similarPriorLevel, similarPriorLevelForSeverity(warn.severity)) as 0 | 1 | 2 | 3;
-    }
-  }
-
-  return { multiplier: Math.min(6, multiplier), similarPriorLevel };
+  return { multiplier, similarPriorLevel };
 }
 
-async function sendAppealDM(target: User, customId: string, reason: string): Promise<void> {
+async function sendAppealDM(target: User, guildID: string, sanctionID: string, reason: string): Promise<void> {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(customId)
+      .setCustomId(`appeal:sanction:${guildID}:${sanctionID}`)
       .setLabel("Faire appel")
       .setStyle(ButtonStyle.Secondary),
   );
@@ -268,75 +318,56 @@ async function sendAppealDM(target: User, customId: string, reason: string): Pro
   }).catch(() => undefined);
 }
 
-async function resolveAppealGuildID(
-  interaction: ButtonInteraction,
-  sourceKind: string,
-  sourceId: string,
-  explicitGuildID?: string,
-): Promise<string | null> {
-  if (explicitGuildID) return explicitGuildID;
-  if (interaction.guildId) return interaction.guildId;
-
-  for (const guild of interaction.client.guilds.cache.values()) {
-    const exists = sourceKind === "flag"
-      ? await flaggedMessageApiService.list(guild.id).then((items) => items.some((item) => item.id === sourceId)).catch(() => false)
-      : await moderationReportApiService.get(guild.id, sourceId).then((item) => item !== null).catch(() => false);
-
-    if (exists) return guild.id;
-  }
-
-  return null;
-}
-
 async function applyAutomaticSanction(args: {
   guild: Guild;
   target: User;
   moderator: User;
   reason: string;
-  severity: "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
-  category: string;
-  warnSuffices: boolean;
+  severity: SanctionSeverity;
+  nature: SanctionNature;
   source: { kind: "flag"; id: string; message?: Message } | { kind: "report"; id: string; channel: TextChannel };
 }) {
-  const { multiplier, similarPriorLevel } = await getSimilarityInputs(args.guild.id, args.target.id, args.category);
+  const { multiplier, similarPriorLevel } = await getSimilarityInputs(args.guild.id, args.target.id, args.nature);
   const computed = computeSanction(args.severity, multiplier, similarPriorLevel);
+  const member = await args.guild.members.fetch(args.target.id).catch(() => null);
 
-  const warn = await warnApiService.create({
+  const sanction = await sanctionApiService.create({
     guildID: args.guild.id,
     userID: args.target.id,
     moderatorID: args.moderator.id,
     reason: args.reason,
-    severity: computed.warnSeverity,
+    type: computed.sanctionType,
+    severity: computed.severity,
+    nature: args.nature,
+    state: "created",
+    durationMs: computed.sanctionType === "MUTE" ? computed.durationMs : null,
   });
 
-  let sanction: Awaited<ReturnType<typeof sanctionApiService.create>> | null = null;
-  const useWarnOnly = args.warnSuffices && args.severity !== "UNFORGIVABLE" && similarPriorLevel === 0;
-  const member = await args.guild.members.fetch(args.target.id).catch(() => null);
-
-  if (!useWarnOnly) {
-    sanction = await sanctionApiService.create({
+  if (computed.requiresBanConfirmation) {
+    await sanctionApiService.create({
       guildID: args.guild.id,
       userID: args.target.id,
       moderatorID: args.moderator.id,
       reason: args.reason,
-      type: computed.sanctionType,
-      warnID: warn.id,
-      durationMs: computed.sanctionType === "MUTE" ? computed.durationMs : null,
+      type: "BAN_PENDING",
+      severity: computed.severity,
+      nature: args.nature,
+      state: "created",
+      durationMs: null,
     });
-    await warnApiService.revoke(args.guild.id, warn.id).catch(() => undefined);
-
-    if (member && sanction.type === "MUTE") {
-      await member.timeout(computed.durationMs, args.reason).catch(() => undefined);
-    }
   }
 
-  const embed = buildWarnEmbed({
+  if (member && computed.sanctionType === "MUTE") {
+    await member.timeout(computed.durationMs, args.reason).catch(() => undefined);
+  }
+
+  const embed = buildSanctionEmbed({
     target: args.target,
-    severity: warn.severity,
-    message: useWarnOnly
-      ? `${args.reason}\nDecision: warn formel`
-      : `${args.reason}\nSanction: ${sanction!.type}${sanction!.durationMs ? ` (${formatDuration(sanction!.durationMs)})` : ""}`,
+    severity: computed.severity,
+    type: computed.sanctionType,
+    reason: args.reason,
     moderator: args.moderator,
+    durationMs: computed.sanctionType === "MUTE" ? computed.durationMs : null,
     originalMessage: args.source.kind === "flag" ? args.source.message : undefined,
   });
 
@@ -349,31 +380,27 @@ async function applyAutomaticSanction(args: {
     }
     await flaggedMessageApiService.update(args.guild.id, args.source.id, {
       status: "sanctioned",
-      warnID: warn.id,
-      sanctionID: sanction?.id ?? null,
+      sanctionID: sanction.id,
     });
-    await sendAppealDM(args.target, `appeal:flag:${args.guild.id}:${args.source.id}`, args.reason);
+    await sendAppealDM(args.target, args.guild.id, sanction.id, args.reason);
   } else {
     const reportChannel = args.source.channel;
     await reportChannel.send({ content: `${args.target}`, embeds: [embed] });
     await moderationReportApiService.update(args.guild.id, args.source.id, {
       status: "sanctioned",
-      warnID: warn.id,
-      sanctionID: sanction?.id ?? null,
+      sanctionID: sanction.id,
     });
-    await sendAppealDM(args.target, `appeal:report:${args.guild.id}:${args.source.id}`, args.reason);
+    await sendAppealDM(args.target, args.guild.id, sanction.id, args.reason);
     const meta = decodeTicketMeta(reportChannel.topic);
     if (meta) {
-      await reportChannel.permissionOverwrites.edit(meta.reporterID, {
-        SendMessages: false,
-      }).catch(() => undefined);
+      await reportChannel.permissionOverwrites.edit(meta.reporterID, { SendMessages: false }).catch(() => undefined);
     }
   }
 
-  if (sanction?.type === "BAN_PENDING") {
+  if (computed.requiresBanConfirmation) {
     const channel = args.source.kind === "flag" ? args.source.message?.channel : args.source.channel;
     if (channel && "send" in channel) {
-      await channel.send({
+      await (channel as TextChannel).send({
         embeds: [
           new EmbedBuilder()
             .setColor(0xe03030)
@@ -384,28 +411,22 @@ async function applyAutomaticSanction(args: {
     }
   }
 
-  return { warn, sanction, useWarnOnly };
-}
-
-async function buildTicketTranscript(channel: TextChannel): Promise<string> {
-  const messages = await channel.messages.fetch({ limit: 100 });
-  return [...messages.values()]
-    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-    .filter((message) => !message.author.bot)
-    .map((message) => `[${new Date(message.createdTimestamp).toISOString()}] ${message.author.username}: ${message.content}`)
-    .join("\n");
+  return { sanction };
 }
 
 async function processTicketSubmission(guild: Guild, channel: TextChannel) {
   const meta = decodeTicketMeta(channel.topic);
   if (!meta) throw new Error("Metadonnees du ticket introuvables.");
 
-  const transcript = await buildTicketTranscript(channel);
+  const ticketMessages = await collectTicketMessages(channel);
+  const transcript = ticketMessagesToTranscript(ticketMessages);
+
   const existingReport = await moderationReportApiService.getByChannel(guild.id, channel.id);
   const report = existingReport
     ? await moderationReportApiService.update(guild.id, existingReport.id, {
         reporterSummary: transcript,
         status: "awaiting_ai",
+        context: { messages: ticketMessages, aiSummary: existingReport.context?.aiSummary },
       })
     : await moderationReportApiService.create({
         guildID: guild.id,
@@ -414,26 +435,25 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
         ticketChannelID: channel.id,
         status: "awaiting_ai",
         reporterSummary: transcript,
+        context: { messages: ticketMessages },
       });
 
-  const analysis = await analyzeReport({
+  const questions = await askReportQuestions({
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
   });
 
-  if (analysis.needsFollowUp) {
+  if (questions.needsFollowUp) {
     const followUpRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`report:followup:${report.id}`)
+        .setCustomId(`report:followup:${report!.id}`)
         .setLabel("J'ai repondu")
         .setStyle(ButtonStyle.Secondary),
     );
 
-    await moderationReportApiService.update(guild.id, report.id, {
+    await moderationReportApiService.update(guild.id, report!.id, {
       status: "awaiting_reporter",
-      aiQuestions: analysis.followUpQuestions,
-      aiQQOQCCP: null,
     });
 
     await channel.send({
@@ -441,23 +461,27 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
         new EmbedBuilder()
           .setColor(config.COLORS.MAIN)
           .setTitle("Questions complementaires")
-          .setDescription(analysis.followUpQuestions.map((question, index) => `${index + 1}. ${question}`).join("\n")),
+          .setDescription(questions.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n")),
       ],
       components: [followUpRow],
     });
     return { kind: "follow_up" as const };
   }
 
-  const stored = JSON.stringify(analysis satisfies StoredReportAnalysis);
-  await moderationReportApiService.update(guild.id, report.id, {
+  const summary = await summarizeReport({
+    reporterID: meta.reporterID,
+    targetUserID: meta.targetUserID,
+    transcript,
+  });
+
+  await moderationReportApiService.update(guild.id, report!.id, {
     status: "awaiting_confirmation",
-    aiQuestions: [],
-    aiQQOQCCP: stored,
+    context: { messages: ticketMessages, aiSummary: summary },
   });
 
   const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`report:confirm:${report.id}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`report:modify:${report.id}`).setLabel("Modifier").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`report:confirm:${report!.id}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`report:modify:${report!.id}`).setLabel("Modifier").setStyle(ButtonStyle.Secondary),
   );
 
   await channel.send({
@@ -467,16 +491,11 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
         .setTitle("Synthese IA du dossier")
         .setDescription(
           [
-            `Gravite: **${analysis.severity}**`,
-            `Raisonnement: ${analysis.reasoning}`,
+            `Gravite: **${summary.severity}**`,
+            `Nature: **${summary.nature}**`,
+            `Motif: ${summary.reason}`,
             "",
-            `Qui: ${analysis.qqoqccp.qui}`,
-            `Quoi: ${analysis.qqoqccp.quoi}`,
-            `Ou: ${analysis.qqoqccp.ou}`,
-            `Quand: ${analysis.qqoqccp.quand}`,
-            `Comment: ${analysis.qqoqccp.comment}`,
-            `Combien: ${analysis.qqoqccp.combien}`,
-            `Pourquoi: ${analysis.qqoqccp.pourquoi}`,
+            summary.summary,
           ].join("\n"),
         ),
     ],
@@ -536,7 +555,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     return;
   }
 
-  const analysis = safeParseJSON<StoredReportAnalysis>(report.aiQQOQCCP);
+  const analysis = safeParseJSON<StoredReportAnalysis>(report.context?.aiSummary);
   if (!analysis) {
     await interaction.reply({ content: "Analyse IA introuvable.", flags: MessageFlags.Ephemeral });
     return;
@@ -559,12 +578,11 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     guild: interaction.guild,
     target,
     moderator: interaction.client.user,
-    reason: analysis.reasoning,
+    reason: analysis.reason,
     severity: analysis.severity,
-      category: analysis.qqoqccp.quoi || "report",
-      warnSuffices: analysis.warnSuffices,
-      source: { kind: "report", id: report.id, channel },
-    });
+    nature: analysis.nature,
+    source: { kind: "report", id: report.id, channel },
+  });
 
   await interaction.reply({ content: "Signalement confirme et sanction appliquee.", flags: MessageFlags.Ephemeral });
 }
@@ -633,37 +651,30 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
 }
 
 async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
-  const [, sourceKind, thirdPart, fourthPart] = interaction.customId.split(":");
-  const guildID = await resolveAppealGuildID(
-    interaction,
-    sourceKind,
-    fourthPart ?? thirdPart,
-    fourthPart ? thirdPart : undefined,
-  );
-  const sourceId = fourthPart ?? thirdPart;
-
-  if (!guildID) {
-    await interaction.reply({ content: "Serveur introuvable pour cet appel.", flags: MessageFlags.Ephemeral });
+  const parts = interaction.customId.split(":");
+  // Format v2: appeal:sanction:<guildID>:<sanctionID>
+  if (parts[1] !== "sanction" || parts.length < 4) {
+    await interaction.reply({ content: "Cette sanction n'est plus accessible. Contactez un moderateur.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const source = sourceKind === "flag"
-    ? await flaggedMessageApiService.list(guildID).then((items) => items.find((item) => item.id === sourceId) ?? null)
-    : await moderationReportApiService.get(guildID, sourceId).catch(() => null);
+  const guildID = parts[2];
+  const sanctionID = parts[3];
 
-  if (!source) {
-    await interaction.reply({ content: "Element de moderation introuvable.", flags: MessageFlags.Ephemeral });
+  const sanctionList = await sanctionApiService.list(guildID, {}).catch(() => []);
+  const sanction = sanctionList.find((s) => s.id === sanctionID);
+  if (!sanction) {
+    await interaction.reply({ content: "Sanction introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const targetUserID = source.targetUserID;
-  if (interaction.user.id !== targetUserID) {
+  if (interaction.user.id !== sanction.userID) {
     await interaction.reply({ content: "Seul l'utilisateur sanctionne peut faire appel.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   const modal = new ModalBuilder()
-    .setCustomId(`${APPEAL_MODAL_PREFIX}${sourceKind}:${sourceId}`)
+    .setCustomId(`${APPEAL_MODAL_PREFIX}${guildID}:${sanctionID}`)
     .setTitle("Faire appel");
 
   modal.addComponents(
@@ -680,26 +691,15 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   await interaction.showModal(modal);
   const submitted = await interaction.awaitModalSubmit({
     time: 120_000,
-    filter: (modalInteraction) => modalInteraction.customId === `${APPEAL_MODAL_PREFIX}${sourceKind}:${sourceId}` && modalInteraction.user.id === interaction.user.id,
+    filter: (modalInteraction) =>
+      modalInteraction.customId === `${APPEAL_MODAL_PREFIX}${guildID}:${sanctionID}` &&
+      modalInteraction.user.id === interaction.user.id,
   }).catch(() => null);
 
   if (!submitted) return;
 
   const appealText = submitted.fields.getTextInputValue("appeal_text").trim();
-  if (sourceKind === "flag") {
-    await flaggedMessageApiService.update(guildID, sourceId, {
-      appealText,
-      appealStatus: "pending_review",
-      appealAt: Date.now(),
-    });
-  } else {
-    await moderationReportApiService.update(guildID, sourceId, {
-      appealText,
-      appealStatus: "pending_review",
-      appealAt: Date.now(),
-    });
-  }
-
+  await appealApiService.create(guildID, sanctionID, appealText);
   await submitted.reply({ content: "Appel enregistre.", flags: MessageFlags.Ephemeral });
 }
 
@@ -820,6 +820,8 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+    const contextMessages = await collectContextMessages(targetMessage);
+
     const flagged = await flaggedMessageApiService.create({
       guildID: interaction.guild.id,
       channelID: targetMessage.channelId,
@@ -827,9 +829,9 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       reporterID: interaction.user.id,
       targetUserID: target.id,
       status: "pending",
+      context: contextMessages,
     });
 
-    const contextMessages = await collectContextMessages(targetMessage);
     const analysis = await analyzeFlag({
       reporterID: interaction.user.id,
       targetUserID: target.id,
@@ -842,15 +844,15 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       status: "analyzed",
     });
 
-    if (analysis.isBlackHumor) {
+    if (!analysis.isViolation) {
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "dismissed" });
-      await interaction.editReply({ content: "Le message a ete classe comme humour noir sans sanction automatique." });
+      await interaction.editReply({ content: "Aucune violation suffisamment claire n'a ete detectee pour une sanction automatique." });
       return;
     }
 
-    if (analysis.isInsult && analysis.requiresCertification && analysis.insultTargetID !== interaction.user.id) {
+    if (analysis.targetID && analysis.targetID !== interaction.user.id) {
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "needs_certification" });
-      await interaction.editReply({ content: "Le dossier demande une certification de la victime. Utilise le flux de ticket pour fournir plus de contexte." });
+      await interaction.editReply({ content: "Cette insulte ciblee ne peut etre signalee que par la personne visee. Utilise le flux de ticket si tu es la victime." });
       return;
     }
 
@@ -861,20 +863,13 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       return;
     }
 
-    if (!analysis.isViolation) {
-      await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "dismissed" });
-      await interaction.editReply({ content: "Aucune violation suffisamment claire n'a ete detectee pour une sanction automatique." });
-      return;
-    }
-
     await applyAutomaticSanction({
       guild: interaction.guild,
       target,
       moderator: interaction.client.user,
-      reason: analysis.reasoning,
+      reason: analysis.reason,
       severity: analysis.severity,
-      category: analysis.category,
-      warnSuffices: analysis.warnSuffices,
+      nature: analysis.nature,
       source: { kind: "flag", id: flagged.id, message: targetMessage },
     });
 

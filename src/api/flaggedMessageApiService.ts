@@ -1,5 +1,15 @@
 import { apiGet, apiPatch, apiPost } from "./client";
 
+export interface ContextMessage {
+  id: string;
+  authorID: string;
+  authorUsername: string;
+  authorAvatarURL: string;
+  content: string;
+  createdAt: number;
+  referencedMessageID: string | null;
+}
+
 export interface FlaggedMessageDTO {
   id: string;
   guildID: string;
@@ -9,11 +19,8 @@ export interface FlaggedMessageDTO {
   targetUserID: string;
   status: string;
   aiAnalysis: unknown;
-  warnID: string | null;
   sanctionID: string | null;
-  appealText: string | null;
-  appealStatus: string | null;
-  appealAt: number | null;
+  context: ContextMessage[] | null;
   moderatorID: string | null;
   createdAt: number;
 }
@@ -26,11 +33,8 @@ export interface CreateFlaggedMessageInput {
   targetUserID: string;
   status?: string;
   aiAnalysis?: unknown;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ContextMessage[] | null;
   moderatorID?: string | null;
   createdAt?: number;
 }
@@ -38,11 +42,8 @@ export interface CreateFlaggedMessageInput {
 export interface UpdateFlaggedMessageInput {
   status?: string;
   aiAnalysis?: unknown;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ContextMessage[] | null;
   moderatorID?: string | null;
 }
 
@@ -51,10 +52,9 @@ export const flaggedMessageApiService = {
     return apiPost<FlaggedMessageDTO>(`/guilds/${input.guildID}/flagged-messages`, input);
   },
 
-  async list(guildID: string, options?: { targetUserID?: string; appealStatus?: string; status?: string }): Promise<FlaggedMessageDTO[]> {
+  async list(guildID: string, options?: { targetUserID?: string; status?: string }): Promise<FlaggedMessageDTO[]> {
     const params = new URLSearchParams();
     if (options?.targetUserID) params.set("targetUserId", options.targetUserID);
-    if (options?.appealStatus) params.set("appealStatus", options.appealStatus);
     if (options?.status) params.set("status", options.status);
     const query = params.size > 0 ? `?${params.toString()}` : "";
     return apiGet<FlaggedMessageDTO[]>(`/guilds/${guildID}/flagged-messages${query}`);

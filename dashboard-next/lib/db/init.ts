@@ -7,10 +7,10 @@ import { QueryTypes } from "sequelize";
 let initPromise: Promise<void> | null = null;
 
 const MODERATION_TABLE_REQUIREMENTS: Record<string, string[]> = {
-  Warns: ["id", "guildID", "userID", "moderatorID", "reason", "severity", "isActive", "createdAt", "expiresAt"],
-  Sanctions: ["id", "guildID", "userID", "moderatorID", "type", "reason", "warnID", "isActive", "durationMs", "createdAt", "expiresAt"],
-  FlaggedMessages: ["id", "guildID", "channelID", "messageID", "reporterID", "targetUserID", "status", "aiAnalysis", "warnID", "sanctionID", "appealText", "appealStatus", "appealAt", "moderatorID", "createdAt"],
-  ModerationReports: ["id", "guildID", "reporterID", "targetUserID", "ticketChannelID", "status", "reporterSummary", "aiQuestions", "aiQQOQCCP", "confirmationCount", "warnID", "sanctionID", "appealText", "appealStatus", "appealAt", "moderatorID", "createdAt"],
+  Sanctions: ["id", "guildID", "userID", "moderatorID", "type", "severity", "nature", "state", "reason", "durationMs", "createdAt"],
+  Appeals: ["id", "sanctionID", "text", "status", "createdAt"],
+  FlaggedMessages: ["id", "guildID", "channelID", "messageID", "reporterID", "targetUserID", "status", "aiAnalysis", "sanctionID", "context", "moderatorID", "createdAt"],
+  ModerationReports: ["id", "guildID", "reporterID", "targetUserID", "ticketChannelID", "status", "reporterSummary", "confirmationCount", "sanctionID", "context", "moderatorID", "createdAt"],
 };
 
 async function backupLegacyModerationTables(): Promise<void> {
@@ -38,6 +38,24 @@ async function backupLegacyModerationTables(): Promise<void> {
       throw error;
     }
   }
+
+  try {
+    const description = await qi.describeTable("Warns");
+    if (description) {
+      const backupName = `Warns_legacy_${Date.now()}`;
+      console.warn(`[dashboard] Deprecated Warns table detected. Backing up to ${backupName}.`);
+      await sequelize.query(`ALTER TABLE "Warns" RENAME TO "${backupName}"`);
+    }
+  } catch (error) {
+    const message = String(error);
+    if (
+      !message.includes("No description found for") &&
+      !message.includes("does not exist") &&
+      !message.includes("no such table")
+    ) {
+      throw error;
+    }
+  }
 }
 
 async function dropLegacyModerationIndexes(): Promise<void> {
@@ -50,6 +68,7 @@ async function dropLegacyModerationIndexes(): Promise<void> {
         AND (
           tbl_name LIKE 'Warns_legacy_%'
           OR tbl_name LIKE 'Sanctions_legacy_%'
+          OR tbl_name LIKE 'Appeals_legacy_%'
           OR tbl_name LIKE 'FlaggedMessages_legacy_%'
           OR tbl_name LIKE 'ModerationReports_legacy_%'
         )

@@ -1,5 +1,7 @@
-import { Op } from "sequelize";
-import { Sanction, SanctionType } from "../models/Sanction";
+import { Sanction } from "../models/Sanction";
+
+export type { SanctionType, SanctionSeverity, SanctionNature, SanctionState } from "../models/Sanction";
+import type { SanctionNature, SanctionSeverity, SanctionState, SanctionType } from "../models/Sanction";
 
 export interface SanctionDTO {
   id: string;
@@ -7,12 +9,12 @@ export interface SanctionDTO {
   userID: string;
   moderatorID: string;
   type: SanctionType;
+  severity: SanctionSeverity;
+  nature: SanctionNature;
+  state: SanctionState;
   reason: string;
-  warnID: string | null;
-  isActive: boolean;
   durationMs: number | null;
   createdAt: number;
-  expiresAt: number | null;
 }
 
 export interface CreateSanctionInput {
@@ -20,20 +22,21 @@ export interface CreateSanctionInput {
   userID: string;
   moderatorID: string;
   type: SanctionType;
+  severity: SanctionSeverity;
+  nature: SanctionNature;
   reason: string;
-  warnID?: string | null;
-  isActive?: boolean;
+  state?: SanctionState;
   durationMs?: number | null;
   createdAt?: number;
-  expiresAt?: number | null;
 }
 
 export interface UpdateSanctionInput {
   type?: SanctionType;
+  severity?: SanctionSeverity;
+  nature?: SanctionNature;
+  state?: SanctionState;
   reason?: string;
-  isActive?: boolean;
   durationMs?: number | null;
-  expiresAt?: number | null;
 }
 
 function toDTO(row: Sanction): SanctionDTO {
@@ -43,29 +46,27 @@ function toDTO(row: Sanction): SanctionDTO {
     userID: row.userID,
     moderatorID: row.moderatorID,
     type: row.type,
+    severity: row.severity,
+    nature: row.nature,
+    state: row.state,
     reason: row.reason,
-    warnID: row.warnID ?? null,
-    isActive: row.isActive,
     durationMs: row.durationMs === null ? null : Number(row.durationMs),
     createdAt: Number(row.createdAt),
-    expiresAt: row.expiresAt === null ? null : Number(row.expiresAt),
   };
 }
 
 export async function createSanction(input: CreateSanctionInput): Promise<SanctionDTO> {
-  const createdAt = input.createdAt ?? Date.now();
-  const durationMs = input.durationMs ?? null;
   const row = await Sanction.create({
     guildID: input.guildID,
     userID: input.userID,
     moderatorID: input.moderatorID,
     type: input.type,
+    severity: input.severity,
+    nature: input.nature,
+    state: input.state ?? "created",
     reason: input.reason,
-    warnID: input.warnID ?? null,
-    isActive: input.isActive ?? true,
-    durationMs,
-    createdAt,
-    expiresAt: input.expiresAt ?? (durationMs ? createdAt + durationMs : null),
+    durationMs: input.durationMs ?? null,
+    createdAt: input.createdAt ?? Date.now(),
   } as any);
   return toDTO(row);
 }
@@ -73,33 +74,28 @@ export async function createSanction(input: CreateSanctionInput): Promise<Sancti
 export async function listSanctions(
   guildID: string,
   userID?: string,
-  options?: { activeOnly?: boolean },
+  options?: { state?: SanctionState },
 ): Promise<SanctionDTO[]> {
-  const where = {
-    guildID,
-    ...(userID ? { userID } : {}),
-    ...(options?.activeOnly
-      ? {
-          isActive: true,
-          [Op.or]: [{ expiresAt: null }, { expiresAt: { [Op.gt]: Date.now() } }],
-        }
-      : {}),
-  };
-
   const rows = await Sanction.findAll({
-    where: where as any,
+    where: {
+      guildID,
+      ...(userID ? { userID } : {}),
+      ...(options?.state ? { state: options.state } : {}),
+    },
     order: [["createdAt", "DESC"]],
   });
   return rows.map(toDTO);
 }
 
+export async function getSanction(guildID: string, sanctionID: string): Promise<SanctionDTO | null> {
+  const row = await Sanction.findOne({ where: { guildID, id: sanctionID } });
+  return row ? toDTO(row) : null;
+}
+
 export async function revokeSanction(guildID: string, sanctionID: string): Promise<SanctionDTO | null> {
   const row = await Sanction.findOne({ where: { guildID, id: sanctionID } });
   if (!row) return null;
-  await row.update({
-    isActive: false,
-    expiresAt: row.expiresAt ?? Date.now(),
-  });
+  await row.update({ state: "canceled" });
   return toDTO(row);
 }
 
@@ -110,21 +106,51 @@ export async function updateSanction(
 ): Promise<SanctionDTO | null> {
   const row = await Sanction.findOne({ where: { guildID, id: sanctionID } });
   if (!row) return null;
+  const updates: Record<string, unknown> = {};
+  if (patch.type !== undefined) updates["type"] = patch.type;
+  if (patch.severity !== undefined) updates["severity"] = patch.severity;
+  if (patch.nature !== undefined) updates["nature"] = patch.nature;
+  if (patch.state !== undefined) updates["state"] = patch.state;
+  if (patch.reason !== undefined) updates["reason"] = patch.reason;
+  if (patch.durationMs !== undefined) updates["durationMs"] = patch.durationMs;
+  await row.update(updates);
+  return toDTO(row);
+}
 
-  const nextDurationMs = patch.durationMs !== undefined ? patch.durationMs : row.durationMs;
-  const nextExpiresAt = patch.expiresAt !== undefined
-    ? patch.expiresAt
-    : patch.durationMs !== undefined
-      ? (patch.durationMs === null ? null : Number(row.createdAt) + patch.durationMs)
-      : row.expiresAt;
-
-  await row.update({
-    type: patch.type ?? row.type,
-    reason: patch.reason ?? row.reason,
-    isActive: patch.isActive ?? row.isActive,
-    durationMs: nextDurationMs,
-    expiresAt: nextExpiresAt,
+/**
+ * Calculate the multiplier for a user based on their active sanctions.
+ * A sanction is "active" if state === 'created' and not expired (createdAt + durationMs > now, or durationMs is null).
+ * @param sanctionDurationMs Guild setting for sanction validity window (null = never expires)
+ */
+export async function getActiveMultiplier(
+  guildID: string,
+  userID: string,
+  sanctionDurationMs: number | null,
+): Promise<number> {
+  const rows = await Sanction.findAll({
+    where: { guildID, userID, state: "created" },
   });
 
-  return toDTO(row);
+  const now = Date.now();
+  const active = rows.filter((row) => {
+    const createdAt = Number(row.createdAt);
+    const duration = row.durationMs === null ? null : Number(row.durationMs);
+    if (duration === null && sanctionDurationMs === null) {
+      return true;
+    }
+    if (duration === null) {
+      return now - createdAt < sanctionDurationMs!;
+    }
+    return now - createdAt < duration;
+  });
+
+  const WEIGHT: Record<SanctionSeverity, number> = {
+    LOW: 0.25,
+    MEDIUM: 0.25,
+    HIGH: 0.5,
+    UNFORGIVABLE: 0.5,
+  };
+
+  const total = active.reduce((sum, row) => sum + WEIGHT[row.severity], 0);
+  return Math.min(7, 1 + total);
 }

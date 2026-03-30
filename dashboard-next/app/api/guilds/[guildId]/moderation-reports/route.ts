@@ -11,7 +11,6 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
     }
     return NextResponse.json(
       await listReports(guildId, {
-        appealStatus: searchParams.get("appealStatus") ?? undefined,
         status: searchParams.get("status") ?? undefined,
       }),
     );

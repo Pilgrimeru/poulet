@@ -1,4 +1,12 @@
 import { apiGet, apiPatch, apiPost } from "./client";
+import type { ContextMessage } from "./flaggedMessageApiService";
+
+export type { ContextMessage } from "./flaggedMessageApiService";
+
+export interface ReportContext {
+  messages: ContextMessage[];
+  aiSummary?: unknown;
+}
 
 export interface ModerationReportDTO {
   id: string;
@@ -8,14 +16,9 @@ export interface ModerationReportDTO {
   ticketChannelID: string;
   status: string;
   reporterSummary: string;
-  aiQuestions: string[];
-  aiQQOQCCP: string | null;
   confirmationCount: number;
-  warnID: string | null;
   sanctionID: string | null;
-  appealText: string | null;
-  appealStatus: string | null;
-  appealAt: number | null;
+  context: ReportContext | null;
   moderatorID: string | null;
   createdAt: number;
 }
@@ -27,14 +30,9 @@ export interface CreateModerationReportInput {
   ticketChannelID: string;
   status?: string;
   reporterSummary: string;
-  aiQuestions?: string[];
-  aiQQOQCCP?: string | null;
   confirmationCount?: number;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ReportContext | null;
   moderatorID?: string | null;
   createdAt?: number;
 }
@@ -42,14 +40,9 @@ export interface CreateModerationReportInput {
 export interface UpdateModerationReportInput {
   status?: string;
   reporterSummary?: string;
-  aiQuestions?: string[];
-  aiQQOQCCP?: string | null;
   confirmationCount?: number;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ReportContext | null;
   moderatorID?: string | null;
 }
 
@@ -66,9 +59,8 @@ export const moderationReportApiService = {
     return apiGet<ModerationReportDTO | null>(`/guilds/${guildID}/moderation-reports?channelId=${encodeURIComponent(channelID)}`);
   },
 
-  async list(guildID: string, options?: { appealStatus?: string; status?: string }): Promise<ModerationReportDTO[]> {
+  async list(guildID: string, options?: { status?: string }): Promise<ModerationReportDTO[]> {
     const params = new URLSearchParams();
-    if (options?.appealStatus) params.set("appealStatus", options.appealStatus);
     if (options?.status) params.set("status", options.status);
     const query = params.size > 0 ? `?${params.toString()}` : "";
     return apiGet<ModerationReportDTO[]>(`/guilds/${guildID}/moderation-reports${query}`);

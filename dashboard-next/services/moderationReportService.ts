@@ -1,4 +1,12 @@
 import { ModerationReport } from "../models/ModerationReport";
+import type { ContextMessage } from "./flaggedMessageService";
+
+export type { ContextMessage } from "./flaggedMessageService";
+
+export interface ReportContext {
+  messages: ContextMessage[];
+  aiSummary?: unknown;
+}
 
 export interface ModerationReportDTO {
   id: string;
@@ -8,14 +16,9 @@ export interface ModerationReportDTO {
   ticketChannelID: string;
   status: string;
   reporterSummary: string;
-  aiQuestions: string[];
-  aiQQOQCCP: string | null;
   confirmationCount: number;
-  warnID: string | null;
   sanctionID: string | null;
-  appealText: string | null;
-  appealStatus: string | null;
-  appealAt: number | null;
+  context: ReportContext | null;
   moderatorID: string | null;
   createdAt: number;
 }
@@ -27,14 +30,9 @@ export interface CreateModerationReportInput {
   ticketChannelID: string;
   status?: string;
   reporterSummary: string;
-  aiQuestions?: string[];
-  aiQQOQCCP?: string | null;
   confirmationCount?: number;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ReportContext | null;
   moderatorID?: string | null;
   createdAt?: number;
 }
@@ -42,24 +40,18 @@ export interface CreateModerationReportInput {
 export interface UpdateModerationReportInput {
   status?: string;
   reporterSummary?: string;
-  aiQuestions?: string[];
-  aiQQOQCCP?: string | null;
   confirmationCount?: number;
-  warnID?: string | null;
   sanctionID?: string | null;
-  appealText?: string | null;
-  appealStatus?: string | null;
-  appealAt?: number | null;
+  context?: ReportContext | null;
   moderatorID?: string | null;
 }
 
-function parseQuestions(value: string | null): string[] {
-  if (!value) return [];
+function parseContext(value: string | null): ReportContext | null {
+  if (!value) return null;
   try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+    return JSON.parse(value) as ReportContext;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -72,14 +64,9 @@ function toDTO(row: ModerationReport): ModerationReportDTO {
     ticketChannelID: row.ticketChannelID,
     status: row.status,
     reporterSummary: row.reporterSummary,
-    aiQuestions: parseQuestions(row.aiQuestions),
-    aiQQOQCCP: row.aiQQOQCCP ?? null,
     confirmationCount: row.confirmationCount,
-    warnID: row.warnID ?? null,
     sanctionID: row.sanctionID ?? null,
-    appealText: row.appealText ?? null,
-    appealStatus: row.appealStatus ?? null,
-    appealAt: row.appealAt === null ? null : Number(row.appealAt),
+    context: parseContext(row.context),
     moderatorID: row.moderatorID ?? null,
     createdAt: Number(row.createdAt),
   };
@@ -93,14 +80,9 @@ export async function createReport(input: CreateModerationReportInput): Promise<
     ticketChannelID: input.ticketChannelID,
     status: input.status ?? "awaiting_ai",
     reporterSummary: input.reporterSummary,
-    aiQuestions: JSON.stringify(input.aiQuestions ?? []),
-    aiQQOQCCP: input.aiQQOQCCP ?? null,
     confirmationCount: input.confirmationCount ?? 0,
-    warnID: input.warnID ?? null,
     sanctionID: input.sanctionID ?? null,
-    appealText: input.appealText ?? null,
-    appealStatus: input.appealStatus ?? null,
-    appealAt: input.appealAt ?? null,
+    context: input.context === undefined ? null : JSON.stringify(input.context),
     moderatorID: input.moderatorID ?? null,
     createdAt: input.createdAt ?? Date.now(),
   } as any);
@@ -124,30 +106,24 @@ export async function updateReport(
 ): Promise<ModerationReportDTO | null> {
   const row = await ModerationReport.findOne({ where: { guildID, id: reportID } });
   if (!row) return null;
-  await row.update({
-    ...(patch.status !== undefined ? { status: patch.status } : {}),
-    ...(patch.reporterSummary !== undefined ? { reporterSummary: patch.reporterSummary } : {}),
-    ...(patch.aiQuestions !== undefined ? { aiQuestions: JSON.stringify(patch.aiQuestions) } : {}),
-    ...(patch.aiQQOQCCP !== undefined ? { aiQQOQCCP: patch.aiQQOQCCP } : {}),
-    ...(patch.confirmationCount !== undefined ? { confirmationCount: patch.confirmationCount } : {}),
-    ...(patch.warnID !== undefined ? { warnID: patch.warnID } : {}),
-    ...(patch.sanctionID !== undefined ? { sanctionID: patch.sanctionID } : {}),
-    ...(patch.appealText !== undefined ? { appealText: patch.appealText } : {}),
-    ...(patch.appealStatus !== undefined ? { appealStatus: patch.appealStatus } : {}),
-    ...(patch.appealAt !== undefined ? { appealAt: patch.appealAt } : {}),
-    ...(patch.moderatorID !== undefined ? { moderatorID: patch.moderatorID } : {}),
-  });
+  const updates: Record<string, unknown> = {};
+  if (patch.status !== undefined) updates["status"] = patch.status;
+  if (patch.reporterSummary !== undefined) updates["reporterSummary"] = patch.reporterSummary;
+  if (patch.confirmationCount !== undefined) updates["confirmationCount"] = patch.confirmationCount;
+  if (patch.sanctionID !== undefined) updates["sanctionID"] = patch.sanctionID;
+  if (patch.context !== undefined) updates["context"] = patch.context === null ? null : JSON.stringify(patch.context);
+  if (patch.moderatorID !== undefined) updates["moderatorID"] = patch.moderatorID;
+  await row.update(updates);
   return toDTO(row);
 }
 
 export async function listReports(
   guildID: string,
-  options?: { appealStatus?: string; status?: string },
+  options?: { status?: string },
 ): Promise<ModerationReportDTO[]> {
   const rows = await ModerationReport.findAll({
     where: {
       guildID,
-      ...(options?.appealStatus ? { appealStatus: options.appealStatus } : {}),
       ...(options?.status ? { status: options.status } : {}),
     },
     order: [["createdAt", "DESC"]],

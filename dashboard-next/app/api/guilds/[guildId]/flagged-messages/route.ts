@@ -8,7 +8,6 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
     return NextResponse.json(
       await listFlaggedMessages(guildId, {
         targetUserID: searchParams.get("targetUserId") ?? undefined,
-        appealStatus: searchParams.get("appealStatus") ?? undefined,
         status: searchParams.get("status") ?? undefined,
       }),
     );

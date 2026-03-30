@@ -1,18 +1,33 @@
 import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { callWithFallback } from "./client";
-import { FlagAnalysisResult, FlagAnalysisSchema, flagSystemPrompt, ReportAnalysisResult, ReportAnalysisSchema, reportSystemPrompt } from "./prompts";
+import {
+  FlagAnalysisResult,
+  FlagAnalysisSchema,
+  flagSystemPrompt,
+  QuestionResult,
+  QuestionSchema,
+  questionSystemPrompt,
+  SummaryResult,
+  SummarySchema,
+  summarySystemPrompt,
+} from "./prompts";
 import { duckduckgoTool } from "./tools";
+
+export interface ContextMessage {
+  id: string;
+  authorID: string;
+  authorUsername: string;
+  authorAvatarURL: string;
+  content: string;
+  createdAt: number;
+  referencedMessageID: string | null;
+}
 
 export interface FlagAnalysisInput {
   reporterID: string;
   targetUserID: string;
   messageContent: string;
-  contextMessages: Array<{
-    authorID: string;
-    authorName: string;
-    content: string;
-    createdAt: number;
-  }>;
+  contextMessages: ContextMessage[];
 }
 
 export interface ReportAnalysisInput {
@@ -37,13 +52,9 @@ function heuristicFlagAnalysis(input: FlagAnalysisInput): FlagAnalysisResult {
   return {
     isViolation: isInsult,
     severity: isInsult ? "MEDIUM" : "LOW",
-    warnSuffices: !isInsult,
-    category: isInsult ? "insulte" : "autre",
-    reasoning: isInsult ? "Detection heuristique d'une insulte dans le contenu signale." : "Aucune violation evidente detectee en mode degrade.",
-    isBlackHumor: false,
-    isInsult,
-    insultTargetID: isInsult ? input.targetUserID : null,
-    requiresCertification: false,
+    reason: isInsult ? "Detection heuristique d'une insulte dans le contenu signale." : "Aucune violation evidente detectee en mode degrade.",
+    nature: isInsult ? "Harassment" : "Spam",
+    targetID: isInsult ? input.targetUserID : null,
     needsMoreContext: !isInsult && input.contextMessages.length < 3,
     searchQuery: null,
   };
@@ -56,7 +67,7 @@ async function parseStructuredResult<T>(messages: BaseMessage[], schema: { parse
 
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
   const contextText = input.contextMessages
-    .map((msg) => `[${new Date(msg.createdAt).toISOString()}] ${msg.authorName} (${msg.authorID}): ${msg.content}`)
+    .map((msg) => `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername} (${msg.authorID}): ${msg.content}`)
     .join("\n");
 
   const messages: BaseMessage[] = [
@@ -89,14 +100,14 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   }
 }
 
-export async function analyzeReport(input: ReportAnalysisInput): Promise<ReportAnalysisResult> {
+export async function askReportQuestions(input: ReportAnalysisInput): Promise<QuestionResult> {
   const messages: BaseMessage[] = [
-    new SystemMessage(reportSystemPrompt),
+    new SystemMessage(questionSystemPrompt),
     new HumanMessage(
       [
         `Reporter ID: ${input.reporterID}`,
         `Target ID: ${input.targetUserID}`,
-        "Transcript du ticket:",
+        "Contenu du dossier:",
         input.transcript,
         "Reponds en JSON selon le schema attendu.",
       ].join("\n"),
@@ -104,27 +115,53 @@ export async function analyzeReport(input: ReportAnalysisInput): Promise<ReportA
   ];
 
   try {
-    return await parseStructuredResult(messages, ReportAnalysisSchema);
+    return await parseStructuredResult(messages, QuestionSchema);
   } catch {
     return {
       needsFollowUp: true,
-      followUpQuestions: [
+      questions: [
         "Quel message ou comportement exact reproches-tu a cet utilisateur ?",
         "Dans quel salon et a quel moment cela s'est-il produit ?",
         "As-tu des captures, liens ou temoins a ajouter ?",
       ],
-      warnSuffices: true,
-      qqoqccp: {
-        qui: input.targetUserID,
-        quoi: "",
-        ou: "",
-        quand: "",
-        comment: "",
-        combien: "",
-        pourquoi: "",
-      },
+    };
+  }
+}
+
+export async function summarizeReport(input: ReportAnalysisInput): Promise<SummaryResult> {
+  const messages: BaseMessage[] = [
+    new SystemMessage(summarySystemPrompt),
+    new HumanMessage(
+      [
+        `Reporter ID: ${input.reporterID}`,
+        `Target ID: ${input.targetUserID}`,
+        "Transcript complet du ticket:",
+        input.transcript,
+        "Reponds en JSON selon le schema attendu.",
+      ].join("\n"),
+    ),
+  ];
+
+  try {
+    let result = await parseStructuredResult(messages, SummarySchema);
+    if (result.searchQuery) {
+      const searchResult = await duckduckgoTool.invoke(result.searchQuery);
+      const followUpMessages: BaseMessage[] = [
+        ...messages,
+        new HumanMessage(`Resultats DuckDuckGo:\n${typeof searchResult === "string" ? searchResult : JSON.stringify(searchResult)}`),
+      ];
+      result = await parseStructuredResult(followUpMessages, SummarySchema);
+    }
+    return result;
+  } catch {
+    return {
+      isViolation: false,
       severity: "LOW",
-      reasoning: "Analyse IA indisponible, questions de suivi proposees en mode degrade.",
+      reason: "Analyse IA indisponible en mode degrade.",
+      nature: "Harassment",
+      targetID: input.targetUserID,
+      searchQuery: null,
+      summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",
     };
   }
 }
