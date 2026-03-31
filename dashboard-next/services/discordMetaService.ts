@@ -26,6 +26,14 @@ type DiscordChannel = {
   type: number;
 };
 
+export type LiveChannelEntry = {
+  channelID: string;
+  channelName: string;
+  parentID: string | null;
+  parentName: string | null;
+  channelType: number | null;
+};
+
 type DiscordUser = {
   id: string;
   username: string;
@@ -158,6 +166,29 @@ async function fetchGuild(guildID: string): Promise<DiscordGuild | null> {
 
 async function fetchGuildChannels(guildID: string): Promise<DiscordChannel[] | null> {
   return discordGet<DiscordChannel[]>(`/guilds/${guildID}/channels`, `channels:${guildID}`);
+}
+
+export async function listGuildChannelsFromDiscord(guildID: string): Promise<LiveChannelEntry[]> {
+  const channels = await fetchGuildChannels(guildID);
+  if (!channels) return [];
+
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const results: LiveChannelEntry[] = channels.map((channel) => ({
+    channelID: channel.id,
+    channelName: channel.name,
+    parentID: channel.parent_id ?? null,
+    parentName: channel.parent_id ? channelMap.get(channel.parent_id)?.name ?? null : null,
+    channelType: channel.type ?? null,
+  }));
+
+  results.sort((a, b) => {
+    const aParent = a.parentName ?? "";
+    const bParent = b.parentName ?? "";
+    if (aParent !== bParent) return aParent.localeCompare(bParent);
+    return a.channelName.localeCompare(b.channelName);
+  });
+
+  return results;
 }
 
 async function fetchGuildMember(guildID: string, userID: string): Promise<DiscordGuildMember | null> {

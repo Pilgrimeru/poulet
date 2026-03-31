@@ -333,6 +333,32 @@ export interface UserMessageFilter {
   endDate?: number;
   onlyDeleted?: boolean;
   channelID?: string;
+  search?: string;
+  searchTerms?: string[];
+  searchMode?: "any" | "all";
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function tokenizeSearchText(value: string): string[] {
+  return normalizeSearchText(value)
+    .split(/[^a-z0-9]+/i)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2);
+}
+
+function buildSearchNeedles(search?: string, searchTerms?: string[]): string[] {
+  const explicitTerms = Array.isArray(searchTerms)
+    ? searchTerms.flatMap((term) => tokenizeSearchText(term))
+    : [];
+  const freeTextTerms = search ? tokenizeSearchText(search) : [];
+  const allTerms = [...explicitTerms, ...freeTextTerms];
+  return [...new Set(allTerms)];
 }
 
 export async function getUserMessages(
@@ -341,7 +367,7 @@ export async function getUserMessages(
   limit = 50,
   filter: UserMessageFilter = {},
 ): Promise<MessageSnapshotDTO[]> {
-  const { startDate, endDate, onlyDeleted, channelID } = filter;
+  const { startDate, endDate, onlyDeleted, channelID, search, searchTerms, searchMode } = filter;
 
   const conditions: string[] = ["guildID = :guildID", "authorID = :authorID"];
   const replacements: Record<string, unknown> = { guildID, authorID: userID };
@@ -372,7 +398,27 @@ export async function getUserMessages(
   }
 
   const latest = [...latestMap.values()].sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
-  return Promise.all(latest.map(toDTO));
+  const dtos = await Promise.all(latest.map(toDTO));
+
+  const needles = buildSearchNeedles(search, searchTerms);
+  if (needles.length === 0) return dtos;
+
+  const effectiveMode = searchMode === "all" ? "all" : "any";
+  return dtos.filter((message) => {
+    const haystack = normalizeSearchText([
+      message.content,
+      message.authorUsername,
+      message.authorDisplayName,
+      message.referencedMessageContent ?? "",
+      message.referencedMessageAuthor ?? "",
+    ].join("\n"));
+
+    if (effectiveMode === "all") {
+      return needles.every((needle) => haystack.includes(needle));
+    }
+
+    return needles.some((needle) => haystack.includes(needle));
+  });
 }
 
 export async function getMessageHistory(messageID: string): Promise<MessageSnapshotDTO[]> {

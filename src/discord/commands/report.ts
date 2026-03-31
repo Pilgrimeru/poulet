@@ -1,5 +1,5 @@
 import { config } from "@/app";
-import { appealApiService, flaggedMessageApiService, guildSettingsService, moderationReportApiService, sanctionApiService } from "@/api";
+import { appealApiService, flaggedMessageApiService, guildSettingsService, messageSnapshotService, moderationReportApiService, sanctionApiService } from "@/api";
 import type { ContextMessage } from "@/api";
 import { analyzeFlag, askReportQuestions, summarizeReport, computeSanction } from "@/ai";
 import type { SummaryResult } from "@/ai/prompts";
@@ -289,11 +289,10 @@ async function collectTicketMessages(channel: TextChannel): Promise<ContextMessa
   const messages = await channel.messages.fetch({ limit: 100 });
   return [...messages.values()]
     .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-    .filter((message) => !message.author.bot)
     .map((message) => ({
       id: message.id,
       authorID: message.author.id,
-      authorUsername: message.author.username,
+      authorUsername: message.author.bot ? `[bot] ${message.author.username}` : message.author.username,
       authorAvatarURL: message.author.displayAvatarURL(),
       content: message.content,
       createdAt: message.createdTimestamp,
@@ -301,10 +300,75 @@ async function collectTicketMessages(channel: TextChannel): Promise<ContextMessa
     }));
 }
 
-function ticketMessagesToTranscript(messages: ContextMessage[]): string {
-  return messages
-    .map((msg) => `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername}: ${msg.content}`)
-    .join("\n");
+const DISCORD_MESSAGE_LINK_RE = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
+const CHANNEL_MENTION_RE = /<#(\d+)>/g;
+const USER_MENTION_RE = /<@!?(\d+)>/g;
+
+async function enrichContent(guild: Guild, content: string): Promise<string> {
+  let result = content;
+
+  // Resolve channel mentions <#id> → <#id> (channel-name)
+  const channelMatches = [...result.matchAll(CHANNEL_MENTION_RE)];
+  for (const match of channelMatches) {
+    const channelId = match[1];
+    const channel = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
+    if (channel) {
+      result = result.replace(match[0], `${match[0]} (#${channel.name})`);
+    }
+  }
+
+  // Resolve user mentions <@id> / <@!id> → <@id> (username)
+  const userMatches = [...result.matchAll(USER_MENTION_RE)];
+  for (const match of userMatches) {
+    const userId = match[1];
+    const member = guild.members.cache.get(userId) ?? await guild.members.fetch(userId).catch(() => null);
+    const display = member
+      ? `${member.user.username}${member.nickname ? ` / ${member.nickname}` : ""}`
+      : null;
+    if (display) {
+      result = result.replace(match[0], `${match[0]} (${display})`);
+    }
+  }
+
+  // Resolve Discord message links → inline snapshot with edit history
+  const linkMatches = [...result.matchAll(DISCORD_MESSAGE_LINK_RE)];
+  for (const match of linkMatches) {
+    const [fullUrl, linkGuildId, , messageId] = match;
+    if (linkGuildId !== guild.id) continue;
+
+    const versions = await messageSnapshotService.getMessageHistory(messageId).catch(() => null);
+    if (!versions || versions.length === 0) continue;
+
+    const latest = versions[versions.length - 1];
+    const date = new Date(latest.createdAt).toISOString();
+    const editedFlag = versions.length > 1 ? " [EDITE]" : "";
+    let block = `[lien-message: @${latest.authorUsername} le ${date}${editedFlag}: "${latest.content}"`;
+
+    if (versions.length > 1) {
+      const prevVersions = versions
+        .slice(0, -1)
+        .map((v) => `  > v${v.version + 1}: "${v.content}"`)
+        .join("\n");
+      block += `\n${prevVersions}`;
+    }
+
+    block += "]";
+    result = result.replace(fullUrl, block);
+  }
+
+  return result;
+}
+
+async function ticketMessagesToTranscript(guild: Guild, messages: ContextMessage[]): Promise<string> {
+  const lines = await Promise.all(
+    messages
+      .filter((msg) => msg.content.trim() !== "")
+      .map(async (msg) => {
+        const enriched = await enrichContent(guild, msg.content);
+        return `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername}: ${enriched}`;
+      }),
+  );
+  return lines.join("\n");
 }
 
 async function getAlreadySanctionedMessageIDs(guildID: string, targetUserID: string): Promise<Set<string>> {
@@ -462,7 +526,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
   if (!meta) throw new Error("Métadonnées du ticket introuvables.");
 
   const ticketMessages = await collectTicketMessages(channel);
-  const transcript = ticketMessagesToTranscript(ticketMessages);
+  const transcript = await ticketMessagesToTranscript(guild, ticketMessages);
   const { sanctions } = await getSimilarityInputs(guild.id, meta.targetUserID);
 
   const existingReport = await moderationReportApiService.getByChannel(guild.id, channel.id);
@@ -503,12 +567,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
     });
 
     await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(config.COLORS.MAIN)
-          .setTitle("Questions complementaires")
-          .setDescription(questions.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n")),
-      ],
+      content: questions.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n"),
       components: [followUpRow],
     });
     return { kind: "follow_up" as const };
@@ -569,6 +628,16 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const allMessages = await channel.messages.fetch({ limit: 100 });
+  const hasUserContent = [...allMessages.values()].some(
+    (m) => !m.author.bot && m.author.id === meta.reporterID && m.content.trim() !== "",
+  );
+  if (!hasUserContent) {
+    await interaction.editReply({ content: "Décris d'abord le comportement reproché avant de déposer le signalement." });
+    return;
+  }
+
   const result = await processTicketSubmission(interaction.guild, channel);
   await interaction.editReply({
       content: result.kind === "follow_up"
@@ -584,8 +653,16 @@ async function handleTicketCancel(interaction: ButtonInteraction): Promise<void>
   if (!channel || channel.type !== ChannelType.GuildText) return;
 
   const meta = decodeTicketMeta(channel.topic);
-  if (!meta || interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut annuler ce ticket.", flags: MessageFlags.Ephemeral });
+  const canModerateTicket =
+    interaction.user.id === meta?.reporterID ||
+    interaction.user.id === interaction.guild.ownerId ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages);
+
+  if (!meta || !canModerateTicket) {
+    await interaction.reply({
+      content: "Seul le signaleur, le propriétaire du serveur ou un membre pouvant supprimer des messages peut annuler ce ticket.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -665,8 +742,87 @@ async function handleReportModify(interaction: ButtonInteraction): Promise<void>
     status: "awaiting_reporter",
     confirmationCount: report.confirmationCount + 1,
   });
-  await channel.send("Ajoute les corrections souhaitées dans le ticket puis clique de nouveau sur **Déposer le signalement**.");
-  await interaction.reply({ content: "Ticket repassé en mode édition.", flags: MessageFlags.Ephemeral });
+
+  const reviseRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`report:revise:${reportId}`)
+      .setLabel("J'ai ajouté mes précisions")
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji("✏️"),
+  );
+
+  await channel.send({
+    content: "Ajoute tes précisions dans le ticket. Une fois terminé, clique sur le bouton ci-dessous pour relancer l'analyse.",
+    components: [reviseRow],
+  });
+  await interaction.update({ components: [] });
+}
+
+async function handleReportRevise(interaction: ButtonInteraction): Promise<void> {
+  const reportId = interaction.customId.slice("report:revise:".length);
+  if (!interaction.guild) return;
+  const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
+  if (!report) {
+    await interaction.reply({ content: "Signalement introuvable.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
+  if (!channel || channel.type !== ChannelType.GuildText) {
+    await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const meta = decodeTicketMeta(channel.topic);
+  if (meta && interaction.user.id !== meta.reporterID) {
+    await interaction.reply({ content: "Seul le signaleur peut soumettre ce dossier.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await interaction.update({ components: [] });
+  await interaction.followUp({ content: "Analyse en cours...", flags: MessageFlags.Ephemeral });
+
+  // After the single allowed revision, go straight to summary then auto-confirm
+  const ticketMessages = await collectTicketMessages(channel);
+  const transcript = await ticketMessagesToTranscript(interaction.guild, ticketMessages);
+  const { sanctions } = await getSimilarityInputs(interaction.guild.id, meta!.targetUserID);
+
+  const summary = await summarizeReport({
+    guildID: interaction.guild.id,
+    reporterID: meta!.reporterID,
+    targetUserID: meta!.targetUserID,
+    transcript,
+    priorSanctions: sanctions,
+  });
+
+  await moderationReportApiService.update(interaction.guild.id, reportId, {
+    status: "awaiting_confirmation",
+    reporterSummary: transcript,
+    context: { messages: ticketMessages, aiSummary: summary },
+  });
+
+  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`report:confirm:${reportId}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
+  );
+
+  await channel.send({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(config.COLORS.MAIN)
+        .setTitle("Synthese IA — version finale")
+        .setDescription(
+          [
+            `Gravite: **${summary.severity}**`,
+            `Nature: **${summary.nature}**`,
+            `Motif: ${summary.reason}`,
+            "",
+            summary.summary,
+          ].join("\n"),
+        )
+        .setFooter({ text: "Dernière révision effectuée. Aucune modification supplémentaire possible." }),
+    ],
+    components: [confirmRow],
+  });
 }
 
 async function handleReportFollowUp(interaction: ButtonInteraction): Promise<void> {
@@ -771,6 +927,9 @@ function registerModerationRouters() {
   });
   componentRouter.registerPrefix("report:modify:", async (interaction) => {
     if (interaction.isButton()) await handleReportModify(interaction);
+  });
+  componentRouter.registerPrefix("report:revise:", async (interaction) => {
+    if (interaction.isButton()) await handleReportRevise(interaction);
   });
   componentRouter.registerPrefix("appeal:", async (interaction) => {
     if (interaction.isButton()) await handleAppeal(interaction);

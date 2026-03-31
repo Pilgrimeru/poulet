@@ -36,6 +36,9 @@ export interface GetUserMessagesOptions {
   onlyDeleted?: boolean;
   channelID?: string;
   limit?: number;
+  search?: string;
+  searchTerms?: string[];
+  searchMode?: "any" | "all";
 }
 
 export interface AttachmentInput {
@@ -73,8 +76,21 @@ export const messageSnapshotService = {
     if (options.endDate)     params.set("endDate",     String(options.endDate));
     if (options.onlyDeleted) params.set("onlyDeleted", "true");
     if (options.channelID)   params.set("channelID",   options.channelID);
+    if (options.search)      params.set("search",      options.search);
+    if (options.searchTerms?.length) params.set("searchTerms", JSON.stringify(options.searchTerms));
+    if (options.searchMode)  params.set("searchMode",  options.searchMode);
     const qs = params.size > 0 ? `?${params.toString()}` : "";
+    console.log("[messageSnapshotService] getUserMessages", {
+      guildID,
+      userID,
+      options,
+      path: `/guilds/${guildID}/users/${userID}/messages${qs}`,
+    });
     return apiGet<MessageSnapshotDTO[]>(`/guilds/${guildID}/users/${userID}/messages${qs}`);
+  },
+
+  async getMessageHistory(messageID: string): Promise<MessageSnapshotDTO[]> {
+    return apiGet<MessageSnapshotDTO[]>(`/messages/${messageID}/history`);
   },
 
   async saveSnapshot(

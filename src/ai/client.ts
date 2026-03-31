@@ -11,6 +11,9 @@ function createClient(model: string): ChatOpenAI | null {
     model,
     apiKey: openRouterApiKey,
     cache: true,
+    reasoning: {
+      effort: "low",
+    },
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",
     },
@@ -20,14 +23,27 @@ function createClient(model: string): ChatOpenAI | null {
 export const moderationLLM = createClient(primaryModel);
 export const fallbackLLM = createClient(fallbackModelName);
 
+function logMessages(label: string, messages: BaseMessage[]): void {
+  console.log(`[ai] ${label}`);
+  for (const msg of messages) {
+    const role = msg.constructor.name.replace("Message", "").toLowerCase();
+    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    console.log(`  [${role}] ${content}`);
+  }
+}
+
 export async function callWithFallback(messages: BaseMessage[]): Promise<string> {
   if (!moderationLLM && !fallbackLLM) {
     throw new Error("OPENROUTER_API_KEY is not configured");
   }
 
+  logMessages(`→ invoke (${messages.length} messages)`, messages);
+
   try {
     const response = await (moderationLLM ?? fallbackLLM)!.invoke(messages);
-    return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+    const content = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+    console.log(`[ai] ← response: ${content}`);
+    return content;
   } catch (primaryError) {
     if (!fallbackLLM || fallbackLLM === moderationLLM) {
       throw primaryError;
@@ -37,6 +53,8 @@ export async function callWithFallback(messages: BaseMessage[]): Promise<string>
       primaryError,
     );
     const response = await fallbackLLM.invoke(messages);
-    return typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+    const content = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+    console.log(`[ai] ← response (fallback): ${content}`);
+    return content;
   }
 }
