@@ -1,6 +1,4 @@
-import type { SanctionNature, SanctionSeverity, SanctionType } from "@/api/sanctionApiService";
-
-export type { SanctionSeverity, SanctionType, SanctionNature };
+import type { SanctionSeverity, SanctionType } from "@/api/sanctionApiService";
 
 export interface SanctionComputation {
   durationMs: number;

@@ -1,8 +1,8 @@
 import { config } from "@/app";
 import { appealApiService, flaggedMessageApiService, guildSettingsService, messageSnapshotService, moderationReportApiService, sanctionApiService } from "@/api";
 import type { ContextMessage } from "@/api";
-import { analyzeFlag, askReportQuestions, summarizeReport, computeSanction } from "@/ai";
-import type { SummaryResult } from "@/ai/prompts";
+import { analyzeFlag, summarizeReport, computeSanction } from "@/ai";
+import type { SummaryResult } from "@/ai";
 import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
 import { componentRouter } from "@/discord/interactions";
 import { Command, ContextMenuCommand } from "@/discord/types";
@@ -546,33 +546,6 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
         context: { messages: ticketMessages },
       });
 
-  const questions = await askReportQuestions({
-    guildID: guild.id,
-    reporterID: meta.reporterID,
-    targetUserID: meta.targetUserID,
-    transcript,
-    priorSanctions: sanctions,
-  });
-
-  if (questions.needsFollowUp) {
-    const followUpRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`report:followup:${report!.id}`)
-        .setLabel("J'ai répondu")
-        .setStyle(ButtonStyle.Secondary),
-    );
-
-    await moderationReportApiService.update(guild.id, report!.id, {
-      status: "awaiting_reporter",
-    });
-
-    await channel.send({
-      content: questions.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n"),
-      components: [followUpRow],
-    });
-    return { kind: "follow_up" as const };
-  }
-
   const summary = await summarizeReport({
     guildID: guild.id,
     reporterID: meta.reporterID,
@@ -582,9 +555,24 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
   });
 
   await moderationReportApiService.update(guild.id, report!.id, {
-    status: "awaiting_confirmation",
+    status: summary.needsFollowUp ? "awaiting_reporter" : "awaiting_confirmation",
     context: { messages: ticketMessages, aiSummary: summary },
   });
+
+  if (summary.needsFollowUp) {
+    const followUpRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`report:followup:${report!.id}`)
+        .setLabel("J'ai répondu")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    await channel.send({
+      content: summary.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n"),
+      components: [followUpRow],
+    });
+    return { kind: "follow_up" as const };
+  }
 
   const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`report:confirm:${report!.id}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
@@ -782,7 +770,6 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   await interaction.update({ components: [] });
   await interaction.followUp({ content: "Analyse en cours...", flags: MessageFlags.Ephemeral });
 
-  // After the single allowed revision, go straight to summary then auto-confirm
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = await ticketMessagesToTranscript(interaction.guild, ticketMessages);
   const { sanctions } = await getSimilarityInputs(interaction.guild.id, meta!.targetUserID);
@@ -796,10 +783,25 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   });
 
   await moderationReportApiService.update(interaction.guild.id, reportId, {
-    status: "awaiting_confirmation",
+    status: summary.needsFollowUp ? "awaiting_reporter" : "awaiting_confirmation",
     reporterSummary: transcript,
     context: { messages: ticketMessages, aiSummary: summary },
   });
+
+  if (summary.needsFollowUp) {
+    const followUpRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`report:followup:${reportId}`)
+        .setLabel("J'ai répondu")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    await channel.send({
+      content: summary.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n"),
+      components: [followUpRow],
+    });
+    return;
+  }
 
   const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`report:confirm:${reportId}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
