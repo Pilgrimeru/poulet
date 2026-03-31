@@ -20,7 +20,6 @@ export const FlagAnalysisSchema = z.object({
   needsMoreContext: z.boolean(),
   searchQuery: z.string().nullable(),
   historyQuery: HistoryQuerySchema.nullable(),
-  ocrTargets: z.array(z.string()).nullable(),
 });
 
 export const QuestionSchema = z.object({
@@ -38,7 +37,6 @@ export const SummarySchema = z.object({
   targetID: z.string().nullable(),
   searchQuery: z.string().nullable(),
   historyQuery: HistoryQuerySchema.nullable(),
-  ocrTargets: z.array(z.string()).nullable(),
   summary: z.string(),
 });
 
@@ -99,10 +97,8 @@ Outils disponibles (maximum 3 tours combines) :
     channelID (string | null) — restreindre a un salon specifique
     limit (number) — nombre de messages, entre 1 et 100 (defaut 25)
 
-- ocrTargets (string[] | null) : Extrait le texte des images. Fournis une liste d'URLs d'images (CDN Discord ou chemins /attachments/...). Utilise-le quand un message contient une image dont le contenu textuel est potentiellement important.
-
-Si aucun outil n'est necessaire, mets historyQuery, ocrTargets et searchQuery a null.
-Un seul outil par reponse — ne renseigne jamais plus d'un de ces trois champs a la fois.
+Si aucun outil n'est necessaire, mets historyQuery et searchQuery a null.
+Un seul outil par reponse — ne renseigne jamais plus d'un de ces deux champs a la fois.
 `;
 
 export const questionSystemPrompt = `
@@ -137,8 +133,6 @@ Outils disponibles (maximum 3 tours combines) :
     channelID (string | null) — restreindre a un salon specifique
     limit (number) — nombre de messages, entre 1 et 100 (defaut 25)
 
-- ocrTargets (string[] | null) : Extrait le texte des images. Fournis une liste d'URLs d'images (CDN Discord ou chemins /attachments/...). Utilise-le quand un message contient une image dont le contenu textuel est potentiellement important.
-
-Si aucun outil n'est necessaire, mets historyQuery, ocrTargets et searchQuery a null.
-Un seul outil par reponse — ne renseigne jamais plus d'un de ces trois champs a la fois.
+Si aucun outil n'est necessaire, mets historyQuery et searchQuery a null.
+Un seul outil par reponse — ne renseigne jamais plus d'un de ces deux champs a la fois.
 `;

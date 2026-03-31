@@ -2,7 +2,6 @@ import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messag
 import type { ContextMessage } from "@/api/flaggedMessageApiService";
 import { messageSnapshotService } from "@/api/messageSnapshotService";
 import { callWithFallback } from "./client";
-import { extractTextFromImages } from "./ocrService";
 import {
   FlagAnalysisResult,
   FlagAnalysisSchema,
@@ -115,7 +114,6 @@ const MAX_TOOL_ITERATIONS = 3;
 async function runToolLoop<T extends {
   searchQuery: string | null;
   historyQuery: { userID: string; startDate: number | null; endDate: number | null; onlyDeleted: boolean; channelID: string | null; limit: number } | null;
-  ocrTargets: string[] | null;
 }>(
   initialMessages: BaseMessage[],
   schema: { parse: (value: unknown) => T },
@@ -155,15 +153,6 @@ async function runToolLoop<T extends {
         new HumanMessage(
           `[Outil: Historique utilisateur — userID: ${q.userID}, ${history.length} messages]\n${formatted}`,
         ),
-      ];
-    } else if (result.ocrTargets && result.ocrTargets.length > 0) {
-      const ocrResults = await extractTextFromImages(result.ocrTargets);
-      const formatted = ocrResults
-        .map((r) => r.error ? `[${r.url}] ERREUR: ${r.error}` : `[${r.url}]\n${r.text}`)
-        .join("\n\n");
-      messages = [
-        ...messages,
-        new HumanMessage(`[Outil: OCR — ${ocrResults.length} image(s)]\n${formatted}`),
       ];
     } else {
       break;
@@ -253,7 +242,6 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       needsMoreContext: true,
       searchQuery: null,
       historyQuery: null,
-      ocrTargets: null,
     };
   }
 }
@@ -315,7 +303,6 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
       targetID: input.targetUserID,
       searchQuery: null,
       historyQuery: null,
-      ocrTargets: null,
       summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",
     };
   }
