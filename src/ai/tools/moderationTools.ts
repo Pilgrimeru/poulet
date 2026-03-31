@@ -10,8 +10,8 @@ import {
   HistoryQueryToolSchema,
   SearchQueryToolSchema,
   UserSanctionsToolSchema,
-} from "../schemas";
-import type { ChannelsQuery, HistoryQuery, SanctionsQuery } from "../types";
+} from "../moderation/schemas";
+import type { ChannelsQuery, HistoryQuery, SanctionsQuery } from "../moderation/types";
 
 export const duckduckgoTool = new DuckDuckGoSearch({ maxResults: 3 });
 

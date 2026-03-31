@@ -1,6 +1,6 @@
 import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { createModerationTools, executeModerationToolCall } from "../moderation/tools";
+import { createModerationTools, executeModerationToolCall } from "../tools";
 import { fallbackLLM, moderationLLM } from "./client";
 
 type StructuredSchema<T> = z.ZodType<T>;
