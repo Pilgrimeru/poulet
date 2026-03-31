@@ -100,8 +100,7 @@ function extractQuotedTerms(text: string): string[] {
 }
 
 function applyDiscordTimestampMarkup(text: string): string {
-  return text.replace(/\[\[ts:([^\]|]+)(?:\|([A-Za-z]))?\]\]/g, (_full, rawValue: string, rawStyle?: string) => {
-    const style = rawStyle ?? "S";
+  return text.replaceAll(/\[\[ts:([^\]|]+)(?:\|([A-Za-z]))?\]\]/g, (_full, rawValue: string, style = "S") => {
     const trimmed = rawValue.trim();
     let date: Date | null = null;
 
@@ -118,7 +117,7 @@ function applyDiscordTimestampMarkup(text: string): string {
 }
 
 function applyDiscordChannelMarkup(text: string): string {
-  return text.replace(/(^|[\s(,])#(\d{17,20})(?=$|[\s),.])/g, (_full, prefix: string, channelID: string) => {
+  return text.replaceAll(/(^|[\s(,])#(\d{17,20})(?=$|[\s),.])/g, (_full, prefix: string, channelID: string) => {
     return `${prefix}<#${channelID}>`;
   });
 }
