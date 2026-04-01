@@ -9,8 +9,11 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   const contextText = input.contextMessages
     .map((message) => {
       const base = `[${new Date(message.createdAt).toISOString()}] ${message.authorUsername} (${message.authorID}): ${message.content}`;
+      const reply = message.referencedMessageID
+        ? ` [reply to ${message.referencedAuthorUsername ?? "(unknown)"} (${message.referencedAuthorID ?? "unknown"}): ${message.referencedContent ?? "(no content)"}]`
+        : "";
       const images = message.attachments?.map((attachment) => `[image: ${attachment.url}]`).join(" ") ?? "";
-      return images ? `${base} ${images}` : base;
+      return images ? `${base}${reply} ${images}` : `${base}${reply}`;
     })
     .join("\n");
 
@@ -44,12 +47,12 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
 
     return {
       isViolation: false,
-      severity: "LOW",
+      severity: "NONE",
       sanctionKind: "WARN",
       reason: "L'analyse IA du signalement a echoue. Le cas doit etre revu via le flux de ticket.",
       nature: "Harassment",
       similarSanctionIDs: [],
-      targetID: null,
+      victimUserID: null,
       needsMoreContext: true,
       searchQuery: null,
       historyQuery: null,
@@ -86,12 +89,12 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
         "Quand cela s'est-il produit ? Donne une date ou une heure approximative.",
       ],
       isViolation: false,
-      severity: "LOW",
+      severity: "NONE",
       sanctionKind: "WARN",
       reason: "Analyse IA indisponible en mode degrade.",
       nature: "Harassment",
       similarSanctionIDs: [],
-      targetID: input.targetUserID,
+      victimUserID: null,
       searchQuery: null,
       historyQuery: null,
       summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",

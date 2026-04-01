@@ -5,6 +5,7 @@ const SEVERITY_CONFIG: Record<
   SanctionSeverity,
   { color: number; label: string; emoji: string }
 > = {
+  NONE: { color: 0x6b7280, label: "Aucune", emoji: "⚪" },
   LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
   MEDIUM: { color: 0xe07820, label: "Modérée", emoji: "🟠" },
   HIGH: { color: 0xe03030, label: "Grave", emoji: "🔴" },

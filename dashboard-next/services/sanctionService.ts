@@ -145,6 +145,7 @@ export async function getActiveMultiplier(
   });
 
   const WEIGHT: Record<SanctionSeverity, number> = {
+    NONE: 0,
     LOW: 0.25,
     MEDIUM: 0.25,
     HIGH: 0.5,

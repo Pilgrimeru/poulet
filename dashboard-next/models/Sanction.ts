@@ -3,7 +3,7 @@ import { sequelize } from "../lib/db";
 import type { Appeal } from "./Appeal";
 
 export type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
-export type SanctionSeverity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
+export type SanctionSeverity = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
 export type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism" | "Other";
 export type SanctionState = "created" | "canceled";
 

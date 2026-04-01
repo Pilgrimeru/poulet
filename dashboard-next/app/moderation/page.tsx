@@ -7,7 +7,7 @@ import styles from "./Moderation.module.css";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Tab = "appeals" | "sanctions";
-type Severity = "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
+type Severity = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
 type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
 type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism" | "Other";
 type SanctionState = "created" | "canceled";
@@ -51,7 +51,7 @@ type FlagAnalysis = {
   severity?: Severity;
   reason?: string;
   nature?: SanctionNature;
-  targetID?: string | null;
+  victimUserID?: string | null;
   needsMoreContext?: boolean;
 };
 
@@ -60,7 +60,7 @@ type AiSummary = {
   severity?: Severity;
   reason?: string;
   nature?: SanctionNature;
-  targetID?: string | null;
+  victimUserID?: string | null;
   summary?: string;
 };
 
@@ -72,6 +72,9 @@ type ContextMessage = {
   content: string;
   createdAt: number;
   referencedMessageID?: string | null;
+  referencedAuthorID?: string | null;
+  referencedAuthorUsername?: string | null;
+  referencedContent?: string | null;
 };
 
 type FlaggedMessageItem = {
@@ -111,9 +114,10 @@ type SanctionDraft = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SEVERITY_LEVELS: Severity[] = ["LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"];
+const SEVERITY_LEVELS: Severity[] = ["NONE", "LOW", "MEDIUM", "HIGH", "UNFORGIVABLE"];
 
 const SEVERITY_LABELS: Record<Severity, string> = {
+  NONE: "Aucune",
   LOW: "Faible",
   MEDIUM: "Modérée",
   HIGH: "Grave",

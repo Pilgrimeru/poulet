@@ -8,6 +8,9 @@ export interface ContextMessage {
   content: string;
   createdAt: number;
   referencedMessageID: string | null;
+  referencedAuthorID?: string | null;
+  referencedAuthorUsername?: string | null;
+  referencedContent?: string | null;
   attachments?: Array<{
     url: string;
     contentType: string;

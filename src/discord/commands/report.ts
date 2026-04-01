@@ -5,6 +5,7 @@ import { analyzeFlag, summarizeReport, computeSanction } from "@/ai";
 import type { SummaryResult } from "@/ai";
 import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
 import { componentRouter } from "@/discord/interactions";
+import { formatTranscriptLine } from "@/moderation/messageFormatting";
 import { Command, ContextMenuCommand } from "@/discord/types";
 import {
   ActionRowBuilder,
@@ -57,10 +58,16 @@ function decodeTicketMeta(topic: string | null): TicketMeta | null {
 
 function safeParseJSON<T>(value: unknown): T | null {
   if (!value) return null;
-  if (typeof value === "object") return value as T;
+  if (typeof value === "object") {
+    const parsed = { ...(value as Record<string, unknown>) };
+    if ("targetID" in parsed && !("victimUserID" in parsed)) parsed["victimUserID"] = parsed["targetID"];
+    return parsed as T;
+  }
   if (typeof value !== "string") return null;
   try {
-    return JSON.parse(value) as T;
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (parsed && "targetID" in parsed && !("victimUserID" in parsed)) parsed["victimUserID"] = parsed["targetID"];
+    return parsed as T;
   } catch {
     return null;
   }
@@ -81,11 +88,11 @@ function logFlagTargetingDebug(args: {
     severity: string;
     nature: string;
     reason: string;
-    targetID: string | null;
+    victimUserID: string | null;
     needsMoreContext: boolean;
     searchQuery: string | null;
   };
-  resolvedTargetID: string | null;
+  resolvedVictimUserID: string | null;
 }): void {
   console.info("[report][target-debug]", {
     guildID: args.guildID,
@@ -98,8 +105,34 @@ function logFlagTargetingDebug(args: {
     messageContent: args.messageContent,
     messageMentions: args.messageMentions,
     aiAnalysis: args.analysis,
-    wouldRequireCertification: Boolean(args.resolvedTargetID && args.resolvedTargetID !== args.reporterID),
+    wouldRequireCertification: Boolean(args.resolvedVictimUserID && args.resolvedVictimUserID !== args.reporterID),
   });
+}
+
+async function resolveReferencedContext(
+  message: Message,
+  knownMessages?: Map<string, Message>,
+): Promise<Pick<ContextMessage, "referencedMessageID" | "referencedAuthorID" | "referencedAuthorUsername" | "referencedContent">> {
+  const referencedMessageID = message.reference?.messageId ?? null;
+  if (!referencedMessageID) {
+    return {
+      referencedMessageID: null,
+      referencedAuthorID: null,
+      referencedAuthorUsername: null,
+      referencedContent: null,
+    };
+  }
+
+  const referencedMessage =
+    knownMessages?.get(referencedMessageID) ??
+    await message.fetchReference().catch(() => null);
+
+  return {
+    referencedMessageID,
+    referencedAuthorID: referencedMessage?.author.id ?? null,
+    referencedAuthorUsername: referencedMessage?.member?.displayName ?? referencedMessage?.author.username ?? null,
+    referencedContent: referencedMessage?.content ?? null,
+  };
 }
 
 function formatDuration(durationMs: number): string {
@@ -110,6 +143,7 @@ function formatDuration(durationMs: number): string {
 }
 
 const SEVERITY_EMBED_CONFIG: Record<SanctionSeverity, { color: number; label: string; emoji: string }> = {
+  NONE: { color: 0x6b7280, label: "Aucune", emoji: "⚪" },
   LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
   MEDIUM: { color: 0xe07820, label: "Moyen", emoji: "🟠" },
   HIGH: { color: 0xe03030, label: "Élevé", emoji: "🔴" },
@@ -253,6 +287,7 @@ async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: Us
 async function collectContextMessages(targetMessage: Message): Promise<ContextMessage[]> {
   const fetched = await targetMessage.channel.messages.fetch({ limit: 60, around: targetMessage.id }).catch(() => null);
   if (!fetched) {
+    const referenced = await resolveReferencedContext(targetMessage);
     return [
       {
         id: targetMessage.id,
@@ -261,7 +296,7 @@ async function collectContextMessages(targetMessage: Message): Promise<ContextMe
         authorAvatarURL: targetMessage.author.displayAvatarURL(),
         content: targetMessage.content,
         createdAt: targetMessage.createdTimestamp,
-        referencedMessageID: targetMessage.reference?.messageId ?? null,
+        ...referenced,
         attachments: [...targetMessage.attachments.values()]
           .filter((a) => a.contentType?.startsWith("image/") ?? false)
           .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
@@ -269,35 +304,36 @@ async function collectContextMessages(targetMessage: Message): Promise<ContextMe
     ];
   }
 
-  return [...fetched.values()]
-    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-    .map((message) => ({
-      id: message.id,
-      authorID: message.author.id,
-      authorUsername: message.member?.displayName ?? message.author.username,
-      authorAvatarURL: message.author.displayAvatarURL(),
-      content: message.content,
-      createdAt: message.createdTimestamp,
-      referencedMessageID: message.reference?.messageId ?? null,
-      attachments: [...message.attachments.values()]
-        .filter((a) => a.contentType?.startsWith("image/") ?? false)
-        .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
-    }));
+  const orderedMessages = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const knownMessages = new Map(orderedMessages.map((message) => [message.id, message]));
+
+  return Promise.all(orderedMessages.map(async (message) => ({
+    id: message.id,
+    authorID: message.author.id,
+    authorUsername: message.member?.displayName ?? message.author.username,
+    authorAvatarURL: message.author.displayAvatarURL(),
+    content: message.content,
+    createdAt: message.createdTimestamp,
+    ...(await resolveReferencedContext(message, knownMessages)),
+    attachments: [...message.attachments.values()]
+      .filter((a) => a.contentType?.startsWith("image/") ?? false)
+      .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
+  })));
 }
 
 async function collectTicketMessages(channel: TextChannel): Promise<ContextMessage[]> {
   const messages = await channel.messages.fetch({ limit: 100 });
-  return [...messages.values()]
-    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-    .map((message) => ({
-      id: message.id,
-      authorID: message.author.id,
-      authorUsername: message.author.bot ? `[bot] ${message.author.username}` : message.author.username,
-      authorAvatarURL: message.author.displayAvatarURL(),
-      content: message.content,
-      createdAt: message.createdTimestamp,
-      referencedMessageID: message.reference?.messageId ?? null,
-    }));
+  const orderedMessages = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const knownMessages = new Map(orderedMessages.map((message) => [message.id, message]));
+  return Promise.all(orderedMessages.map(async (message) => ({
+    id: message.id,
+    authorID: message.author.id,
+    authorUsername: message.author.bot ? `[bot] ${message.author.username}` : message.author.username,
+    authorAvatarURL: message.author.displayAvatarURL(),
+    content: message.content,
+    createdAt: message.createdTimestamp,
+    ...(await resolveReferencedContext(message, knownMessages)),
+  })));
 }
 
 const DISCORD_MESSAGE_LINK_RE = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
@@ -365,7 +401,18 @@ async function ticketMessagesToTranscript(guild: Guild, messages: ContextMessage
       .filter((msg) => msg.content.trim() !== "")
       .map(async (msg) => {
         const enriched = await enrichContent(guild, msg.content);
-        return `[${new Date(msg.createdAt).toISOString()}] ${msg.authorUsername}: ${enriched}`;
+        const referenced = msg.referencedMessageID
+          ? await enrichContent(guild, msg.referencedContent ?? "")
+          : null;
+        return formatTranscriptLine({
+          createdAt: msg.createdAt,
+          authorUsername: msg.authorUsername,
+          content: enriched,
+          referencedMessageID: msg.referencedMessageID,
+          referencedAuthorID: msg.referencedAuthorID,
+          referencedAuthorUsername: msg.referencedAuthorUsername,
+          referencedContent: referenced,
+        });
       }),
   );
   return lines.join("\n");
@@ -447,6 +494,10 @@ async function applyAutomaticSanction(args: {
   nature: SanctionNature;
   source: { kind: "flag"; id: string; message?: Message } | { kind: "report"; id: string; channel: TextChannel };
 }) {
+  if (args.severity === "NONE") {
+    throw new Error("Cannot apply a sanction with NONE severity");
+  }
+
   const referenceTimestamp = args.source.kind === "flag" ? args.source.message?.createdTimestamp : undefined;
   const { multiplier } = await getSimilarityInputs(args.guild.id, args.target.id, referenceTimestamp);
   const computed = computeSanction(args.severity, args.sanctionKind, multiplier);
@@ -586,6 +637,7 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
         .setTitle("Synthese IA du dossier")
         .setDescription(
           [
+            `Violation: **${summary.isViolation ? "Oui" : "Non"}**`,
             `Gravite: **${summary.severity}**`,
             `Nature: **${summary.nature}**`,
             `Motif: ${summary.reason}`,
@@ -687,6 +739,16 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
   }
 
   const target = await interaction.client.users.fetch(report.targetUserID);
+  if (!analysis.isViolation || analysis.severity === "NONE") {
+    await moderationReportApiService.update(interaction.guild.id, report.id, {
+      status: "dismissed",
+      context: { messages: report.context?.messages ?? [], aiSummary: analysis },
+    });
+    await channel.send("Le dossier a ete confirme sans sanction: aucune infraction n'a ete etablie.");
+    await interaction.reply({ content: "Dossier confirmé sans sanction.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   await applyAutomaticSanction({
     guild: interaction.guild,
     target,
@@ -814,6 +876,7 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
         .setTitle("Synthese IA — version finale")
         .setDescription(
           [
+            `Violation: **${summary.isViolation ? "Oui" : "Non"}**`,
             `Gravite: **${summary.severity}**`,
             `Nature: **${summary.nature}**`,
             `Motif: ${summary.reason}`,
@@ -1032,7 +1095,7 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
 
     const contextMessages = await collectContextMessages(targetMessage);
     const alreadySanctionedMessageIDs = await getAlreadySanctionedMessageIDs(interaction.guild.id, target.id);
-    if (alreadySanctionedMessageIDs.has(targetMessage.id)) {
+    if (!config.ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS && alreadySanctionedMessageIDs.has(targetMessage.id)) {
       await interaction.editReply({
         content: "Ce message a déjà été pris en compte dans une sanction existante. Il ne peut pas être sanctionné une seconde fois.",
       });
@@ -1073,7 +1136,10 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       contextMessages,
     });
 
-    const resolvedTargetID = analysis.targetID;
+    const isTargetedNature = analysis.nature === "Harassment" || analysis.nature === "Violence" || analysis.nature === "Hate";
+    const resolvedVictimUserID = analysis.victimUserID && analysis.victimUserID !== target.id
+      ? analysis.victimUserID
+      : null;
 
     logFlagTargetingDebug({
       guildID: interaction.guild.id,
@@ -1086,11 +1152,11 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       messageContent: targetMessage.content,
       messageMentions,
       analysis,
-      resolvedTargetID,
+      resolvedVictimUserID,
     });
 
     await flaggedMessageApiService.update(interaction.guild.id, flagged.id, {
-      aiAnalysis: { ...analysis, targetID: resolvedTargetID },
+      aiAnalysis: { ...analysis, victimUserID: resolvedVictimUserID },
       status: "analyzed",
     });
 
@@ -1100,7 +1166,14 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       return;
     }
 
-    if (resolvedTargetID && resolvedTargetID !== interaction.user.id) {
+    if (isTargetedNature && !resolvedVictimUserID) {
+      const channel = await openTicket(interaction.guild, interaction.user, target);
+      await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "escalated" });
+      await interaction.editReply({ content: `La victime n'est pas identifiable avec assez de certitude. Un ticket a été créé : ${channel}` });
+      return;
+    }
+
+    if (resolvedVictimUserID && resolvedVictimUserID !== interaction.user.id) {
       await flaggedMessageApiService.update(interaction.guild.id, flagged.id, { status: "needs_certification" });
       await interaction.editReply({ content: "Cette insulte ciblée ne peut être signalée que par la personne visée. Utilise le flux de ticket si tu es la victime." });
       return;

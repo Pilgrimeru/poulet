@@ -5,6 +5,7 @@ import { sanctionApiService } from "@/api/sanctionApiService";
 import { DuckDuckGoSearch } from "@langchain/community/tools/duckduckgo_search";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { formatReplySuffix } from "@/moderation/messageFormatting";
 import {
   GuildChannelsToolSchema,
   HistoryQueryToolSchema,
@@ -132,7 +133,13 @@ export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): 
     const renderedChannel = channelName
       ? `<#${message.channelID}> (#${channelName})`
       : `<#${message.channelID}>`;
-    const line = `[${new Date(message.createdAt).toISOString()}] ${renderedChannel} ${message.authorUsername}: ${message.content}${suffix}`;
+    const replySuffix = formatReplySuffix({
+      referencedMessageID: message.referencedMessageID,
+      referencedAuthorUsername: message.referencedMessageAuthor,
+      referencedContent: message.referencedMessageContent,
+    });
+    const line =
+      `[${new Date(message.createdAt).toISOString()}] ${renderedChannel} ${message.authorUsername}: ${message.content}${replySuffix}${suffix}`;
     const versions = historiesById.get(message.messageID);
     if (!versions) return line;
 

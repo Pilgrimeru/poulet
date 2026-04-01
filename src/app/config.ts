@@ -18,6 +18,7 @@ function parseEnvColor(
 const config: Config = {
   TOKEN: process.env["TOKEN"] ?? "",
   AUTO_DELETE: Boolean(process.env["AUTO_DELETE"]),
+  ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS: Boolean(process.env["ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS"]),
   LOCALE: process.env["LOCALE"] ?? "en",
   GUILD_ID: process.env["GUILD_ID"],
   COLORS: {

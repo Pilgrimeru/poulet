@@ -831,6 +831,7 @@
   color: var(--text-secondary);
 }
 
+.sevNONE        { background: rgba(128, 132, 142, 0.18); color: #d1d5db; }
 .sevLOW         { background: rgba(35, 165, 90, 0.18);   color: #84d8a7; }
 .sevMEDIUM      { background: rgba(250, 166, 26, 0.18);  color: #ffd58a; }
 .sevHIGH        { background: rgba(214, 69, 69, 0.18);   color: #ffb3b8; }

@@ -7,6 +7,7 @@ export interface SanctionComputation {
 }
 
 const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
+  NONE: 0,
   LOW: 5 * 60 * 1000,
   MEDIUM: 15 * 60 * 1000,
   HIGH: 24 * 60 * 60 * 1000,
@@ -16,6 +17,7 @@ const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
 const PENDING_BAN_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function severityToWarnType(severity: SanctionSeverity): SanctionType {
+  if (severity === "NONE") throw new Error("Cannot map NONE severity to a warning sanction");
   if (severity === "LOW") return "WARN_LOW";
   if (severity === "MEDIUM") return "WARN_MEDIUM";
   return "WARN_HIGH";
@@ -32,6 +34,10 @@ export function computeSanction(
   sanctionKind: "WARN" | "MUTE" | "BAN_PENDING",
   multiplier: number,
 ): SanctionComputation {
+  if (severity === "NONE") {
+    throw new Error("Cannot compute a sanction for NONE severity");
+  }
+
   if (sanctionKind === "BAN_PENDING") {
     return {
       durationMs: PENDING_BAN_DURATION_MS,

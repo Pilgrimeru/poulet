@@ -23,6 +23,7 @@ function normalizeValue(value: unknown): string {
 
 function normalizeSeverity(value: unknown): unknown {
   const normalized = normalizeValue(value).replaceAll(/[\s-]+/g, "_");
+  if (normalized === "none" || normalized === "aucune" || normalized === "nulle" || normalized === "absente" || normalized === "non_etablie" || normalized === "non_etabli") return "NONE";
   if (normalized === "low" || normalized === "faible") return "LOW";
   if (normalized === "medium" || normalized === "moyen" || normalized === "modere" || normalized === "moderee") return "MEDIUM";
   if (normalized === "high" || normalized === "grave" || normalized === "eleve" || normalized === "elevee") return "HIGH";
@@ -46,6 +47,10 @@ function normalizeNature(value: unknown): unknown {
 function normalizeStructuredPayload(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   const payload = { ...(value as Record<string, unknown>) };
+
+  if ("targetID" in payload && !("victimUserID" in payload)) {
+    payload["victimUserID"] = payload["targetID"];
+  }
 
   if ("severity" in payload) payload["severity"] = normalizeSeverity(payload["severity"]);
   if ("nature" in payload) payload["nature"] = normalizeNature(payload["nature"]);

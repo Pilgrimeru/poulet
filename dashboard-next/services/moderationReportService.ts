@@ -49,7 +49,11 @@ export interface UpdateModerationReportInput {
 function parseContext(value: string | null): ReportContext | null {
   if (!value) return null;
   try {
-    return JSON.parse(value) as ReportContext;
+    const parsed = JSON.parse(value) as ReportContext & { aiSummary?: Record<string, unknown> };
+    if (parsed.aiSummary && "targetID" in parsed.aiSummary && !("victimUserID" in parsed.aiSummary)) {
+      parsed.aiSummary["victimUserID"] = parsed.aiSummary["targetID"];
+    }
+    return parsed;
   } catch {
     return null;
   }

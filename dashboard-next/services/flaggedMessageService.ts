@@ -8,6 +8,9 @@ export interface ContextMessage {
   content: string;
   createdAt: number;
   referencedMessageID: string | null;
+  referencedAuthorID?: string | null;
+  referencedAuthorUsername?: string | null;
+  referencedContent?: string | null;
 }
 
 export interface FlaggedMessageDTO {
@@ -50,7 +53,9 @@ export interface UpdateFlaggedMessageInput {
 function parseJSON(value: string | null): unknown {
   if (!value) return null;
   try {
-    return JSON.parse(value);
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (parsed && "targetID" in parsed && !("victimUserID" in parsed)) parsed["victimUserID"] = parsed["targetID"];
+    return parsed;
   } catch {
     return value;
   }
