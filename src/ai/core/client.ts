@@ -1,16 +1,18 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
+import { getLlmCache } from "./llmCache";
 
 const openRouterApiKey = process.env["OPENROUTER_API_KEY"];
 const primaryModel = process.env["AI_PRIMARY_MODEL"] ?? "minimax/minimax-m2.5:free";
 const fallbackModelName = process.env["AI_FALLBACK_MODEL"] ?? "minimax/minimax-m2.5";
+const llmCache = getLlmCache();
 
 function createClient(model: string): ChatOpenAI | null {
   if (!openRouterApiKey) return null;
   return new ChatOpenAI({
     model,
     apiKey: openRouterApiKey,
-    cache: true,
+    cache: llmCache,
     reasoning: {
       effort: "low",
     },

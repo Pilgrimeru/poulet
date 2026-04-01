@@ -69,8 +69,8 @@ Analyse :
 
 FORMAT DE SORTIE :
 - JSON structuré conforme.
-- Pour nommer un utilisateur, utiliser : <@ID>
-- Pour nommer un salon, utiliser : <#ID>
-- Pour nommer une date ou une heure précise, utiliser : [[ts:ISO-8601|S]]
+- Pour nommer un utilisateur, TOURJOURS utiliser : <@ID>
+- Pour nommer un salon, TOURJOURS utiliser : <#ID>
+- Pour nommer une date ou une heure précise, TOURJOURS utiliser : [[ts:ISO-8601|S]]
 `;
 }

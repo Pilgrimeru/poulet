@@ -1,11 +1,13 @@
 import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createModerationTools, executeModerationToolCall } from "../tools";
 import { fallbackLLM, moderationLLM } from "./client";
 
 type StructuredSchema<T> = z.ZodType<T>;
 
-const MAX_TOOL_ITERATIONS = 3;
+const MAX_TOOL_ITERATIONS = 4;
+const FINAL_RESPONSE_TOOL_NAME = "submitFinalAnswer";
 
 function getCandidateLLMs() {
   const candidates = [moderationLLM, fallbackLLM].filter((llm): llm is NonNullable<typeof moderationLLM> => Boolean(llm));
@@ -95,26 +97,44 @@ function finalizeSchemaOutput<T extends Record<string, unknown>>(value: T): T {
   return output as T;
 }
 
-async function invokeStructuredWithFallback<T>(
-  messages: BaseMessage[],
-  schema: StructuredSchema<T>,
-): Promise<T> {
-  logMessages(`→ structured invoke (${messages.length} messages)`, messages);
+function buildToolExecutor(guildID: string) {
+  const cache = new Map<string, Promise<string>>();
 
-  let lastError: unknown;
-  for (const [index, llm] of getCandidateLLMs().entries()) {
-    try {
-      const raw = await llm.withStructuredOutput(schema as z.ZodType).invoke(messages);
-      const normalized = normalizeStructuredPayload(raw);
-      console.log(`[ai] ← structured result${index === 0 ? "" : " (fallback)"}: ${JSON.stringify(normalized).slice(0, 300)}`);
-      return schema.parse(normalized);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[ai] structured invoke failed on model #${index + 1}`, error);
-    }
-  }
+  return async (name: string, args: unknown): Promise<string> => {
+    const cacheKey = JSON.stringify({ name, args });
+    const current = cache.get(cacheKey);
+    if (current) return current;
 
-  throw lastError;
+    const promise = executeModerationToolCall(guildID, name, args)
+      .finally(() => {
+        if (cache.get(cacheKey) === promise) cache.delete(cacheKey);
+      });
+
+    cache.set(cacheKey, promise);
+    return promise;
+  };
+}
+
+function createFinalAnswerTool<T extends Record<string, unknown>>(schema: StructuredSchema<T>) {
+  return tool(
+    async (payload: T) => JSON.stringify(payload),
+    {
+      name: FINAL_RESPONSE_TOOL_NAME,
+      description: "Appelle cet outil exactement une fois quand tu as suffisamment d'informations. N'appelle cet outil qu'en toute fin pour renvoyer la decision structuree complete.",
+      schema,
+    },
+  );
+}
+
+function getToolRunnable<T extends Record<string, unknown>>(
+  llm: NonNullable<typeof moderationLLM>,
+  tools: ReturnType<typeof createModerationTools>,
+  finalAnswerTool: ReturnType<typeof createFinalAnswerTool<T>>,
+) {
+  return llm.bindTools([...tools, finalAnswerTool], {
+    parallel_tool_calls: false,
+    tool_choice: "required",
+  });
 }
 
 export async function runWithTools<T extends Record<string, unknown>>(
@@ -123,26 +143,31 @@ export async function runWithTools<T extends Record<string, unknown>>(
   guildID: string,
 ): Promise<T> {
   const tools = createModerationTools(guildID);
+  const finalAnswerTool = createFinalAnswerTool(schema);
+  const executeTool = buildToolExecutor(guildID);
+  let messages = [...initialMessages];
   let lastError: unknown;
 
-  for (const [index, llm] of getCandidateLLMs().entries()) {
-    try {
-      const llmWithTools = llm.bindTools(tools);
-      let messages = [...initialMessages];
+  logMessages(`→ invoke with tools (${messages.length} messages)`, messages);
 
-      logMessages(`→ invoke with tools (${messages.length} messages)`, messages);
-
-      for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-        const response = await llmWithTools.invoke(messages) as AIMessage;
+  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+    for (const [index, llm] of getCandidateLLMs().entries()) {
+      try {
+        const response = await getToolRunnable(llm, tools, finalAnswerTool).invoke(messages) as AIMessage;
         messages = [...messages, response];
 
         const toolCalls = response.tool_calls ?? [];
         console.log(`[ai] ← tool calls${index === 0 ? "" : " (fallback)"}: ${toolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
 
         if (toolCalls.length === 0) {
-          const structuredMessages = messages.at(-1) === response ? messages.slice(0, -1) : messages;
-          const finalResult = await invokeStructuredWithFallback(structuredMessages, schema);
-          return finalizeSchemaOutput(finalResult);
+          throw new Error("The model did not call any tool despite tool_choice='required'");
+        }
+
+        const finalCall = toolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
+        if (finalCall) {
+          const normalized = normalizeStructuredPayload(finalCall.args);
+          console.log(`[ai] ← structured result${index === 0 ? "" : " (fallback)"}: ${JSON.stringify(normalized).slice(0, 300)}`);
+          return finalizeSchemaOutput(schema.parse(normalized));
         }
 
         for (const call of toolCalls) {
@@ -154,7 +179,7 @@ export async function runWithTools<T extends Record<string, unknown>>(
 
           let result: string;
           try {
-            result = await executeModerationToolCall(guildID, call.name, call.args);
+            result = await executeTool(call.name, call.args);
           } catch (error) {
             result = `Erreur lors de l'execution de l'outil ${call.name}: ${error instanceof Error ? error.message : String(error)}`;
           }
@@ -162,16 +187,15 @@ export async function runWithTools<T extends Record<string, unknown>>(
           console.log(`[ai] ← tool result ${call.name} (${result.length} chars)`, result);
           messages = [...messages, new ToolMessage({ content: result, tool_call_id: call.id ?? call.name })];
         }
-      }
 
-      const structuredMessages = messages.at(-1)?.constructor === AIMessage ? messages.slice(0, -1) : messages;
-      const finalResult = await invokeStructuredWithFallback(structuredMessages, schema);
-      return finalizeSchemaOutput(finalResult);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[ai] tool loop failed on model #${index + 1}`, error);
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.warn(`[ai] tool loop failed on model #${index + 1}`, error);
+      }
     }
   }
 
-  throw lastError;
+  throw lastError ?? new Error("The model did not produce a final structured answer");
 }
