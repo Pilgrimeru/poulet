@@ -25,6 +25,12 @@ function createClient(model: string): ChatOpenAI | null {
 export const moderationLLM = createClient(primaryModel);
 export const fallbackLLM = createClient(fallbackModelName);
 
+export const llmWithFallback = (() => {
+  if (!moderationLLM) return null;
+  if (!fallbackLLM || fallbackLLM === moderationLLM) return moderationLLM;
+  return moderationLLM.withFallbacks([fallbackLLM]);
+})();
+
 function logMessages(label: string, messages: BaseMessage[]): void {
   console.log(`[ai] ${label}`);
   for (const msg of messages) {
@@ -35,28 +41,14 @@ function logMessages(label: string, messages: BaseMessage[]): void {
 }
 
 export async function callWithFallback(messages: BaseMessage[]): Promise<string> {
-  if (!moderationLLM && !fallbackLLM) {
+  if (!llmWithFallback) {
     throw new Error("OPENROUTER_API_KEY is not configured");
   }
 
   logMessages(`→ invoke (${messages.length} messages)`, messages);
 
-  try {
-    const response = await (moderationLLM ?? fallbackLLM)!.invoke(messages);
-    const content = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
-    console.log(`[ai] ← response: ${content}`);
-    return content;
-  } catch (primaryError) {
-    if (!fallbackLLM || fallbackLLM === moderationLLM) {
-      throw primaryError;
-    }
-    console.warn(
-      `[ai] primary model failed (${primaryModel}), falling back to ${fallbackModelName}:`,
-      primaryError,
-    );
-    const response = await fallbackLLM.invoke(messages);
-    const content = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
-    console.log(`[ai] ← response (fallback): ${content}`);
-    return content;
-  }
+  const response = await llmWithFallback.invoke(messages);
+  const content = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+  console.log(`[ai] ← response: ${content}`);
+  return content;
 }

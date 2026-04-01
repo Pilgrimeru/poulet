@@ -4,16 +4,23 @@ import { z } from "zod";
 import { createModerationTools, executeModerationToolCall } from "../tools";
 import { fallbackLLM, moderationLLM } from "./client";
 
+function getBoundLLMWithFallback<T extends Record<string, unknown>>(
+  tools: ReturnType<typeof createModerationTools>,
+  finalAnswerTool: ReturnType<typeof createFinalAnswerTool<T>>,
+) {
+  if (!moderationLLM) throw new Error("OPENROUTER_API_KEY is not configured");
+  const opts = { parallel_tool_calls: false, tool_choice: "required" } as const;
+  const allTools = [...tools, finalAnswerTool];
+  const primary = moderationLLM.bindTools(allTools, opts);
+  if (!fallbackLLM || fallbackLLM === moderationLLM) return primary;
+  const fallback = fallbackLLM.bindTools(allTools, opts);
+  return primary.withFallbacks([fallback]);
+}
+
 type StructuredSchema<T> = z.ZodType<T>;
 
 const MAX_TOOL_ITERATIONS = 4;
 const FINAL_RESPONSE_TOOL_NAME = "submitFinalAnswer";
-
-function getCandidateLLMs() {
-  const candidates = [moderationLLM, fallbackLLM].filter((llm): llm is NonNullable<typeof moderationLLM> => Boolean(llm));
-  if (candidates.length === 0) throw new Error("OPENROUTER_API_KEY is not configured");
-  return candidates.filter((llm, index, arr) => arr.indexOf(llm) === index);
-}
 
 function normalizeValue(value: unknown): string {
   return (String(value) || "")
@@ -126,17 +133,6 @@ function createFinalAnswerTool<T extends Record<string, unknown>>(schema: Struct
   );
 }
 
-function getToolRunnable<T extends Record<string, unknown>>(
-  llm: NonNullable<typeof moderationLLM>,
-  tools: ReturnType<typeof createModerationTools>,
-  finalAnswerTool: ReturnType<typeof createFinalAnswerTool<T>>,
-) {
-  return llm.bindTools([...tools, finalAnswerTool], {
-    parallel_tool_calls: false,
-    tool_choice: "required",
-  });
-}
-
 export async function runWithTools<T extends Record<string, unknown>>(
   initialMessages: BaseMessage[],
   schema: StructuredSchema<T>,
@@ -144,58 +140,48 @@ export async function runWithTools<T extends Record<string, unknown>>(
 ): Promise<T> {
   const tools = createModerationTools(guildID);
   const finalAnswerTool = createFinalAnswerTool(schema);
+  const chain = getBoundLLMWithFallback(tools, finalAnswerTool);
   const executeTool = buildToolExecutor(guildID);
   let messages = [...initialMessages];
-  let lastError: unknown;
 
   logMessages(`→ invoke with tools (${messages.length} messages)`, messages);
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-    for (const [index, llm] of getCandidateLLMs().entries()) {
+    const response = await chain.invoke(messages) as AIMessage;
+    messages = [...messages, response];
+
+    const toolCalls = response.tool_calls ?? [];
+    console.log(`[ai] ← tool calls: ${toolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
+
+    if (toolCalls.length === 0) {
+      throw new Error("The model did not call any tool despite tool_choice='required'");
+    }
+
+    const finalCall = toolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
+    if (finalCall) {
+      const normalized = normalizeStructuredPayload(finalCall.args);
+      console.log(`[ai] ← structured result: ${JSON.stringify(normalized).slice(0, 300)}`);
+      return finalizeSchemaOutput(schema.parse(normalized));
+    }
+
+    for (const call of toolCalls) {
+      console.log("[ai] tool call", {
+        name: call.name,
+        args: call.args,
+        id: call.id,
+      });
+
+      let result: string;
       try {
-        const response = await getToolRunnable(llm, tools, finalAnswerTool).invoke(messages) as AIMessage;
-        messages = [...messages, response];
-
-        const toolCalls = response.tool_calls ?? [];
-        console.log(`[ai] ← tool calls${index === 0 ? "" : " (fallback)"}: ${toolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
-
-        if (toolCalls.length === 0) {
-          throw new Error("The model did not call any tool despite tool_choice='required'");
-        }
-
-        const finalCall = toolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
-        if (finalCall) {
-          const normalized = normalizeStructuredPayload(finalCall.args);
-          console.log(`[ai] ← structured result${index === 0 ? "" : " (fallback)"}: ${JSON.stringify(normalized).slice(0, 300)}`);
-          return finalizeSchemaOutput(schema.parse(normalized));
-        }
-
-        for (const call of toolCalls) {
-          console.log("[ai] tool call", {
-            name: call.name,
-            args: call.args,
-            id: call.id,
-          });
-
-          let result: string;
-          try {
-            result = await executeTool(call.name, call.args);
-          } catch (error) {
-            result = `Erreur lors de l'execution de l'outil ${call.name}: ${error instanceof Error ? error.message : String(error)}`;
-          }
-
-          console.log(`[ai] ← tool result ${call.name} (${result.length} chars)`, result);
-          messages = [...messages, new ToolMessage({ content: result, tool_call_id: call.id ?? call.name })];
-        }
-
-        lastError = undefined;
-        break;
+        result = await executeTool(call.name, call.args);
       } catch (error) {
-        lastError = error;
-        console.warn(`[ai] tool loop failed on model #${index + 1}`, error);
+        result = `Erreur lors de l'execution de l'outil ${call.name}: ${error instanceof Error ? error.message : String(error)}`;
       }
+
+      console.log(`[ai] ← tool result ${call.name} (${result.length} chars)`, result);
+      messages = [...messages, new ToolMessage({ content: result, tool_call_id: call.id ?? call.name })];
     }
   }
 
-  throw lastError ?? new Error("The model did not produce a final structured answer");
+  throw new Error("The model did not produce a final structured answer");
 }

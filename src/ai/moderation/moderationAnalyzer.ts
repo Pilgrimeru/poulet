@@ -1,5 +1,5 @@
-import { BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { buildSummarySystemPrompt, flagSystemPrompt } from "./prompts";
+import { SystemMessage } from "@langchain/core/messages";
+import { flagChatPrompt, summaryChatPrompt } from "./prompts";
 import { FlagAnalysisSchema, SummarySchema } from "./schemas";
 import { buildSummaryInputContext, getSourceReportTimezone, postProcessSummaryResult } from "./reportContext";
 import { runWithTools } from "../core/runtime";
@@ -17,23 +17,18 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
     })
     .join("\n");
 
-  const messages: BaseMessage[] = [
-    new SystemMessage({ content: flagSystemPrompt, additional_kwargs: { cache_control: { type: "ephemeral" } } }),
-    new HumanMessage(
-      [
-        `Reporter ID: ${input.reporterID}`,
-        `Reporter username: ${input.reporterUsername ?? "(unknown)"}`,
-        `Reporter display name: ${input.reporterDisplayName ?? "(unknown)"}`,
-        `Reported message author ID: ${input.targetUserID}`,
-        `Reported message author username: ${input.targetUsername ?? "(unknown)"}`,
-        `Reported message author display name: ${input.targetDisplayName ?? "(unknown)"}`,
-        `Mentions detectees: ${JSON.stringify(input.messageMentions ?? [])}`,
-        `Message cible: ${input.messageContent}`,
-        "Contexte:",
-        contextText || "(vide)",
-      ].join("\n"),
-    ),
-  ];
+  const messages = await flagChatPrompt.formatMessages({
+    reporterID: input.reporterID,
+    reporterUsername: input.reporterUsername ?? "(unknown)",
+    reporterDisplayName: input.reporterDisplayName ?? "(unknown)",
+    targetUserID: input.targetUserID,
+    targetUsername: input.targetUsername ?? "(unknown)",
+    targetDisplayName: input.targetDisplayName ?? "(unknown)",
+    messageMentions: JSON.stringify(input.messageMentions ?? []),
+    messageContent: input.messageContent,
+    contextText: contextText || "(vide)",
+  });
+  (messages[0] as SystemMessage).additional_kwargs = { cache_control: { type: "ephemeral" } };
 
   try {
     return await runWithTools(messages, FlagAnalysisSchema, input.guildID);
@@ -64,19 +59,19 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
   const derivedContext = buildSummaryInputContext(input);
   const sourceReportTimezone = getSourceReportTimezone();
 
-  const messages: BaseMessage[] = [
-    new SystemMessage({ content: buildSummarySystemPrompt(sourceReportTimezone), additional_kwargs: { cache_control: { type: "ephemeral" } } }),
-    new HumanMessage(
-      [
-        `Reporter ID: ${input.reporterID}`,
-        `Target ID: ${input.targetUserID}`,
-        `Date actuelle (UTC): ${new Date().toISOString()}`,
-        ...(derivedContext.length > 0 ? ["Contexte derive:", ...derivedContext] : []),
-        "Transcript complet du ticket:",
-        input.transcript,
-      ].join("\n"),
-    ),
-  ];
+  const derivedContextText = derivedContext.length > 0
+    ? ["Contexte derive:", ...derivedContext].join("\n")
+    : "";
+
+  const messages = await summaryChatPrompt.formatMessages({
+    sourceReportTimezone,
+    reporterID: input.reporterID,
+    targetUserID: input.targetUserID,
+    currentDate: new Date().toISOString(),
+    derivedContext: derivedContextText,
+    transcript: input.transcript,
+  });
+  (messages[0] as SystemMessage).additional_kwargs = { cache_control: { type: "ephemeral" } };
 
   try {
     return postProcessSummaryResult(await runWithTools(messages, SummarySchema, input.guildID));

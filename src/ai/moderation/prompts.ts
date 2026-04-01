@@ -1,4 +1,6 @@
-export const flagSystemPrompt = `
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+
+const flagSystemPromptText = `
 Tu es un assistant de modération Discord francophone.
 Tu analyses un message signalé et son contexte (30 messages avant et après).
 
@@ -25,8 +27,7 @@ FORMAT DE SORTIE :
 - Pour nommer une date ou une heure précise, utiliser : [[ts:ISO-8601|S]]
 `;
 
-export function buildSummarySystemPrompt(sourceReportTimezone: string): string {
-  return `
+const summarySystemPromptText = `
 Tu es un assistant de moderation Discord francophone charge d'analyser un dossier de signalement complet et de produire un rapport de decision.
 Comprends le probleme en profondeur, recupere toi-meme le contexte utile avec les outils, puis soit produis une decision de moderation exploitable, soit demande le strict minimum d'informations manquantes.
 
@@ -45,7 +46,7 @@ SANCTIONS :
 VERIFICATION DES FAITS (OBLIGATOIRE) :
 - Si le dossier allègue des messages envoyés par l'accusé, commence toujours par un historyQuery avant tout verdict et ne mets jamais isViolation = true sans cette vérification
 - Utilise onlyDeleted: false par défaut. Passe à onlyDeleted: true seulement si les messages sont introuvables ou explicitement signalés comme supprimés
-- Utilise les repères temporels UTC fournis. Interprète les repères relatifs exprimés en ${sourceReportTimezone}, puis raisonne en UTC
+- Utilise les repères temporels UTC fournis. Interprète les repères relatifs exprimés en {sourceReportTimezone}, puis raisonne en UTC
 - Si l'historique ne confirme pas les faits allégués, mets isViolation = false et indique dans le summary que les preuves sont insuffisantes
 - Si les faits sont confirmés, fonde l'analyse sur les messages retrouvés, jamais sur le seul témoignage
 - Ne mentionne jamais de preuve, d'historique ou de contexte que tu n'as pas effectivement vérifié via les outils
@@ -73,4 +74,37 @@ FORMAT DE SORTIE :
 - Pour nommer un salon, TOURJOURS utiliser : <#ID>
 - Pour nommer une date ou une heure précise, TOURJOURS utiliser : [[ts:ISO-8601|S]]
 `;
-}
+
+export const flagChatPrompt = ChatPromptTemplate.fromMessages([
+  ["system", flagSystemPromptText],
+  [
+    "human",
+    [
+      "Reporter ID: {reporterID}",
+      "Reporter username: {reporterUsername}",
+      "Reporter display name: {reporterDisplayName}",
+      "Reported message author ID: {targetUserID}",
+      "Reported message author username: {targetUsername}",
+      "Reported message author display name: {targetDisplayName}",
+      "Mentions detectees: {messageMentions}",
+      "Message cible: {messageContent}",
+      "Contexte:",
+      "{contextText}",
+    ].join("\n"),
+  ],
+]);
+
+export const summaryChatPrompt = ChatPromptTemplate.fromMessages([
+  ["system", summarySystemPromptText],
+  [
+    "human",
+    [
+      "Reporter ID: {reporterID}",
+      "Target ID: {targetUserID}",
+      "Date actuelle (UTC): {currentDate}",
+      "{derivedContext}",
+      "Transcript complet du ticket:",
+      "{transcript}",
+    ].join("\n"),
+  ],
+]);
