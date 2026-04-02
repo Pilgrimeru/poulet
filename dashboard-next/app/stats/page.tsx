@@ -70,8 +70,16 @@ const EMPTY_STATS: StatsData = {
 };
 
 const CHART_COLORS = [
-  "#5865f2", "#ed4245", "#faa61a", "#23a55a", "#00a8fc",
-  "#eb459e", "#57f287", "#fee75c", "#9b59b6", "#1abc9c",
+  "#5865f2",
+  "#ed4245",
+  "#faa61a",
+  "#23a55a",
+  "#00a8fc",
+  "#eb459e",
+  "#57f287",
+  "#fee75c",
+  "#9b59b6",
+  "#1abc9c",
 ];
 
 const SERIES_COLORS = {
@@ -88,16 +96,23 @@ const PRESETS = [
 
 const CHILD_TYPES = new Set([11, 12]);
 
-function groupChannelData(channels: ChannelValue[]): { name: string; value: number }[] {
+function groupChannelData(
+  channels: ChannelValue[],
+): { name: string; value: number }[] {
   const grouped = new Map<string, number>();
 
   for (const c of channels) {
-    const isChild = (c.channelType != null && CHILD_TYPES.has(c.channelType)) ||
-      (c.parentID != null && c.channelType != null && CHILD_TYPES.has(c.channelType));
+    const isChild =
+      (c.channelType != null && CHILD_TYPES.has(c.channelType)) ||
+      (c.parentID != null &&
+        c.channelType != null &&
+        CHILD_TYPES.has(c.channelType));
     const parentIsForumOrMedia = c.parentID != null;
     const useParent = isChild && parentIsForumOrMedia && c.parentName;
 
-    const key = useParent ? (c.parentName ?? c.channelName ?? c.channelID) : (c.channelName ?? c.channelID);
+    const key = useParent
+      ? (c.parentName ?? c.channelName ?? c.channelID)
+      : (c.channelName ?? c.channelID);
     grouped.set(key, (grouped.get(key) ?? 0) + c.value);
   }
 
@@ -144,8 +159,15 @@ function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
   return <h2 className={styles.sectionTitle}>{children}</h2>;
 }
 
-function Card({ children, wide }: Readonly<{ children: React.ReactNode; wide?: boolean }>) {
-  return <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>{children}</div>;
+function Card({
+  children,
+  wide,
+}: Readonly<{ children: React.ReactNode; wide?: boolean }>) {
+  return (
+    <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>
+      {children}
+    </div>
+  );
 }
 
 function Empty() {
@@ -162,8 +184,12 @@ function StatsSkeleton() {
         </Card>
       </div>
       <div className={styles.row}>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} />
+        </Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} />
+        </Card>
       </div>
       <SectionTitle>Vocal</SectionTitle>
       <div className={styles.row}>
@@ -172,27 +198,71 @@ function StatsSkeleton() {
         </Card>
       </div>
       <div className={styles.row}>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} />
+        </Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} />
+        </Card>
       </div>
     </div>
   );
 }
 
-function PrecisionToggle({ value, onChange, disableHourTimeline }: Readonly<{ value: Precision; onChange: (v: Precision) => void; disableHourTimeline?: boolean }>) {
+function PrecisionToggle({
+  value,
+  onChange,
+  disableHourTimeline,
+}: Readonly<{
+  value: Precision;
+  onChange: (v: Precision) => void;
+  disableHourTimeline?: boolean;
+}>) {
   return (
     <div className={styles.precisionToggle}>
-      <button className={`${styles.precisionBtn} ${value === "day" ? styles.precisionBtnActive : ""}`} onClick={() => onChange("day")}>Jour</button>
-      <button className={`${styles.precisionBtn} ${value === "hour-timeline" ? styles.precisionBtnActive : ""} ${disableHourTimeline ? styles.precisionBtnDisabled : ""}`} onClick={() => !disableHourTimeline && onChange("hour-timeline")} title={disableHourTimeline ? "Disponible sur 7 et 30 jours uniquement" : undefined}>Heure (timeline)</button>
-      <button className={`${styles.precisionBtn} ${value === "hour" ? styles.precisionBtnActive : ""}`} onClick={() => onChange("hour")}>Heure (somme)</button>
+      <button
+        className={`${styles.precisionBtn} ${value === "day" ? styles.precisionBtnActive : ""}`}
+        onClick={() => onChange("day")}
+      >
+        Jour
+      </button>
+      <button
+        className={`${styles.precisionBtn} ${value === "hour-timeline" ? styles.precisionBtnActive : ""} ${disableHourTimeline ? styles.precisionBtnDisabled : ""}`}
+        onClick={() => !disableHourTimeline && onChange("hour-timeline")}
+        title={
+          disableHourTimeline
+            ? "Disponible sur 7 et 30 jours uniquement"
+            : undefined
+        }
+      >
+        Heure (timeline)
+      </button>
+      <button
+        className={`${styles.precisionBtn} ${value === "hour" ? styles.precisionBtnActive : ""}`}
+        onClick={() => onChange("hour")}
+      >
+        Heure (somme)
+      </button>
     </div>
   );
 }
 
-function MetricCard({ label, value, color, hidden, onClick }: Readonly<{ label: string; value: string; color: string; hidden?: boolean; onClick?: () => void }>) {
+function MetricCard({
+  label,
+  value,
+  color,
+  hidden,
+  onClick,
+}: Readonly<{
+  label: string;
+  value: string;
+  color: string;
+  hidden?: boolean;
+  onClick?: () => void;
+}>) {
   return (
-    <div 
-      className={`${styles.metricCard} ${hidden ? styles.metricCardHidden : ""} ${onClick ? styles.metricCardClickable : ""}`} 
+    <div
+      className={`${styles.metricCard} ${hidden ? styles.metricCardHidden : ""} ${onClick ? styles.metricCardClickable : ""}`}
       style={{ "--metric-color": color } as React.CSSProperties}
       onClick={onClick}
     >
@@ -243,7 +313,10 @@ function ActivityTooltip({
       }
       return null;
     })
-    .filter((entry): entry is { label: string; value: string; color: string } => entry !== null);
+    .filter(
+      (entry): entry is { label: string; value: string; color: string } =>
+        entry !== null,
+    );
 
   if (rows.length === 0) return null;
 
@@ -254,7 +327,10 @@ function ActivityTooltip({
         {rows.map((row) => (
           <div key={row.label} className={styles.activityTooltipRow}>
             <div className={styles.activityTooltipSeries}>
-              <span className={styles.activityTooltipDot} style={{ backgroundColor: row.color }} />
+              <span
+                className={styles.activityTooltipDot}
+                style={{ backgroundColor: row.color }}
+              />
               <span>{row.label}</span>
             </div>
             <strong className={styles.activityTooltipValue}>{row.value}</strong>
@@ -276,14 +352,25 @@ function ActivityChart({
   totalLabel: string;
   totalFormatter?: (value: number) => string;
 }>) {
-  const [hiddenSeries, setHiddenSeries] = useState<Set<ActivitySeriesKey>>(new Set());
-  const data: ActivityPoint[] = precision === "day"
-    ? overview.byDay.map((item) => ({ ...item, label: fmtDate(item.date) }))
-    : precision === "hour-timeline"
-      ? overview.byHourTimeline.map((item) => ({ ...item, label: fmtDatetime(item.datetime) }))
-      : overview.byHour.map((item) => ({ ...item, label: fmtHour(item.hour) }));
+  const [hiddenSeries, setHiddenSeries] = useState<Set<ActivitySeriesKey>>(
+    new Set(),
+  );
+  const data: ActivityPoint[] =
+    precision === "day"
+      ? overview.byDay.map((item) => ({ ...item, label: fmtDate(item.date) }))
+      : precision === "hour-timeline"
+        ? overview.byHourTimeline.map((item) => ({
+            ...item,
+            label: fmtDatetime(item.datetime),
+          }))
+        : overview.byHour.map((item) => ({
+            ...item,
+            label: fmtHour(item.hour),
+          }));
 
-  const hasActivity = data.some((item) => item.total > 0 || item.uniqueUsers > 0 || item.uniqueChannels > 0);
+  const hasActivity = data.some(
+    (item) => item.total > 0 || item.uniqueUsers > 0 || item.uniqueChannels > 0,
+  );
   const showTotal = !hiddenSeries.has("total");
   const showUsers = !hiddenSeries.has("uniqueUsers");
   const showChannels = !hiddenSeries.has("uniqueChannels");
@@ -303,30 +390,46 @@ function ActivityChart({
   return (
     <div className={styles.activityChartShell}>
       <div className={styles.metricGrid}>
-        <MetricCard label={totalLabel} value={totalFormatter(overview.summary.total)} color={SERIES_COLORS.total} hidden={!showTotal} onClick={() => toggleSeries("total")} />
-        <MetricCard label="Membres uniques" value={fmtCompactCount(overview.summary.uniqueUsers)} color={SERIES_COLORS.users} hidden={!showUsers} onClick={() => toggleSeries("uniqueUsers")} />
-        <MetricCard label="Salons uniques" value={fmtCompactCount(overview.summary.uniqueChannels)} color={SERIES_COLORS.channels} hidden={!showChannels} onClick={() => toggleSeries("uniqueChannels")} />
-      </div>
-      <div className={styles.seriesToggleRow}>
-        <button type="button" className={`${styles.seriesToggleBtn} ${!showTotal ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("total")}>
-          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.total }} />
-          {totalLabel}
-        </button>
-        <button type="button" className={`${styles.seriesToggleBtn} ${!showUsers ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("uniqueUsers")}>
-          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.users }} />
-          Membres uniques
-        </button>
-        <button type="button" className={`${styles.seriesToggleBtn} ${!showChannels ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("uniqueChannels")}>
-          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.channels }} />
-          Salons uniques
-        </button>
+        <MetricCard
+          label={totalLabel}
+          value={totalFormatter(overview.summary.total)}
+          color={SERIES_COLORS.total}
+          hidden={!showTotal}
+          onClick={() => toggleSeries("total")}
+        />
+        <MetricCard
+          label="Membres uniques"
+          value={fmtCompactCount(overview.summary.uniqueUsers)}
+          color={SERIES_COLORS.users}
+          hidden={!showUsers}
+          onClick={() => toggleSeries("uniqueUsers")}
+        />
+        <MetricCard
+          label="Salons uniques"
+          value={fmtCompactCount(overview.summary.uniqueChannels)}
+          color={SERIES_COLORS.channels}
+          hidden={!showChannels}
+          onClick={() => toggleSeries("uniqueChannels")}
+        />
       </div>
 
       {precision === "hour" ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }} barGap={6} barCategoryGap="18%">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
+          <BarChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            barGap={6}
+            barCategoryGap="18%"
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#80848e", fontSize: 10 }}
+              interval={1}
+            />
             {showTotal && (
               <YAxis
                 yAxisId="total"
@@ -351,25 +454,71 @@ function ActivityChart({
               content={(props) => (
                 <ActivityTooltip
                   active={props.active}
-                  label={typeof props.label === "string" ? props.label : undefined}
-                  payload={props.payload as readonly ActivityTooltipEntry[] | undefined}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
                   totalLabel={totalLabel}
                   totalFormatter={totalFormatter}
                 />
               )}
             />
-            {showTotal && <Bar yAxisId="total" dataKey="total" name={totalLabel} fill={SERIES_COLORS.total} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
-            {showUsers && <Bar yAxisId="counts" dataKey="uniqueUsers" name="Membres uniques" fill={SERIES_COLORS.users} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
-            {showChannels && <Bar yAxisId="counts" dataKey="uniqueChannels" name="Salons uniques" fill={SERIES_COLORS.channels} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
+            {showTotal && (
+              <Bar
+                yAxisId="total"
+                dataKey="total"
+                name={totalLabel}
+                fill={SERIES_COLORS.total}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+            {showUsers && (
+              <Bar
+                yAxisId="counts"
+                dataKey="uniqueUsers"
+                name="Membres uniques"
+                fill={SERIES_COLORS.users}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+            {showChannels && (
+              <Bar
+                yAxisId="counts"
+                dataKey="uniqueChannels"
+                name="Salons uniques"
+                fill={SERIES_COLORS.channels}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
             <XAxis
               dataKey="label"
-              tick={{ fill: "#80848e", fontSize: precision === "hour-timeline" ? 10 : 11 }}
+              tick={{
+                fill: "#80848e",
+                fontSize: precision === "hour-timeline" ? 10 : 11,
+              }}
               interval={precision === "hour-timeline" ? "preserveStartEnd" : 0}
               minTickGap={20}
             />
@@ -396,16 +545,62 @@ function ActivityChart({
               content={(props) => (
                 <ActivityTooltip
                   active={props.active}
-                  label={typeof props.label === "string" ? props.label : undefined}
-                  payload={props.payload as readonly ActivityTooltipEntry[] | undefined}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
                   totalLabel={totalLabel}
                   totalFormatter={totalFormatter}
                 />
               )}
             />
-            {showTotal && <Line yAxisId="total" type="monotone" dataKey="total" name={totalLabel} stroke={SERIES_COLORS.total} strokeWidth={3} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
-            {showUsers && <Line yAxisId="counts" type="monotone" dataKey="uniqueUsers" name="Membres uniques" stroke={SERIES_COLORS.users} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
-            {showChannels && <Line yAxisId="counts" type="monotone" dataKey="uniqueChannels" name="Salons uniques" stroke={SERIES_COLORS.channels} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
+            {showTotal && (
+              <Line
+                yAxisId="total"
+                type="monotone"
+                dataKey="total"
+                name={totalLabel}
+                stroke={SERIES_COLORS.total}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
+            {showUsers && (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="uniqueUsers"
+                name="Membres uniques"
+                stroke={SERIES_COLORS.users}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
+            {showChannels && (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="uniqueChannels"
+                name="Salons uniques"
+                stroke={SERIES_COLORS.channels}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -413,8 +608,15 @@ function ActivityChart({
   );
 }
 
-function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatValue: (v: number) => string }>) {
-  const [tooltip, setTooltip] = useState<{ userID: string; x: number; y: number } | null>(null);
+function UserTable({
+  rows,
+  formatValue,
+}: Readonly<{ rows: UserValue[]; formatValue: (v: number) => string }>) {
+  const [tooltip, setTooltip] = useState<{
+    userID: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   function openTooltip(target: HTMLElement, userID: string) {
     const rect = target.getBoundingClientRect();
@@ -447,10 +649,22 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
                   <td className={styles.tdRank}>{i + 1}</td>
                   <td className={styles.tdUser}>
                     <div className={styles.userCell}>
-                      {r.avatarURL ? <img src={r.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
+                      {r.avatarURL ? (
+                        <img
+                          src={r.avatarURL}
+                          alt=""
+                          className={styles.userAvatar}
+                        />
+                      ) : (
+                        <span className={styles.userAvatarFallback}>
+                          {name.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
                       <span
                         className={styles.userName}
-                        onMouseEnter={(e) => openTooltip(e.currentTarget, r.userID)}
+                        onMouseEnter={(e) =>
+                          openTooltip(e.currentTarget, r.userID)
+                        }
                         onMouseLeave={() => setTooltip(null)}
                       >
                         <span className={styles.userNameText}>{name}</span>
@@ -465,7 +679,10 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
         </table>
       </div>
       {tooltip && (
-        <span className={`${styles.userIDTooltip} ${styles.userIDTooltipFloating}`} style={{ left: tooltip.x, top: tooltip.y }}>
+        <span
+          className={`${styles.userIDTooltip} ${styles.userIDTooltipFloating}`}
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
           {tooltip.userID}
         </span>
       )}
@@ -473,7 +690,13 @@ function UserTable({ rows, formatValue }: Readonly<{ rows: UserValue[]; formatVa
   );
 }
 
-function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { name: string; value: number }[]; formatValue?: (v: number) => string }>) {
+function ChannelPie({
+  data,
+  formatValue = (v) => `${v}`,
+}: Readonly<{
+  data: { name: string; value: number }[];
+  formatValue?: (v: number) => string;
+}>) {
   const [hiddenNames, setHiddenNames] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"pie" | "list">("pie");
 
@@ -483,7 +706,10 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
     .filter((entry) => !hiddenNames.has(entry.name))
     .map((entry) => ({
       ...entry,
-      fill: CHART_COLORS[data.findIndex((candidate) => candidate.name === entry.name) % CHART_COLORS.length],
+      fill: CHART_COLORS[
+        data.findIndex((candidate) => candidate.name === entry.name) %
+          CHART_COLORS.length
+      ],
     }));
 
   function toggleName(name: string) {
@@ -500,10 +726,18 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
   return (
     <div className={styles.pieCard}>
       <div className={styles.pieViewToggle}>
-        <button type="button" className={`${styles.precisionBtn} ${mode === "pie" ? styles.precisionBtnActive : ""}`} onClick={() => setMode("pie")}>
+        <button
+          type="button"
+          className={`${styles.precisionBtn} ${mode === "pie" ? styles.precisionBtnActive : ""}`}
+          onClick={() => setMode("pie")}
+        >
           Donut
         </button>
-        <button type="button" className={`${styles.precisionBtn} ${mode === "list" ? styles.precisionBtnActive : ""}`} onClick={() => setMode("list")}>
+        <button
+          type="button"
+          className={`${styles.precisionBtn} ${mode === "list" ? styles.precisionBtnActive : ""}`}
+          onClick={() => setMode("list")}
+        >
           Liste
         </button>
       </div>
@@ -529,7 +763,9 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
-                  const item = payload[0]?.payload as { name: string; value: number } | undefined;
+                  const item = payload[0]?.payload as
+                    | { name: string; value: number }
+                    | undefined;
                   if (!item) return null;
                   const percentage = total > 0 ? (item.value / total) * 100 : 0;
                   return (
@@ -543,9 +779,22 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
                         boxShadow: "0 10px 26px rgba(0,0,0,0.22)",
                       }}
                     >
-                      <div style={{ color: "#f2f3f5", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{item.name}</div>
-                      <div style={{ color: "#b5bac1", fontSize: 12 }}>{formatValue(item.value)}</div>
-                      <div style={{ color: "#b5bac1", fontSize: 12 }}>{percentage.toFixed(1)}%</div>
+                      <div
+                        style={{
+                          color: "#f2f3f5",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          marginBottom: 6,
+                        }}
+                      >
+                        {item.name}
+                      </div>
+                      <div style={{ color: "#b5bac1", fontSize: 12 }}>
+                        {formatValue(item.value)}
+                      </div>
+                      <div style={{ color: "#b5bac1", fontSize: 12 }}>
+                        {percentage.toFixed(1)}%
+                      </div>
                     </div>
                   );
                 }}
@@ -561,11 +810,16 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
                   type="button"
                   className={`${styles.pieLegendItem} ${hidden ? styles.pieLegendItemHidden : ""}`}
                   onClick={() => toggleName(entry.name)}
-                  title={hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`}
+                  title={
+                    hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`
+                  }
                 >
                   <span
                     className={styles.pieLegendSwatch}
-                    style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                    style={{
+                      backgroundColor:
+                        CHART_COLORS[index % CHART_COLORS.length],
+                    }}
                   />
                   <span className={styles.pieLegendLabel}>{entry.name}</span>
                 </button>
@@ -591,10 +845,18 @@ function ChannelPie({ data, formatValue = (v) => `${v}` }: Readonly<{ data: { na
                   <tr key={entry.name} className={styles.tr}>
                     <td className={styles.tdRank}>{index + 1}</td>
                     <td className={styles.tdChannel}>
-                      <span className={styles.channelSwatch} style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                      <span
+                        className={styles.channelSwatch}
+                        style={{
+                          backgroundColor:
+                            CHART_COLORS[index % CHART_COLORS.length],
+                        }}
+                      />
                       <span className={styles.channelName}>{entry.name}</span>
                     </td>
-                    <td className={styles.tdValue}>{formatValue(entry.value)}</td>
+                    <td className={styles.tdValue}>
+                      {formatValue(entry.value)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -636,12 +898,14 @@ function StatsPageContent() {
 
   useEffect(() => {
     fetchGuilds().then((gs) => {
-      if (guildFromQuery && gs.some((guild) => guild.guildID === guildFromQuery)) {
+      if (
+        guildFromQuery &&
+        gs.some((guild) => guild.guildID === guildFromQuery)
+      ) {
         setSelectedGuildID(guildFromQuery);
       } else if (gs.length > 0) {
         setSelectedGuildID(gs[0].guildID);
-      }
-      else setLoadingStats(false);
+      } else setLoadingStats(false);
     });
   }, [guildFromQuery]);
 
@@ -653,7 +917,9 @@ function StatsPageContent() {
 
   useEffect(() => {
     if (!selectedGuildID) return;
-    fetchChannels(selectedGuildID).then(setChannels).catch(() => setChannels([]));
+    fetchChannels(selectedGuildID)
+      .then(setChannels)
+      .catch(() => setChannels([]));
   }, [selectedGuildID]);
 
   useEffect(() => {
@@ -697,12 +963,28 @@ function StatsPageContent() {
       });
   }, [selectedGuildID, start, end, refreshKey]);
 
-  const msgPieData = useMemo(() => groupChannelData(
-    stats.msgByChannel.map((c) => ({ ...c, channelName: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID }))
-  ), [stats.msgByChannel, channelNames]);
-  const voicePieData = useMemo(() => groupChannelData(
-    stats.voiceByChannel.map((c) => ({ ...c, channelName: c.channelName ?? channelNames.get(c.channelID) ?? c.channelID }))
-  ), [stats.voiceByChannel, channelNames]);
+  const msgPieData = useMemo(
+    () =>
+      groupChannelData(
+        stats.msgByChannel.map((c) => ({
+          ...c,
+          channelName:
+            c.channelName ?? channelNames.get(c.channelID) ?? c.channelID,
+        })),
+      ),
+    [stats.msgByChannel, channelNames],
+  );
+  const voicePieData = useMemo(
+    () =>
+      groupChannelData(
+        stats.voiceByChannel.map((c) => ({
+          ...c,
+          channelName:
+            c.channelName ?? channelNames.get(c.channelID) ?? c.channelID,
+        })),
+      ),
+    [stats.voiceByChannel, channelNames],
+  );
   const showInitialSkeleton = loadingStats && !hasLoadedStatsRef.current;
   const refreshDisabled = loadingStats || isRefreshing;
 
@@ -715,7 +997,9 @@ function StatsPageContent() {
     if (statsError && !hasLoadedStatsRef.current) {
       return (
         <div className={styles.fullLoading}>
-          <div className={styles.error}>Impossible de charger les statistiques.</div>
+          <div className={styles.error}>
+            Impossible de charger les statistiques.
+          </div>
         </div>
       );
     }
@@ -723,7 +1007,9 @@ function StatsPageContent() {
       return <StatsSkeleton />;
     }
     return (
-      <div className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}>
+      <div
+        className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}
+      >
         {statsError && <div className={styles.errorBanner}>{statsError}</div>}
 
         <SectionTitle>Messages</SectionTitle>
@@ -731,17 +1017,30 @@ function StatsPageContent() {
           <Card wide>
             <div className={styles.cardHeader}>
               <span className={styles.cardTitle}>Évolution détaillée</span>
-              <PrecisionToggle value={msgPrecision} onChange={setMsgPrecision} disableHourTimeline={presetIdx === 2} />
+              <PrecisionToggle
+                value={msgPrecision}
+                onChange={setMsgPrecision}
+                disableHourTimeline={presetIdx === 2}
+              />
             </div>
-            <ActivityChart overview={stats.msgOverview} precision={msgPrecision} totalLabel="Total messages" />
+            <ActivityChart
+              overview={stats.msgOverview}
+              precision={msgPrecision}
+              totalLabel="Total messages"
+            />
           </Card>
         </div>
         <div className={styles.row}>
           <Card>
-            <div className={styles.cardHeader}><span className={styles.cardTitle}>Salons les plus actifs</span></div>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>Salons les plus actifs</span>
+            </div>
             <ChannelPie data={msgPieData} formatValue={(v) => `${v}`} />
           </Card>
-          <Card><p className={styles.cardTitle}>Classement des membres</p><UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} /></Card>
+          <Card>
+            <p className={styles.cardTitle}>Classement des membres</p>
+            <UserTable rows={stats.msgByUser} formatValue={(v) => `${v}`} />
+          </Card>
         </div>
 
         <SectionTitle>Vocal</SectionTitle>
@@ -749,21 +1048,47 @@ function StatsPageContent() {
           <Card wide>
             <div className={styles.cardHeader}>
               <span className={styles.cardTitle}>Évolution détaillée</span>
-              <PrecisionToggle value={voicePrecision} onChange={setVoicePrecision} disableHourTimeline={presetIdx === 2} />
+              <PrecisionToggle
+                value={voicePrecision}
+                onChange={setVoicePrecision}
+                disableHourTimeline={presetIdx === 2}
+              />
             </div>
-            <ActivityChart overview={stats.voiceOverview} precision={voicePrecision} totalLabel="Temps vocal" totalFormatter={fmtSecs} />
+            <ActivityChart
+              overview={stats.voiceOverview}
+              precision={voicePrecision}
+              totalLabel="Temps vocal"
+              totalFormatter={fmtSecs}
+            />
           </Card>
         </div>
         <div className={styles.row}>
           <Card>
-            <div className={styles.cardHeader}><span className={styles.cardTitle}>Salons vocaux les plus utilisés</span></div>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>
+                Salons vocaux les plus utilisés
+              </span>
+            </div>
             <ChannelPie data={voicePieData} formatValue={fmtSecs} />
           </Card>
-          <Card><p className={styles.cardTitle}>Classement des membres (vocal)</p><UserTable rows={stats.voiceByUser} formatValue={fmtSecs} /></Card>
+          <Card>
+            <p className={styles.cardTitle}>Classement des membres (vocal)</p>
+            <UserTable rows={stats.voiceByUser} formatValue={fmtSecs} />
+          </Card>
         </div>
       </div>
     );
-  }, [statsError, showInitialSkeleton, isRefreshing, msgPrecision, voicePrecision, presetIdx, stats, msgPieData, voicePieData]);
+  }, [
+    statsError,
+    showInitialSkeleton,
+    isRefreshing,
+    msgPrecision,
+    voicePrecision,
+    presetIdx,
+    stats,
+    msgPieData,
+    voicePieData,
+  ]);
 
   return (
     <div className={styles.page}>
@@ -774,7 +1099,13 @@ function StatsPageContent() {
         <div className={styles.controls}>
           <div className={styles.presetButtons}>
             {PRESETS.map((p, i) => (
-              <button key={i} className={`${styles.presetBtn} ${presetIdx === i ? styles.presetBtnActive : ""}`} onClick={() => setPresetIdx(i)}>{p.label}</button>
+              <button
+                key={i}
+                className={`${styles.presetBtn} ${presetIdx === i ? styles.presetBtnActive : ""}`}
+                onClick={() => setPresetIdx(i)}
+              >
+                {p.label}
+              </button>
             ))}
           </div>
           <button
@@ -783,9 +1114,25 @@ function StatsPageContent() {
             aria-disabled={refreshDisabled}
             title="Rafraîchir les statistiques"
           >
-            <svg className={`${styles.refreshIcon} ${isRefreshing ? styles.spinning : ""}`} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <path d="M12 2v3h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              className={`${styles.refreshIcon} ${isRefreshing ? styles.spinning : ""}`}
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M12 2v3h-3"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             Rafraîchir
           </button>
