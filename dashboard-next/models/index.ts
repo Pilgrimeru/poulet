@@ -15,6 +15,7 @@ import "./Sanction";
 import "./Appeal";
 import "./FlaggedMessage";
 import "./ModerationReport";
+import "./MemberEvent";
 
 import { Appeal } from "./Appeal";
 import { Sanction } from "./Sanction";

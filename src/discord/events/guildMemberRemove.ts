@@ -1,10 +1,15 @@
 import { EmbedBuilder, GuildMember, PartialGuildMember, TextChannel } from "discord.js";
 import { Event } from "@/discord/types";
 import { guildSettingsService } from "@/api";
+import { memberEventService } from "@/api/memberEventService";
 
 export default new Event(
   "guildMemberRemove",
   async (member: GuildMember | PartialGuildMember) => {
+    if (!member.user?.bot) {
+      memberEventService.recordLeave(member.guild.id, member.user?.id ?? "unknown").catch(() => undefined);
+    }
+
     const settings = await guildSettingsService.getByGuildID(member.guild.id).catch(() => null);
     if (!settings?.inviteLogChannelID) return;
 

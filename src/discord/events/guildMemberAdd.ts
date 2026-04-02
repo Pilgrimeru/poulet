@@ -1,10 +1,15 @@
 import { EmbedBuilder, GuildMember, TextChannel } from "discord.js";
 import { Event } from "@/discord/types";
 import { guildSettingsService } from "@/api";
+import { memberEventService } from "@/api/memberEventService";
 import { findUsedInvite } from "@/services/inviteTrackerService";
 import { config } from "@/app";
 
 export default new Event("guildMemberAdd", async (member: GuildMember) => {
+  if (!member.user.bot) {
+    memberEventService.recordJoin(member.guild.id, member.user.id).catch(() => undefined);
+  }
+
   const settings = await guildSettingsService.getByGuildID(member.guild.id).catch(() => null);
   if (!settings?.inviteLogChannelID) return;
 

@@ -62,3 +62,18 @@ export function fetchMessagesByHourTimeline(guildID: string, start: number, end:
 export function fetchVoiceByHourTimeline(guildID: string, start: number, end: number) {
   return getJson<HourlyTimelineValue[]>(`/api/guilds/${guildID}/stats/voice/by-hour-timeline${range(start, end)}`);
 }
+
+export interface MemberOverviewSummary { total: number; joined: number; left: number; }
+export interface MemberDailyValue { date: string; total: number; joined: number; left: number; }
+export interface MemberHourlyValue { hour: number; joined: number; left: number; }
+export interface MemberHourlyTimelineValue { datetime: string; total: number; joined: number; left: number; }
+export interface MemberOverview {
+  summary: MemberOverviewSummary;
+  byDay: MemberDailyValue[];
+  byHour: MemberHourlyValue[];
+  byHourTimeline: MemberHourlyTimelineValue[];
+}
+
+export function fetchMembersOverview(guildID: string, start: number, end: number) {
+  return getJson<MemberOverview>(`/api/guilds/${guildID}/stats/members/overview${range(start, end)}`);
+}

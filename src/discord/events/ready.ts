@@ -1,11 +1,12 @@
-import { ActivityType } from "discord.js";
-import { startStatsReportScheduler } from "@/discord/components";
-import { bot } from "@/app/runtime";
-import { registerPollHandlers } from "@/discord/interactions";
 import { appealApiService, channelMetaService, deafSessionService, guildMetaService, messageSnapshotService, sanctionApiService, voiceSessionService } from "@/api";
-import { cacheGuildInvites } from "@/services/inviteTrackerService";
-import { Event } from "@/discord/types";
+import { memberEventService } from "@/api/memberEventService";
+import { bot } from "@/app/runtime";
+import { startStatsReportScheduler } from "@/discord/components";
 import { flushPendingSessions } from "@/discord/components/stats/sessionBacklog";
+import { registerPollHandlers } from "@/discord/interactions";
+import { Event } from "@/discord/types";
+import { cacheGuildInvites } from "@/services/inviteTrackerService";
+import { ActivityType } from "discord.js";
 
 export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
@@ -55,6 +56,7 @@ export default new Event("clientReady", () => {
   void flushPendingSessions("deaf", (session) => deafSessionService.createSession(session));
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
+  seedMemberJoins().catch((err) => console.error("[members] Erreur seed joins:", err));
   startStatsReportScheduler();
   registerPollHandlers();
   void syncOverturnedAppeals();
@@ -71,6 +73,23 @@ export default new Event("clientReady", () => {
     bot.user!.setActivity(`/help`, { type: ActivityType.Listening });
   }, 3600 * 1000);
 });
+
+async function seedMemberJoins(): Promise<void> {
+  const now = Date.now();
+  const events: Array<{ guildID: string; userID: string; date: number }> = [];
+
+  for (const guild of bot.guilds.cache.values()) {
+    const members = await guild.members.fetch().catch(() => guild.members.cache);
+    for (const member of members.values()) {
+      if (member.user.bot) continue;
+      events.push({ guildID: guild.id, userID: member.id, date: member.joinedTimestamp ?? now });
+    }
+  }
+
+  if (events.length === 0) return;
+  await memberEventService.seedJoins(events);
+  console.log(`[members] ${events.length} jointure(s) seedée(s).`);
+}
 
 async function syncOverturnedAppeals(): Promise<void> {
   for (const guild of bot.guilds.cache.values()) {
