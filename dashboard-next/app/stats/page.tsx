@@ -656,14 +656,24 @@ function MemberTooltip({
     .map((entry) => {
       const key = String(entry.dataKey ?? "");
       if (key === "total" && hideTotal) return null;
-      const labels: Record<string, string> = { total: "Total membres", joined: "Arrivées", left: "Départs" };
+      const labels: Record<string, string> = {
+        total: "Total membres",
+        joined: "Arrivées",
+        left: "Départs",
+      };
       const colors: Record<string, string> = MEMBER_SERIES_COLORS;
       if (key in labels) {
-        return { label: labels[key], value: fmtCompactCount(entry.value ?? 0), color: colors[key] };
+        return {
+          label: labels[key],
+          value: fmtCompactCount(entry.value ?? 0),
+          color: colors[key],
+        };
       }
       return null;
     })
-    .filter((e): e is { label: string; value: string; color: string } => e !== null);
+    .filter(
+      (e): e is { label: string; value: string; color: string } => e !== null,
+    );
 
   if (rows.length === 0) return null;
 
@@ -674,7 +684,10 @@ function MemberTooltip({
         {rows.map((row) => (
           <div key={row.label} className={styles.activityTooltipRow}>
             <div className={styles.activityTooltipSeries}>
-              <span className={styles.activityTooltipDot} style={{ backgroundColor: row.color }} />
+              <span
+                className={styles.activityTooltipDot}
+                style={{ backgroundColor: row.color }}
+              />
               <span>{row.label}</span>
             </div>
             <strong className={styles.activityTooltipValue}>{row.value}</strong>
@@ -689,14 +702,23 @@ function MemberChart({
   overview,
   precision,
 }: Readonly<{ overview: MemberOverview; precision: Precision }>) {
-  const [hiddenSeries, setHiddenSeries] = useState<Set<MemberSeriesKey>>(new Set());
+  const [hiddenSeries, setHiddenSeries] = useState<Set<MemberSeriesKey>>(
+    new Set(),
+  );
 
   const data: MemberPoint[] =
     precision === "day"
       ? overview.byDay.map((item) => ({ ...item, label: fmtDate(item.date) }))
       : precision === "hour-timeline"
-        ? overview.byHourTimeline.map((item) => ({ ...item, label: fmtDatetime(item.datetime) }))
-        : overview.byHour.map((item) => ({ ...item, total: 0, label: fmtHour(item.hour) }));
+        ? overview.byHourTimeline.map((item) => ({
+            ...item,
+            label: fmtDatetime(item.datetime),
+          }))
+        : overview.byHour.map((item) => ({
+            ...item,
+            total: 0,
+            label: fmtHour(item.hour),
+          }));
 
   const hasActivity = data.some((d) => d.joined > 0 || d.left > 0);
   if (!hasActivity) return <Empty />;
@@ -742,32 +764,189 @@ function MemberChart({
 
       {precision === "hour" ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }} barGap={6} barCategoryGap="18%">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
-            {showTotal && <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={56} />}
-            {(showJoined || showLeft) && <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} />}
-            <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={(props) => (
-              <MemberTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} hideTotal />
-            )} />
-            {showTotal && <Bar yAxisId="total" dataKey="total" name="Total membres" fill={MEMBER_SERIES_COLORS.total} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
-            {showJoined && <Bar yAxisId="counts" dataKey="joined" name="Arrivées" fill={MEMBER_SERIES_COLORS.joined} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
-            {showLeft && <Bar yAxisId="counts" dataKey="left" name="Départs" fill={MEMBER_SERIES_COLORS.left} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
+          <BarChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            barGap={6}
+            barCategoryGap="18%"
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#80848e", fontSize: 10 }}
+              interval={1}
+            />
+            {showTotal && (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={56}
+              />
+            )}
+            {(showJoined || showLeft) && (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            )}
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              content={(props) => (
+                <MemberTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                  hideTotal
+                />
+              )}
+            />
+            {showTotal && (
+              <Bar
+                yAxisId="total"
+                dataKey="total"
+                name="Total membres"
+                fill={MEMBER_SERIES_COLORS.total}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+            {showJoined && (
+              <Bar
+                yAxisId="counts"
+                dataKey="joined"
+                name="Arrivées"
+                fill={MEMBER_SERIES_COLORS.joined}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
+            {showLeft && (
+              <Bar
+                yAxisId="counts"
+                dataKey="left"
+                name="Départs"
+                fill={MEMBER_SERIES_COLORS.left}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: precision === "hour-timeline" ? 10 : 11 }} interval={precision === "hour-timeline" ? "preserveStartEnd" : 0} minTickGap={20} />
-            {showTotal && <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={56} />}
-            {(showJoined || showLeft) && <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} />}
-            <Tooltip content={(props) => (
-              <MemberTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} />
-            )} />
-            {showTotal && <Line yAxisId="total" type="monotone" dataKey="total" name="Total membres" stroke={MEMBER_SERIES_COLORS.total} strokeWidth={3} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
-            {showJoined && <Line yAxisId="counts" type="monotone" dataKey="joined" name="Arrivées" stroke={MEMBER_SERIES_COLORS.joined} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
-            {showLeft && <Line yAxisId="counts" type="monotone" dataKey="left" name="Départs" stroke={MEMBER_SERIES_COLORS.left} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{
+                fill: "#80848e",
+                fontSize: precision === "hour-timeline" ? 10 : 11,
+              }}
+              interval={precision === "hour-timeline" ? "preserveStartEnd" : 0}
+              minTickGap={20}
+            />
+            {showTotal && (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={56}
+              />
+            )}
+            {(showJoined || showLeft) && (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            )}
+            <Tooltip
+              content={(props) => (
+                <MemberTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                />
+              )}
+            />
+            {showTotal && (
+              <Line
+                yAxisId="total"
+                type="monotone"
+                dataKey="total"
+                name="Total membres"
+                stroke={MEMBER_SERIES_COLORS.total}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
+            {showJoined && (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="joined"
+                name="Arrivées"
+                stroke={MEMBER_SERIES_COLORS.joined}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
+            {showLeft && (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="left"
+                name="Départs"
+                stroke={MEMBER_SERIES_COLORS.left}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -1109,19 +1288,29 @@ function StatsPageContent() {
       fetchVoiceByUser(selectedGuildID, start, end),
       fetchMembersOverview(selectedGuildID, start, end),
     ])
-      .then(([msgOverview, mChan, mUser, voiceOverview, vChan, vUser, memberOverview]) => {
-        if (statsRequestRef.current !== requestId) return;
-        setStats({
+      .then(
+        ([
           msgOverview,
-          msgByChannel: mChan,
-          msgByUser: mUser,
+          mChan,
+          mUser,
           voiceOverview,
-          voiceByChannel: vChan,
-          voiceByUser: vUser,
+          vChan,
+          vUser,
           memberOverview,
-        });
-        hasLoadedStatsRef.current = true;
-      })
+        ]) => {
+          if (statsRequestRef.current !== requestId) return;
+          setStats({
+            msgOverview,
+            msgByChannel: mChan,
+            msgByUser: mUser,
+            voiceOverview,
+            voiceByChannel: vChan,
+            voiceByUser: vUser,
+            memberOverview,
+          });
+          hasLoadedStatsRef.current = true;
+        },
+      )
       .catch(() => {
         if (statsRequestRef.current !== requestId) return;
         setStatsError("Impossible de charger les statistiques.");
@@ -1181,6 +1370,24 @@ function StatsPageContent() {
         className={`${styles.content} ${isRefreshing ? styles.contentRefreshing : ""}`}
       >
         {statsError && <div className={styles.errorBanner}>{statsError}</div>}
+
+        <SectionTitle>Membres</SectionTitle>
+        <div className={styles.row}>
+          <Card wide>
+            <div className={styles.cardHeader}>
+              <span className={styles.cardTitle}>Évolution détaillée</span>
+              <PrecisionToggle
+                value={memberPrecision}
+                onChange={setMemberPrecision}
+                disableHourTimeline={presetIdx === 2}
+              />
+            </div>
+            <MemberChart
+              overview={stats.memberOverview}
+              precision={memberPrecision}
+            />
+          </Card>
+        </div>
 
         <SectionTitle>Messages</SectionTitle>
         <div className={styles.row}>
@@ -1244,24 +1451,6 @@ function StatsPageContent() {
           <Card>
             <p className={styles.cardTitle}>Classement des membres (vocal)</p>
             <UserTable rows={stats.voiceByUser} formatValue={fmtSecs} />
-          </Card>
-        </div>
-
-        <SectionTitle>Membres</SectionTitle>
-        <div className={styles.row}>
-          <Card wide>
-            <div className={styles.cardHeader}>
-              <span className={styles.cardTitle}>Évolution détaillée</span>
-              <PrecisionToggle
-                value={memberPrecision}
-                onChange={setMemberPrecision}
-                disableHourTimeline={presetIdx === 2}
-              />
-            </div>
-            <MemberChart
-              overview={stats.memberOverview}
-              precision={memberPrecision}
-            />
           </Card>
         </div>
       </div>
