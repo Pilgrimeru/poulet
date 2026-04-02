@@ -2,7 +2,7 @@ import { channelMetaService } from "@/api/channelMetaService";
 import { guildSettingsService } from "@/api/guildSettingsService";
 import { messageSnapshotService } from "@/api/messageSnapshotService";
 import { sanctionApiService } from "@/api/sanctionApiService";
-import { formatReplySuffix } from "@/moderation/messageFormatting";
+import { formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
 import { DuckDuckGoSearch } from "@langchain/community/tools/duckduckgo_search";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";

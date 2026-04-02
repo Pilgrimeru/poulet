@@ -1,4 +1,5 @@
-import { deafSessionService, voiceSessionService } from "@/api";
+import { deafSessionService, type SessionAttributes, voiceSessionService } from "@/api";
+import { enqueuePendingSessions } from "./sessionBacklog";
 
 interface CurrentSession {
   userID: string;
@@ -14,9 +15,11 @@ interface ApiSessionService {
 export class SessionManager {
   protected currentSessions = new Map<string, CurrentSession>();
   private readonly sessionService: ApiSessionService;
+  private readonly sessionKind: "voice" | "deaf";
 
-  constructor(sessionService: ApiSessionService) {
+  constructor(sessionService: ApiSessionService, sessionKind: "voice" | "deaf") {
     this.sessionService = sessionService;
+    this.sessionKind = sessionKind;
   }
 
   public async startSession(
@@ -35,14 +38,15 @@ export class SessionManager {
   public async endSession(userID: string): Promise<void> {
     const session = this.currentSessions.get(userID);
     if (session && Date.now() - session.start > 10000) {
-      await this.sessionService.createSession({
-        guildID: session.guildID,
-        userID: session.userID,
-        channelID: session.channelID,
-        start: session.start,
-        end: Date.now(),
-      });
-      console.log("Session saved to DB");
+      const endedSession = this.toSessionAttributes(session);
+
+      try {
+        await this.sessionService.createSession(endedSession);
+        console.log("Session saved to DB");
+      } catch (error) {
+        console.error("Erreur lors de la sauvegarde de la session en API, stockage local en secours.", error);
+        await enqueuePendingSessions(this.sessionKind, [endedSession]);
+      }
     } else if (session) {
       console.log("Session too short to be saved to DB", session.userID);
     } else {
@@ -52,10 +56,29 @@ export class SessionManager {
   }
 
   public async endAllSessions(): Promise<void> {
-    const endSessionPromises = Array.from(this.currentSessions.keys()).map(
-      (userID) => this.endSession(userID),
-    );
-    await Promise.all(endSessionPromises);
+    const sessions = Array.from(this.currentSessions.values());
+    const failedSessions: SessionAttributes[] = [];
+
+    this.currentSessions.clear();
+
+    await Promise.all(sessions.map(async (session) => {
+      if (Date.now() - session.start <= 10000) {
+        console.log("Session too short to be saved to DB", session.userID);
+        return;
+      }
+
+      const endedSession = this.toSessionAttributes(session);
+
+      try {
+        await this.sessionService.createSession(endedSession);
+        console.log("Session saved to DB");
+      } catch (error) {
+        failedSessions.push(endedSession);
+        console.error("Erreur lors de la sauvegarde de la session en API, stockage local en secours.", error);
+      }
+    }));
+
+    await enqueuePendingSessions(this.sessionKind, failedSessions);
   }
 
   public async getGuildCurrentSessions(
@@ -65,10 +88,20 @@ export class SessionManager {
       (session) => session.guildID === guildId,
     );
   }
+
+  private toSessionAttributes(session: CurrentSession): SessionAttributes {
+    return {
+      guildID: session.guildID,
+      userID: session.userID,
+      channelID: session.channelID,
+      start: session.start,
+      end: Date.now(),
+    };
+  }
 }
 
-const voiceSessionManager = new SessionManager(voiceSessionService);
+const voiceSessionManager = new SessionManager(voiceSessionService, "voice");
 
-const deafSessionManager = new SessionManager(deafSessionService);
+const deafSessionManager = new SessionManager(deafSessionService, "deaf");
 
 export { deafSessionManager, voiceSessionManager };

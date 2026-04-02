@@ -2,9 +2,10 @@ import { ActivityType } from "discord.js";
 import { startStatsReportScheduler } from "@/discord/components";
 import { bot } from "@/app/runtime";
 import { registerPollHandlers } from "@/discord/interactions";
-import { appealApiService, channelMetaService, guildMetaService, messageSnapshotService, sanctionApiService } from "@/api";
+import { appealApiService, channelMetaService, deafSessionService, guildMetaService, messageSnapshotService, sanctionApiService, voiceSessionService } from "@/api";
 import { cacheGuildInvites } from "@/services/inviteTrackerService";
 import { Event } from "@/discord/types";
+import { flushPendingSessions } from "@/discord/components/stats/sessionBacklog";
 
 export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
@@ -50,6 +51,8 @@ export default new Event("clientReady", () => {
   for (const guild of bot.guilds.cache.values()) {
     void cacheGuildInvites(guild);
   }
+  void flushPendingSessions("voice", (session) => voiceSessionService.createSession(session));
+  void flushPendingSessions("deaf", (session) => deafSessionService.createSession(session));
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
   startStatsReportScheduler();
