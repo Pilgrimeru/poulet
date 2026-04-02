@@ -13,6 +13,23 @@ import {
   User,
 } from "discord.js";
 
+function resolveDefaultPublishChannel(guild: Guild): TextChannel | null {
+  if (guild.systemChannel?.isTextBased() && guild.systemChannel.type === 0) {
+    return guild.systemChannel as TextChannel;
+  }
+
+  const candidate = guild.channels.cache.find((channel) => channel.type === 0) as TextChannel | undefined;
+  return candidate ?? null;
+}
+
+function resolvePublishChannel(guild: Guild, originChannelID?: string | null): TextChannel | null {
+  if (originChannelID) {
+    const channel = guild.channels.cache.get(originChannelID);
+    if (channel?.isTextBased() && channel.type === 0) return channel as TextChannel;
+  }
+  return resolveDefaultPublishChannel(guild);
+}
+
 export function formatDuration(durationMs: number): string {
   if (durationMs < 60_000) return `${Math.ceil(durationMs / 1000)}s`;
   if (durationMs < 3_600_000) return `${Math.ceil(durationMs / 60_000)}min`;
@@ -117,7 +134,7 @@ export async function applyAutomaticSanction(args: {
   nature: SanctionNature;
   source:
     | { kind: "flag"; id: string; message?: Message }
-    | { kind: "report"; id: string; channel: TextChannel; reporterID?: string | null };
+    | { kind: "report"; id: string; channel: TextChannel; reporterID?: string | null; originChannelID?: string | null };
 }) {
   if (args.severity === "NONE") {
     throw new Error("Cannot apply a sanction with NONE severity");
@@ -167,7 +184,12 @@ export async function applyAutomaticSanction(args: {
     });
   } else {
     const reportChannel = args.source.channel;
-    await reportChannel.send({ content: `${args.target}`, embeds: [embed] });
+    const publishChannel = resolvePublishChannel(args.guild, args.source.originChannelID);
+    if (publishChannel) {
+      await publishChannel.send({ content: `${args.target}`, embeds: [embed] }).catch(() => undefined);
+    } else {
+      await reportChannel.send({ content: `${args.target}`, embeds: [embed] }).catch(() => undefined);
+    }
     await moderationReportApiService.update(args.guild.id, args.source.id, {
       status: "sanctioned",
       sanctionID: sanction.id,

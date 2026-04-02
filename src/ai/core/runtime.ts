@@ -165,12 +165,6 @@ export async function runWithTools<T extends Record<string, unknown>>(
     }
 
     for (const call of toolCalls) {
-      console.log("[ai] tool call", {
-        name: call.name,
-        args: call.args,
-        id: call.id,
-      });
-
       let result: string;
       try {
         result = await executeTool(call.name, call.args);

@@ -14,7 +14,7 @@ function createClient(model: string): ChatOpenAI | null {
     apiKey: openRouterApiKey,
     cache: llmCache,
     reasoning: {
-      effort: "low",
+      effort: "high",
     },
     configuration: {
       baseURL: "https://openrouter.ai/api/v1",

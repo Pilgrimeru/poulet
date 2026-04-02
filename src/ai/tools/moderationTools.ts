@@ -90,12 +90,6 @@ export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): 
   const channels = await channelMetaService.listByGuild(guildID).catch(() => []);
   const channelNamesById = new Map(channels.map((channel) => [channel.channelID, channel.channelName]));
 
-  console.log("[ai] historyQuery args", {
-    raw: q,
-    normalized: normalizedQuery,
-    resolvedWindow,
-  });
-
   const history = await messageSnapshotService.getUserMessages(guildID, normalizedQuery.userID, {
     startDate: resolvedWindow.startDate ?? undefined,
     endDate: resolvedWindow.endDate ?? undefined,
@@ -106,8 +100,6 @@ export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): 
     searchMode: normalizedQuery.searchMode ?? undefined,
     limit: normalizedQuery.limit,
   });
-
-  console.log("[ai] historyQuery raw result", history);
 
   const header =
     `[Outil: Historique utilisateur — args: ${JSON.stringify(normalizedQuery)}, window: ${JSON.stringify(resolvedWindow)}, ${history.length} messages]\n`;
@@ -168,10 +160,7 @@ export async function fetchSanctionsToolResult(guildID: string, q: SanctionsQuer
   const limited = active
     .toSorted((a, b) => b.createdAt - a.createdAt)
     .slice(0, Math.max(1, Math.min(q.limit, 50)));
-
-  console.log("[ai] userSanctions args", q);
-  console.log("[ai] userSanctions raw result", limited);
-
+  
   if (limited.length === 0) {
     return `[Outil: Sanctions utilisateur — args: ${JSON.stringify(q)}, 0 sanctions]\nAucune sanction trouvee.`;
   }
@@ -204,15 +193,12 @@ export async function fetchChannelsToolResult(guildID: string, q: ChannelsQuery)
 
   const limited = filtered.slice(0, Math.max(1, Math.min(q.limit, 100)));
 
-  console.log("[ai] guildChannels args", q);
-  console.log("[ai] guildChannels raw result", limited);
-
   if (limited.length === 0) {
     return `[Outil: Salons du serveur — args: ${JSON.stringify(q)}, 0 salons]\nAucun salon trouve.`;
   }
 
   const formatted = limited
-    .map((channel) => `- ${channel.channelName} | parent=${channel.parentName ?? "aucun"}`)
+    .map((channel) => `- id=${channel.channelID} | mention=<#${channel.channelID}> | name=${channel.channelName} | parent=${channel.parentName ?? "aucun"}`)
     .join("\n");
 
   return `[Outil: Salons du serveur — args: ${JSON.stringify(q)}, ${limited.length} salons]\n${formatted}`;

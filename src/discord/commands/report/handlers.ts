@@ -102,7 +102,7 @@ export async function executeOpenTicket(
     return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const channel = await openTicket(interaction.guild, interaction.user, target);
+  const channel = await openTicket(interaction.guild, interaction.user, target, interaction.channelId);
   await interaction.editReply({ content: `Ton ticket a été créé : ${channel}` });
 }
 
@@ -183,7 +183,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
   }
 
   if (isTargetedNature && !resolvedVictimUserID) {
-    const channel = await openTicket(guild, interaction.user, target);
+    const channel = await openTicket(guild, interaction.user, target, targetMessage.channelId);
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "escalated" });
     await interaction.editReply({ content: `La victime n'est pas identifiable avec assez de certitude. Un ticket a été créé : ${channel}` });
     return;
@@ -196,7 +196,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
   }
 
   if (analysis.needsMoreContext) {
-    const channel = await openTicket(guild, interaction.user, target);
+    const channel = await openTicket(guild, interaction.user, target, targetMessage.channelId);
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "escalated" });
     await interaction.editReply({ content: `Le message demande plus de contexte. Un ticket a été créé : ${channel}` });
     return;
@@ -304,14 +304,17 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     return;
   }
 
+  await interaction.deferUpdate();
+  await interaction.message.edit({ components: [] }).catch(() => undefined);
+
   const target = await interaction.client.users.fetch(report.targetUserID);
   if (!analysis.isViolation || analysis.severity === "NONE") {
     await moderationReportApiService.update(interaction.guild.id, report.id, {
       status: "dismissed",
       context: { messages: report.context?.messages ?? [], aiSummary: analysis },
     });
-    await channel.send("Le dossier a ete confirme sans sanction: aucune infraction n'a ete etablie.");
-    await interaction.reply({ content: "Dossier confirmé sans sanction.", flags: MessageFlags.Ephemeral });
+    await channel.send("Le dossier a ete confirme sans sanction: aucune infraction n'a ete etablie. Ce salon sera supprime dans 30 secondes.");
+    setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
     return;
   }
 
@@ -323,10 +326,11 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     severity: analysis.severity,
     sanctionKind: analysis.sanctionKind,
     nature: analysis.nature,
-    source: { kind: "report", id: report.id, channel, reporterID: meta?.reporterID },
+    source: { kind: "report", id: report.id, channel, reporterID: meta?.reporterID, originChannelID: meta?.originChannelID ?? interaction.guild.systemChannelId ?? null },
   });
 
-  await interaction.reply({ content: "Signalement confirmé et sanction appliquée.", flags: MessageFlags.Ephemeral });
+  await channel.send("Signalement confirme et sanction appliquee. Ce salon sera supprime dans 30 secondes.");
+  setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
 }
 
 async function handleReportModify(interaction: ButtonInteraction): Promise<void> {

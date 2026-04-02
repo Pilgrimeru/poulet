@@ -19,6 +19,7 @@ export const TICKET_TOPIC_PREFIX = "report-meta:";
 export type TicketMeta = {
   reporterID: string;
   targetUserID: string;
+  originChannelID?: string | null;
 };
 
 export function encodeTicketMeta(meta: TicketMeta): string {
@@ -94,7 +95,7 @@ async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: Us
   await welcome.pin().catch(() => undefined);
 }
 
-export async function openTicket(guild: Guild, reporter: User, target: User): Promise<TextChannel> {
+export async function openTicket(guild: Guild, reporter: User, target: User, originChannelID?: string | null): Promise<TextChannel> {
   const category = await getOrCreateCategory(guild);
   const botId = guild.client.user.id;
   const baseName = target.username.toLowerCase().replaceAll(/[^a-z0-9]/g, "-").replaceAll(/-+/g, "-").replaceAll(/^-|-$/g, "");
@@ -105,7 +106,7 @@ export async function openTicket(guild: Guild, reporter: User, target: User): Pr
     name: channelName,
     type: ChannelType.GuildText,
     parent: category.id,
-    topic: encodeTicketMeta({ reporterID: reporter.id, targetUserID: target.id }),
+    topic: encodeTicketMeta({ reporterID: reporter.id, targetUserID: target.id, originChannelID: originChannelID ?? null }),
     permissionOverwrites: [
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel], type: OverwriteType.Role },
       {

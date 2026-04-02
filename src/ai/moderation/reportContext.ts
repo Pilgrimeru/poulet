@@ -99,9 +99,18 @@ function extractQuotedTerms(text: string): string[] {
   return [...new Set(matches)];
 }
 
+function normalizeDiscordTimestampStyle(rawStyle: string | undefined): string {
+  const trimmed = rawStyle?.trim();
+  if (!trimmed) return "S";
+  if (/^[tTdDfFR]$/.test(trimmed)) return trimmed;
+  if (/^\d{1,2}:\d{2}$/.test(trimmed)) return "t";
+  return "S";
+}
+
 function applyDiscordTimestampMarkup(text: string): string {
-  return text.replaceAll(/\[\[ts:([^\]|]+)(?:\|([A-Za-z]))?\]\]/g, (_full, rawValue: string, style = "S") => {
+  return text.replaceAll(/\[\[ts:([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_full, rawValue: string, rawStyle?: string) => {
     const trimmed = rawValue.trim();
+    const style = normalizeDiscordTimestampStyle(rawStyle);
     let date: Date | null = null;
 
     if (/^\d{10}$/.test(trimmed)) {
@@ -122,8 +131,27 @@ function applyDiscordChannelMarkup(text: string): string {
   });
 }
 
+function stripChannelNameAfterMention(text: string): string {
+  return text.replaceAll(/(<#\d{17,20}>)\s*\(#.*?\)/g, "$1");
+}
+
+function removeRedundantDateBeforeTimestampRange(text: string): string {
+  return text
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4}\s+entre\s+(\[\[ts:[^\]]+\]\]\s+et\s+\[\[ts:[^\]]+\]\])\s*UTC\b/gu, "Entre $1")
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4},\s+entre\s+(\[\[ts:[^\]]+\]\]\s+et\s+\[\[ts:[^\]]+\]\])\s*UTC\b/gu, "Entre $1")
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4}\s+vers\s+(\[\[ts:[^\]]+\]\])\s*UTC\b/gu, "Vers $1")
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4},\s+vers\s+(\[\[ts:[^\]]+\]\])\s*UTC\b/gu, "Vers $1")
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4},\s+entre\s+(<t:\d+:[A-Za-z]>\s+et\s+<t:\d+:[A-Za-z]>)/gu, "Entre $1")
+    .replaceAll(/\b[Ll]e\s+\d{1,2}\s+[A-Za-zÀ-ÿ]+\s+\d{4},\s+vers\s+(<t:\d+:[A-Za-z]>)/gu, "Vers $1")
+    .replaceAll(/\s+UTC\b/gu, "");
+}
+
 function applyDiscordOutputMarkup(text: string): string {
-  return applyDiscordChannelMarkup(applyDiscordTimestampMarkup(text));
+  return removeRedundantDateBeforeTimestampRange(
+    stripChannelNameAfterMention(
+      applyDiscordChannelMarkup(applyDiscordTimestampMarkup(text)),
+    ),
+  );
 }
 
 function resolveSourceReportTimezone(): string {

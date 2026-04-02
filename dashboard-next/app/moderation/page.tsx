@@ -6,12 +6,21 @@ import styles from "./Moderation.module.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Tab = "appeals" | "sanctions";
+type Tab = "appeals" | "sanctions" | "reports" | "flags";
 type Severity = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
 type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
 type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism" | "Other";
 type SanctionState = "created" | "canceled";
 type AppealStatus = "pending_review" | "upheld" | "overturned";
+type ModerationReportStatus =
+  | "awaiting_ai"
+  | "awaiting_reporter"
+  | "awaiting_confirmation"
+  | "needs_followup"
+  | "ready"
+  | "sanctioned"
+  | "dismissed";
+type FlaggedMessageStatus = "pending" | "analyzed" | "dismissed" | "escalated" | "needs_certification" | "sanctioned";
 
 type UserMeta = {
   userID: string;
@@ -53,6 +62,8 @@ type FlagAnalysis = {
   nature?: SanctionNature;
   victimUserID?: string | null;
   needsMoreContext?: boolean;
+  sanctionKind?: SanctionType | null;
+  similarSanctionIDs?: string[];
 };
 
 type AiSummary = {
@@ -75,6 +86,7 @@ type ContextMessage = {
   referencedAuthorID?: string | null;
   referencedAuthorUsername?: string | null;
   referencedContent?: string | null;
+  attachments?: Array<{ url: string; contentType: string; filename: string }>;
 };
 
 type FlaggedMessageItem = {
@@ -84,7 +96,7 @@ type FlaggedMessageItem = {
   messageID: string;
   reporterID: string;
   targetUserID: string;
-  status: string;
+  status: FlaggedMessageStatus;
   aiAnalysis: FlagAnalysis | null;
   sanctionID: string | null;
   context: ContextMessage[] | null;
@@ -97,8 +109,9 @@ type ModerationReportItem = {
   reporterID: string;
   targetUserID: string;
   ticketChannelID: string;
-  status: string;
+  status: ModerationReportStatus;
   reporterSummary: string;
+  confirmationCount?: number;
   sanctionID: string | null;
   context: { messages: ContextMessage[]; aiSummary?: AiSummary } | null;
   createdAt: number;
@@ -143,6 +156,25 @@ const TYPE_LABELS: Record<SanctionType, string> = {
   BAN_PENDING: "Ban en attente",
 };
 
+const REPORT_STATUS_LABELS: Record<ModerationReportStatus, string> = {
+  awaiting_ai: "En attente IA",
+  awaiting_reporter: "À compléter",
+  awaiting_confirmation: "À confirmer",
+  needs_followup: "À compléter",
+  ready: "Prêt",
+  sanctioned: "Sanctionné",
+  dismissed: "Classé",
+};
+
+const FLAG_STATUS_LABELS: Record<FlaggedMessageStatus, string> = {
+  pending: "En attente",
+  analyzed: "Analysé",
+  dismissed: "Classé",
+  escalated: "Escaladé",
+  needs_certification: "À certifier",
+  sanctioned: "Sanctionné",
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(value: number | null): string {
@@ -163,10 +195,32 @@ function toDraft(s: SanctionItem): SanctionDraft {
   return { type: s.type, severity: s.severity, nature: s.nature, reason: s.reason, durationMs: s.durationMs };
 }
 
+function getStatusClassName(status: ModerationReportStatus | FlaggedMessageStatus): string {
+  if (status === "sanctioned") return styles.statusSanctioned;
+  if (status === "dismissed") return styles.statusDismissed;
+  if (status === "ready" || status === "awaiting_confirmation") return styles.statusReady;
+  if (status === "needs_followup" || status === "awaiting_reporter" || status === "needs_certification") return styles.statusNeedsFollowup;
+  return styles.statusNeutral;
+}
+
+function truncate(text: string | null | undefined, max: number): string {
+  if (!text) return "—";
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function getActionableReportCount(items: ModerationReportItem[]): number {
+  return items.filter((item) => item.status !== "sanctioned" && item.status !== "dismissed").length;
+}
+
+function getActionableFlagCount(items: FlaggedMessageItem[]): number {
+  return items.filter((item) => item.status !== "sanctioned" && item.status !== "dismissed").length;
+}
+
 // ─── API ─────────────────────────────────────────────────────────────────────
 
-async function fetchAppeals(guildID: string): Promise<AppealItem[]> {
-  const r = await fetch(`/api/guilds/${guildID}/appeals?status=pending_review`, { cache: "no-store" });
+async function fetchAppeals(guildID: string, status?: AppealStatus): Promise<AppealItem[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  const r = await fetch(`/api/guilds/${guildID}/appeals${query}`, { cache: "no-store" });
   if (!r.ok) throw new Error("Failed to fetch appeals");
   return ((await r.json()) as AppealItem[]).sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -175,6 +229,18 @@ async function fetchSanctions(guildID: string): Promise<SanctionItem[]> {
   const r = await fetch(`/api/guilds/${guildID}/sanctions`, { cache: "no-store" });
   if (!r.ok) throw new Error("Failed to fetch sanctions");
   return ((await r.json()) as SanctionItem[]).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function fetchReports(guildID: string): Promise<ModerationReportItem[]> {
+  const r = await fetch(`/api/guilds/${guildID}/moderation-reports`, { cache: "no-store" });
+  if (!r.ok) throw new Error("Failed to fetch reports");
+  return ((await r.json()) as ModerationReportItem[]).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function fetchFlags(guildID: string): Promise<FlaggedMessageItem[]> {
+  const r = await fetch(`/api/guilds/${guildID}/flagged-messages`, { cache: "no-store" });
+  if (!r.ok) throw new Error("Failed to fetch flags");
+  return ((await r.json()) as FlaggedMessageItem[]).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 async function patchAppeal(
@@ -439,6 +505,304 @@ function Collapsible({ title, children, defaultOpen = false }: Readonly<{ title:
   );
 }
 
+function ContextViewer({
+  messages,
+  highlightMessageID,
+}: Readonly<{
+  messages: ContextMessage[];
+  highlightMessageID?: string | null;
+}>) {
+  if (messages.length === 0) {
+    return <div className={styles.listEmpty}>Aucun message de contexte.</div>;
+  }
+
+  return (
+    <div className={styles.ctxViewer}>
+      {messages.map((message) => {
+        const authorName = message.authorUsername || message.authorID;
+        const isHighlighted = highlightMessageID === message.id;
+        return (
+          <article
+            key={message.id}
+            className={`${styles.ctxMessage} ${isHighlighted ? styles.ctxMessageHighlight : ""}`}
+          >
+            <Avatar src={message.authorAvatarURL ?? ""} name={authorName} size={32} />
+            <div className={styles.ctxBody}>
+              {message.referencedMessageID && (
+                <div className={styles.ctxReply}>
+                  <span className={styles.ctxReplyAuthor}>{message.referencedAuthorUsername || message.referencedAuthorID || "Message référencé"}</span>
+                  <span className={styles.ctxReplyContent}>{truncate(message.referencedContent, 80)}</span>
+                </div>
+              )}
+              <div className={styles.ctxMeta}>
+                <span className={styles.ctxAuthor}>{authorName}</span>
+                <span className={styles.ctxTimestamp}>{formatDate(message.createdAt)}</span>
+              </div>
+              <div className={styles.ctxContent}>{message.content || <em>(aucun contenu)</em>}</div>
+              {message.attachments && message.attachments.length > 0 && (
+                <div className={styles.ctxAttachments}>
+                  {message.attachments.map((attachment) => (
+                    attachment.contentType?.startsWith("image/") ? (
+                      <img
+                        key={`${message.id}-${attachment.url}`}
+                        src={attachment.url}
+                        alt={attachment.filename}
+                        className={styles.ctxAttachmentImg}
+                      />
+                    ) : (
+                      <a
+                        key={`${message.id}-${attachment.url}`}
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={styles.ctxAttachmentFile}
+                      >
+                        {attachment.filename}
+                      </a>
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReportDetail({
+  guildID,
+  report,
+  linkedSanction,
+  onNavigateToSanction,
+}: Readonly<{
+  guildID: string;
+  report: ModerationReportItem;
+  linkedSanction: SanctionItem | null;
+  onNavigateToSanction: (sanctionID: string) => void;
+}>) {
+  const aiSummary = report.context?.aiSummary ?? null;
+
+  return (
+    <section className={styles.hero} aria-label="Détail du signalement">
+      <div className={styles.heroHeader}>
+        <div className={styles.heroTitleGroup}>
+          <span className={styles.heroKind}>Signalement</span>
+          <div className={styles.heroMeta}>
+            <span className={styles.heroDate}>{formatDate(report.createdAt)}</span>
+            <span className={`${styles.statusBadge} ${getStatusClassName(report.status)}`}>{REPORT_STATUS_LABELS[report.status]}</span>
+            {aiSummary?.severity && <SeverityTag value={aiSummary.severity} />}
+            {aiSummary?.nature && <span className={styles.categoryBadge}>{NATURE_LABELS[aiSummary.nature]}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.heroBody}>
+        <div className={styles.primaryGrid}>
+          <section className={styles.panel} aria-label="Résumé du signalement">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Résumé</h2>
+            </div>
+
+            <div className={styles.userGrid}>
+              <UserCard guildID={guildID} userID={report.reporterID} label="Signalant" />
+              <UserCard guildID={guildID} userID={report.targetUserID} label="Mis en cause" />
+            </div>
+
+            <div className={styles.factsGrid}>
+              <div className={styles.fact}>
+                <span className={styles.label}>Confirmations</span>
+                <span className={styles.factValue}>{report.confirmationCount ?? 0}</span>
+              </div>
+              <div className={styles.fact}>
+                <span className={styles.label}>Violation IA</span>
+                <span className={styles.factValue}>{aiSummary?.isViolation ? "Oui" : "Non"}</span>
+              </div>
+            </div>
+
+            <div className={styles.block}>
+              <div className={styles.label}>Résumé du signalant</div>
+              <p className={styles.blockText}>{report.reporterSummary || "—"}</p>
+            </div>
+
+            {aiSummary?.summary && (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Synthèse IA</div>
+                <p className={styles.blockTextMuted}>{aiSummary.summary}</p>
+              </div>
+            )}
+
+            {aiSummary?.reason && (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Motif IA</div>
+                <p className={styles.blockTextMuted}>{aiSummary.reason}</p>
+              </div>
+            )}
+          </section>
+
+          <section className={styles.panel} aria-label="Sanction liée au signalement">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Sanction liée</h2>
+            </div>
+
+            {linkedSanction ? (
+              <>
+                <div className={styles.factsGrid}>
+                  <div className={styles.fact}>
+                    <span className={styles.label}>Type</span>
+                    <span className={styles.factValue}>{TYPE_LABELS[linkedSanction.type]}</span>
+                  </div>
+                  <div className={styles.fact}>
+                    <span className={styles.label}>Sévérité</span>
+                    <span className={styles.factValue}>{SEVERITY_LABELS[linkedSanction.severity]}</span>
+                  </div>
+                  <div className={styles.fact}>
+                    <span className={styles.label}>Nature</span>
+                    <span className={styles.factValue}>{NATURE_LABELS[linkedSanction.nature]}</span>
+                  </div>
+                </div>
+                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => onNavigateToSanction(linkedSanction.id)}>
+                  Voir la sanction →
+                </button>
+              </>
+            ) : (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Statut</div>
+                <p className={styles.blockTextMuted}>Aucune sanction liée.</p>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <Collapsible title="Messages de contexte" defaultOpen>
+          <ContextViewer messages={report.context?.messages ?? []} />
+        </Collapsible>
+      </div>
+    </section>
+  );
+}
+
+function FlagDetail({
+  guildID,
+  flag,
+  linkedSanction,
+  allSanctions,
+  onNavigateToSanction,
+}: Readonly<{
+  guildID: string;
+  flag: FlaggedMessageItem;
+  linkedSanction: SanctionItem | null;
+  allSanctions: SanctionItem[];
+  onNavigateToSanction: (sanctionID: string) => void;
+}>) {
+  const flaggedMessage = flag.context?.find((message) => message.id === flag.messageID) ?? null;
+  const similarSanctions = (flag.aiAnalysis?.similarSanctionIDs ?? []).map((id) => ({
+    id,
+    sanction: allSanctions.find((item) => item.id === id) ?? null,
+  }));
+
+  return (
+    <section className={styles.hero} aria-label="Détail du message signalé">
+      <div className={styles.heroHeader}>
+        <div className={styles.heroTitleGroup}>
+          <span className={styles.heroKind}>Message signalé</span>
+          <div className={styles.heroMeta}>
+            <span className={styles.heroDate}>{formatDate(flag.createdAt)}</span>
+            <span className={`${styles.statusBadge} ${getStatusClassName(flag.status)}`}>{FLAG_STATUS_LABELS[flag.status]}</span>
+            {flag.aiAnalysis?.severity && <SeverityTag value={flag.aiAnalysis.severity} />}
+            {flag.aiAnalysis?.nature && <span className={styles.categoryBadge}>{NATURE_LABELS[flag.aiAnalysis.nature]}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.heroBody}>
+        <div className={styles.primaryGrid}>
+          <section className={styles.panel} aria-label="Analyse du message signalé">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Analyse</h2>
+            </div>
+
+            <div className={styles.userGrid}>
+              <UserCard guildID={guildID} userID={flag.reporterID} label="Signalant" />
+              <UserCard guildID={guildID} userID={flag.targetUserID} label="Mis en cause" />
+            </div>
+
+            <div className={styles.block}>
+              <div className={styles.label}>Message signalé</div>
+              <p className={styles.blockText}>{flaggedMessage?.content || "Message introuvable dans le contexte."}</p>
+            </div>
+
+            <div className={`${styles.block} ${styles.blockMuted}`}>
+              <div className={styles.label}>Analyse IA</div>
+              <div className={styles.aiFlags}>
+                <span className={styles.aiFlag}>{flag.aiAnalysis?.isViolation ? "Violation probable" : "Violation non confirmée"}</span>
+                {flag.aiAnalysis?.needsMoreContext && <span className={styles.aiFlag}>Contexte insuffisant</span>}
+                {flag.aiAnalysis?.sanctionKind && <span className={styles.aiFlag}>{TYPE_LABELS[flag.aiAnalysis.sanctionKind]}</span>}
+              </div>
+              <p className={styles.blockTextMuted}>{flag.aiAnalysis?.reason || "—"}</p>
+            </div>
+          </section>
+
+          <section className={styles.panel} aria-label="Sanctions liées et similaires">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>Sanctions</h2>
+            </div>
+
+            {linkedSanction ? (
+              <div className={styles.block}>
+                <div className={styles.label}>Sanction liée</div>
+                <p className={styles.blockText}>
+                  {TYPE_LABELS[linkedSanction.type]} · {SEVERITY_LABELS[linkedSanction.severity]} · {NATURE_LABELS[linkedSanction.nature]}
+                </p>
+                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => onNavigateToSanction(linkedSanction.id)}>
+                  Voir la sanction →
+                </button>
+              </div>
+            ) : (
+              <div className={`${styles.block} ${styles.blockMuted}`}>
+                <div className={styles.label}>Sanction liée</div>
+                <p className={styles.blockTextMuted}>Aucune sanction liée.</p>
+              </div>
+            )}
+
+            <Collapsible title="Sanctions similaires" defaultOpen={similarSanctions.length > 0}>
+              {similarSanctions.length === 0 ? (
+                <div className={styles.listEmpty}>Aucune sanction similaire proposée.</div>
+              ) : (
+                <div className={styles.similarList}>
+                  {similarSanctions.map(({ id, sanction }) => (
+                    <div key={id} className={styles.similarItem}>
+                      {sanction ? (
+                        <>
+                          <div className={styles.similarItemMeta}>
+                            <span>{TYPE_LABELS[sanction.type]}</span>
+                            <span>{SEVERITY_LABELS[sanction.severity]}</span>
+                            <span>{formatDate(sanction.createdAt)}</span>
+                          </div>
+                          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => onNavigateToSanction(sanction.id)}>
+                            Voir →
+                          </button>
+                        </>
+                      ) : (
+                        <span className={styles.similarItemId}>{id}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Collapsible>
+          </section>
+        </div>
+
+        <Collapsible title="Messages de contexte" defaultOpen>
+          <ContextViewer messages={flag.context ?? []} highlightMessageID={flag.messageID} />
+        </Collapsible>
+      </div>
+    </section>
+  );
+}
+
 // ─── SanctionEditor ──────────────────────────────────────────────────────────
 
 function SanctionEditor({
@@ -530,11 +894,13 @@ function AppealDetail({
   guildID,
   appeal,
   linkedSanction,
+  sourceMeta,
   onDecision,
 }: Readonly<{
   guildID: string;
   appeal: AppealItem;
   linkedSanction: SanctionItem | null;
+  sourceMeta: { kind: "flag"; data: FlaggedMessageItem } | { kind: "report"; data: ModerationReportItem } | null;
   onDecision: (decision: {
     reviewOutcome: "upheld" | "overturned" | "modified" | "sanctioned_bad_faith";
     resolutionReason: string;
@@ -547,41 +913,21 @@ function AppealDetail({
   const [isEditing, setIsEditing] = useState(false);
   const [reasonFlash, setReasonFlash] = useState(false);
   const reasonMissing = resolutionReason.trim().length === 0;
-  const [sourceMeta, setSourceMeta] = useState<{ kind: "flag"; data: FlaggedMessageItem } | { kind: "report"; data: ModerationReportItem } | null>(null);
   const reasonTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const isResolved = appeal.status !== "pending_review";
 
   useEffect(() => {
     setDraft(linkedSanction ? toDraft(linkedSanction) : null);
     setIsEditing(false);
-    setResolutionReason("");
+    setResolutionReason(appeal.resolutionReason ?? "");
     setReasonFlash(false);
-  }, [linkedSanction?.id]);
+  }, [appeal.id, appeal.resolutionReason, linkedSanction?.id]);
 
   useEffect(() => {
     if (!reasonFlash) return;
     const timeout = window.setTimeout(() => setReasonFlash(false), 650);
     return () => window.clearTimeout(timeout);
   }, [reasonFlash]);
-
-  useEffect(() => {
-    setSourceMeta(null);
-    if (!linkedSanction) return;
-    // Try to find which source (flaggedMessage or report) is linked to this sanction
-    fetch(`/api/guilds/${guildID}/flagged-messages?status=sanctioned`, { cache: "no-store" })
-      .then((r) => r.json() as Promise<FlaggedMessageItem[]>)
-      .then((flags) => {
-        const flag = flags.find((f) => f.sanctionID === linkedSanction.id);
-        if (flag) { setSourceMeta({ kind: "flag", data: flag }); return; }
-        return fetch(`/api/guilds/${guildID}/moderation-reports?status=sanctioned`, { cache: "no-store" })
-          .then((r) => r.json() as Promise<ModerationReportItem[]>)
-          .then((reports) => {
-            const report = reports.find((rep) => rep.sanctionID === linkedSanction.id);
-            if (report) setSourceMeta({ kind: "report", data: report });
-          });
-      })
-      .catch(() => null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guildID, linkedSanction?.id]);
 
   const aiSummary = sourceMeta?.kind === "report" ? sourceMeta.data.context?.aiSummary : null;
   const aiAnalysis = sourceMeta?.kind === "flag" ? sourceMeta.data.aiAnalysis : null;
@@ -611,9 +957,12 @@ function AppealDetail({
     <section className={styles.hero} aria-label="Détail de l'appel">
       <div className={styles.heroHeader}>
         <div className={styles.heroTitleGroup}>
-          <span className={styles.heroKind}>Appel en attente</span>
+          <span className={styles.heroKind}>{isResolved ? "Appel résolu" : "Appel en attente"}</span>
           <div className={styles.heroMeta}>
             <span className={styles.heroDate}>{formatDate(appeal.createdAt)}</span>
+            <span className={`${styles.statusBadge} ${getStatusClassName(isResolved ? "sanctioned" : "pending")}`}>
+              {isResolved ? (appeal.reviewOutcome === "overturned" ? "Accepté" : "Traité") : "En attente"}
+            </span>
             {linkedSanction && (
               <span className={`${styles.pill} ${styles[`sev${linkedSanction.severity}`]}`}>
                 {SEVERITY_LABELS[linkedSanction.severity]}
@@ -625,7 +974,8 @@ function AppealDetail({
           </div>
         </div>
 
-        <div className={styles.actionGroup}>
+        {!isResolved && (
+          <div className={styles.actionGroup}>
           <button
             className={`${styles.btn} ${styles.btnGhost}`}
             onClick={() => {
@@ -650,7 +1000,8 @@ function AppealDetail({
           >
             Accepter · lever la sanction
           </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className={styles.heroBody}>
@@ -675,15 +1026,23 @@ function AppealDetail({
 
             <div className={styles.field}>
               <label className={styles.label}>Motif de décision modérateur</label>
-              <textarea
-                ref={reasonTextareaRef}
-                className={`${styles.textarea} ${reasonFlash ? styles.textareaFlashError : ""}`}
-                value={resolutionReason}
-                onChange={(e) => setResolutionReason(e.target.value)}
-                placeholder="Explique la décision humaine prise sur cet appel."
-              />
-              {reasonMissing && (
-                <div className={styles.panelHint}>Un motif de décision est requis avant de trancher cet appel.</div>
+              {isResolved ? (
+                <div className={styles.block}>
+                  <p className={styles.blockText}>{appeal.resolutionReason || "—"}</p>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    ref={reasonTextareaRef}
+                    className={`${styles.textarea} ${reasonFlash ? styles.textareaFlashError : ""}`}
+                    value={resolutionReason}
+                    onChange={(e) => setResolutionReason(e.target.value)}
+                    placeholder="Explique la décision humaine prise sur cet appel."
+                  />
+                  {reasonMissing && (
+                    <div className={styles.panelHint}>Un motif de décision est requis avant de trancher cet appel.</div>
+                  )}
+                </>
               )}
             </div>
 
@@ -724,59 +1083,61 @@ function AppealDetail({
 
             {linkedSanction && draft ? (
               <>
-                <SanctionEditor draft={draft} onChange={setDraft} isEditing={isEditing} />
+                <SanctionEditor draft={appeal.revisedSanction ?? draft} onChange={setDraft} isEditing={!isResolved && isEditing} />
 
-                <div className={styles.actionBar}>
-                  <div className={styles.actionGroup}>
-                    {!isEditing ? (
-                      <button
-                        className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
-                        onClick={() => setIsEditing(true)}
-                        title="Modifier la sanction"
-                        aria-label="Modifier la sanction"
-                      >
-                        <IconEdit />
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          className={`${styles.btn} ${styles.btnPrimary} ${styles.iconOnly}`}
-                          onClick={() => void handleSanctionSave()}
-                          title="Enregistrer"
-                        >
-                          <IconSave />
-                        </button>
-                        <button
-                          className={`${styles.btn} ${styles.btnDanger}`}
-                          onClick={() => {
-                            if (reasonMissing) {
-                              triggerReasonFlash();
-                              return;
-                            }
-                            void onDecision({
-                              reviewOutcome: "sanctioned_bad_faith",
-                              resolutionReason,
-                              badFaithSanction: {
-                                ...draft,
-                                reason: resolutionReason,
-                              },
-                            });
-                          }}
-                          title="Sanctionner l'appel de mauvaise foi"
-                        >
-                          Mauvaise foi
-                        </button>
+                {!isResolved && (
+                  <div className={styles.actionBar}>
+                    <div className={styles.actionGroup}>
+                      {!isEditing ? (
                         <button
                           className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
-                          onClick={() => { setDraft(toDraft(linkedSanction)); setIsEditing(false); }}
-                          title="Annuler"
+                          onClick={() => setIsEditing(true)}
+                          title="Modifier la sanction"
+                          aria-label="Modifier la sanction"
                         >
-                          <IconUndo />
+                          <IconEdit />
                         </button>
-                      </>
-                    )}
+                      ) : (
+                        <>
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary} ${styles.iconOnly}`}
+                            onClick={() => void handleSanctionSave()}
+                            title="Enregistrer"
+                          >
+                            <IconSave />
+                          </button>
+                          <button
+                            className={`${styles.btn} ${styles.btnDanger}`}
+                            onClick={() => {
+                              if (reasonMissing) {
+                                triggerReasonFlash();
+                                return;
+                              }
+                              void onDecision({
+                                reviewOutcome: "sanctioned_bad_faith",
+                                resolutionReason,
+                                badFaithSanction: {
+                                  ...draft,
+                                  reason: resolutionReason,
+                                },
+                              });
+                            }}
+                            title="Sanctionner l'appel de mauvaise foi"
+                          >
+                            Mauvaise foi
+                          </button>
+                          <button
+                            className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                            onClick={() => { setDraft(toDraft(linkedSanction)); setIsEditing(false); }}
+                            title="Annuler"
+                          >
+                            <IconUndo />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </>
             ) : (
               <p style={{ color: "var(--text-muted)", fontSize: 13 }}>Aucune sanction liée à cet appel.</p>
@@ -797,32 +1158,84 @@ function ModerationInner() {
   const [tab, setTab] = useState<Tab>("appeals");
   const [appeals, setAppeals] = useState<AppealItem[] | null>(null);
   const [sanctions, setSanctions] = useState<SanctionItem[] | null>(null);
+  const [reports, setReports] = useState<ModerationReportItem[] | null>(null);
+  const [flags, setFlags] = useState<FlaggedMessageItem[] | null>(null);
   const [selectedAppealId, setSelectedAppealId] = useState<string | null>(null);
   const [selectedSanctionId, setSelectedSanctionId] = useState<string | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedFlagId, setSelectedFlagId] = useState<string | null>(null);
   const [sanctionDraft, setSanctionDraft] = useState<SanctionDraft | null>(null);
   const [isEditingSanction, setIsEditingSanction] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [appealFilter, setAppealFilter] = useState<"pending_review" | "all">("pending_review");
+
+  const refreshData = useCallback(async (preserveSelection = true) => {
+    if (!guildID) return;
+    const [a, s, r, f] = await Promise.all([
+      fetchAppeals(guildID, appealFilter === "all" ? undefined : "pending_review"),
+      fetchSanctions(guildID),
+      fetchReports(guildID),
+      fetchFlags(guildID),
+    ]);
+
+    setAppeals(a);
+    setSanctions(s);
+    setReports(r);
+    setFlags(f);
+    setSelectedAppealId((current) => {
+      if (preserveSelection && current && a.some((item) => item.id === current)) return current;
+      return a[0]?.id ?? null;
+    });
+    setSelectedSanctionId((current) => {
+      if (preserveSelection && current && s.some((item) => item.id === current)) return current;
+      return s[0]?.id ?? null;
+    });
+    setSelectedReportId((current) => {
+      if (preserveSelection && current && r.some((item) => item.id === current)) return current;
+      return r[0]?.id ?? null;
+    });
+    setSelectedFlagId((current) => {
+      if (preserveSelection && current && f.some((item) => item.id === current)) return current;
+      return f[0]?.id ?? null;
+    });
+  }, [appealFilter, guildID]);
+
+  useEffect(() => {
+    refreshData(false).catch(() => { setAppeals([]); setSanctions([]); setReports([]); setFlags([]); });
+  }, [refreshData]);
 
   useEffect(() => {
     if (!guildID) return;
-    Promise.all([fetchAppeals(guildID), fetchSanctions(guildID)])
-      .then(([a, s]) => {
-        setAppeals(a);
-        setSanctions(s);
-        setSelectedAppealId(a[0]?.id ?? null);
-        setSelectedSanctionId(s[0]?.id ?? null);
-      })
-      .catch(() => { setAppeals([]); setSanctions([]); });
-  }, [guildID]);
 
-  const sanctionUserIDs = useMemo(() => {
-    if (!sanctions) return [];
+    const interval = window.setInterval(() => {
+      refreshData(true).catch(() => undefined);
+    }, 10_000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        refreshData(true).catch(() => undefined);
+      }
+    }
+
+    window.addEventListener("focus", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [guildID, refreshData]);
+
+  const preloadUserIDs = useMemo(() => {
     const ids = new Set<string>();
-    for (const s of sanctions) { ids.add(s.userID); ids.add(s.moderatorID); }
+    for (const s of sanctions ?? []) { ids.add(s.userID); ids.add(s.moderatorID); }
+    for (const r of reports ?? []) { ids.add(r.reporterID); ids.add(r.targetUserID); }
+    for (const f of flags ?? []) { ids.add(f.reporterID); ids.add(f.targetUserID); }
     return [...ids];
-  }, [sanctions]);
+  }, [flags, reports, sanctions]);
 
-  usePreloadUserMetas(guildID, sanctionUserIDs);
+  usePreloadUserMetas(guildID, preloadUserIDs);
 
   const selectedAppeal = useMemo(
     () => appeals?.find((i) => i.id === selectedAppealId) ?? appeals?.[0] ?? null,
@@ -832,11 +1245,41 @@ function ModerationInner() {
     () => sanctions?.find((i) => i.id === selectedSanctionId) ?? sanctions?.[0] ?? null,
     [sanctions, selectedSanctionId],
   );
+  const selectedReport = useMemo(
+    () => reports?.find((item) => item.id === selectedReportId) ?? reports?.[0] ?? null,
+    [reports, selectedReportId],
+  );
+  const selectedFlag = useMemo(
+    () => flags?.find((item) => item.id === selectedFlagId) ?? flags?.[0] ?? null,
+    [flags, selectedFlagId],
+  );
 
   const linkedSanction = useMemo(
     () => sanctions?.find((i) => i.id === selectedAppeal?.sanctionID) ?? null,
     [sanctions, selectedAppeal],
   );
+  const linkedSanctionForReport = useMemo(
+    () => sanctions?.find((item) => item.id === selectedReport?.sanctionID) ?? null,
+    [sanctions, selectedReport],
+  );
+  const linkedSanctionForFlag = useMemo(
+    () => sanctions?.find((item) => item.id === selectedFlag?.sanctionID) ?? null,
+    [sanctions, selectedFlag],
+  );
+  const appealSourceMeta = useMemo(() => {
+    if (!linkedSanction) return null;
+    const flag = flags?.find((item) => item.sanctionID === linkedSanction.id);
+    if (flag) return { kind: "flag" as const, data: flag };
+    const report = reports?.find((item) => item.sanctionID === linkedSanction.id);
+    return report ? { kind: "report" as const, data: report } : null;
+  }, [flags, linkedSanction, reports]);
+  const selectedSanctionSourceMeta = useMemo(() => {
+    if (!selectedSanction) return null;
+    const flag = flags?.find((item) => item.sanctionID === selectedSanction.id);
+    if (flag) return { kind: "flag" as const, data: flag };
+    const report = reports?.find((item) => item.sanctionID === selectedSanction.id);
+    return report ? { kind: "report" as const, data: report } : null;
+  }, [flags, reports, selectedSanction]);
 
   useEffect(() => {
     if (selectedSanction) {
@@ -914,6 +1357,21 @@ function ModerationInner() {
     setConfirmRevoke(false);
   }, [guildID, selectedSanction]);
 
+  const handleNavigateToSanction = useCallback((sanctionID: string) => {
+    setSelectedSanctionId(sanctionID);
+    setTab("sanctions");
+  }, []);
+
+  const handleNavigateToReport = useCallback((reportID: string) => {
+    setSelectedReportId(reportID);
+    setTab("reports");
+  }, []);
+
+  const handleNavigateToFlag = useCallback((flagID: string) => {
+    setSelectedFlagId(flagID);
+    setTab("flags");
+  }, []);
+
   if (!guildID) {
     return (
       <div className={styles.emptyState}>
@@ -923,9 +1381,27 @@ function ModerationInner() {
     );
   }
 
-  if (appeals === null || sanctions === null) {
+  if (appeals === null || sanctions === null || reports === null || flags === null) {
     return <div className={styles.emptyState}>Chargement…</div>;
   }
+
+  const actionableAppeals = appeals.filter((item) => item.status === "pending_review").length;
+  const actionableReports = getActionableReportCount(reports);
+  const actionableFlags = getActionableFlagCount(flags);
+  const sidebarTitle = tab === "appeals"
+    ? (appealFilter === "all" ? "Tous" : "En attente")
+    : tab === "sanctions"
+      ? "Toutes"
+      : tab === "reports"
+        ? "Signalements"
+        : "Messages signalés";
+  const sidebarCount = tab === "appeals"
+    ? appeals.length
+    : tab === "sanctions"
+      ? sanctions.length
+      : tab === "reports"
+        ? reports.length
+        : flags.length;
 
   return (
     <div className={styles.page}>
@@ -939,9 +1415,9 @@ function ModerationInner() {
             onClick={() => setTab("appeals")}
           >
             Appels
-            {appeals.length > 0 && (
-              <span className={styles.tabBadge} aria-label={`${appeals.length} en attente`}>
-                {appeals.length}
+            {actionableAppeals > 0 && (
+              <span className={styles.tabBadge} aria-label={`${actionableAppeals} en attente`}>
+                {actionableAppeals}
               </span>
             )}
           </button>
@@ -954,19 +1430,53 @@ function ModerationInner() {
             Sanctions
             {sanctions.length > 0 && <span className={styles.tabBadge}>{sanctions.length}</span>}
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "reports"}
+            className={`${styles.tab} ${tab === "reports" ? styles.tabActive : ""}`}
+            onClick={() => setTab("reports")}
+          >
+            Signalements
+            {actionableReports > 0 && <span className={styles.tabBadge}>{actionableReports}</span>}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "flags"}
+            className={`${styles.tab} ${tab === "flags" ? styles.tabActive : ""}`}
+            onClick={() => setTab("flags")}
+          >
+            Messages signalés
+            {actionableFlags > 0 && <span className={styles.tabBadge}>{actionableFlags}</span>}
+          </button>
         </div>
       </header>
 
       <div className={styles.layout}>
         {/* Sidebar */}
-        <aside className={styles.sidebar} aria-label={tab === "appeals" ? "Liste des appels" : "Liste des sanctions"}>
+        <aside className={styles.sidebar} aria-label={tab === "appeals" ? "Liste des appels" : tab === "sanctions" ? "Liste des sanctions" : tab === "reports" ? "Liste des signalements" : "Liste des messages signalés"}>
           <div className={styles.sidebarMeta}>
-            <span className={styles.sidebarTitle}>{tab === "appeals" ? "En attente" : "Toutes"}</span>
-            <span className={styles.sidebarCount}>{tab === "appeals" ? appeals.length : sanctions.length}</span>
+            <span className={styles.sidebarTitle}>{sidebarTitle}</span>
+            <span className={styles.sidebarCount}>{sidebarCount}</span>
           </div>
+          {tab === "appeals" && (
+            <div className={styles.filterRow}>
+              <button
+                className={`${styles.filterPill} ${appealFilter === "pending_review" ? styles.filterPillActive : ""}`}
+                onClick={() => setAppealFilter("pending_review")}
+              >
+                En attente
+              </button>
+              <button
+                className={`${styles.filterPill} ${appealFilter === "all" ? styles.filterPillActive : ""}`}
+                onClick={() => setAppealFilter("all")}
+              >
+                Tous
+              </button>
+            </div>
+          )}
           <div className={styles.list}>
             {tab === "appeals" && appeals.length === 0 && (
-              <div className={styles.listEmpty}>Aucun appel en attente</div>
+              <div className={styles.listEmpty}>Aucun appel</div>
             )}
             {tab === "appeals" && appeals.map((appeal) => {
               const sanction = sanctions.find((s) => s.id === appeal.sanctionID);
@@ -1002,6 +1512,43 @@ function ModerationInner() {
                 date={new Date(sanction.createdAt).toLocaleDateString("fr-FR")}
               />
             ))}
+
+            {tab === "reports" && reports.length === 0 && (
+              <div className={styles.listEmpty}>Aucun signalement</div>
+            )}
+            {tab === "reports" && reports.map((report) => (
+              <SidebarCard
+                key={report.id}
+                guildID={guildID}
+                title={REPORT_STATUS_LABELS[report.status]}
+                userID={report.targetUserID}
+                body={report.reporterSummary}
+                active={selectedReport?.id === report.id}
+                onClick={() => setSelectedReportId(report.id)}
+                severity={report.context?.aiSummary?.severity}
+                date={new Date(report.createdAt).toLocaleDateString("fr-FR")}
+              />
+            ))}
+
+            {tab === "flags" && flags.length === 0 && (
+              <div className={styles.listEmpty}>Aucun message signalé</div>
+            )}
+            {tab === "flags" && flags.map((flag) => {
+              const flaggedMessage = flag.context?.find((message) => message.id === flag.messageID) ?? null;
+              return (
+                <SidebarCard
+                  key={flag.id}
+                  guildID={guildID}
+                  title={FLAG_STATUS_LABELS[flag.status]}
+                  userID={flag.targetUserID}
+                  body={flaggedMessage?.content ?? "Message introuvable"}
+                  active={selectedFlag?.id === flag.id}
+                  onClick={() => setSelectedFlagId(flag.id)}
+                  severity={flag.aiAnalysis?.severity}
+                  date={new Date(flag.createdAt).toLocaleDateString("fr-FR")}
+                />
+              );
+            })}
           </div>
         </aside>
 
@@ -1021,6 +1568,7 @@ function ModerationInner() {
               guildID={guildID}
               appeal={selectedAppeal}
               linkedSanction={linkedSanction}
+              sourceMeta={appealSourceMeta}
               onDecision={handleAppealDecision}
             />
           )}
@@ -1092,6 +1640,35 @@ function ModerationInner() {
                     <div className={styles.block}>
                       <div className={styles.label}>Motif</div>
                       <p className={styles.blockText}>{selectedSanction.reason}</p>
+                    </div>
+
+                    <div className={`${styles.block} ${styles.blockMuted}`}>
+                      <div className={styles.label}>Source liée</div>
+                      {selectedSanctionSourceMeta?.kind === "report" && (
+                        <>
+                          <p className={styles.blockTextMuted}>Cette sanction provient d’un signalement ticket.</p>
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={() => handleNavigateToReport(selectedSanctionSourceMeta.data.id)}
+                          >
+                            Voir le signalement →
+                          </button>
+                        </>
+                      )}
+                      {selectedSanctionSourceMeta?.kind === "flag" && (
+                        <>
+                          <p className={styles.blockTextMuted}>Cette sanction provient d’un message signalé.</p>
+                          <button
+                            className={`${styles.btn} ${styles.btnPrimary}`}
+                            onClick={() => handleNavigateToFlag(selectedSanctionSourceMeta.data.id)}
+                          >
+                            Voir le message signalé →
+                          </button>
+                        </>
+                      )}
+                      {!selectedSanctionSourceMeta && (
+                        <p className={styles.blockTextMuted}>Aucune source de signalement liée trouvée.</p>
+                      )}
                     </div>
                   </section>
 
@@ -1180,6 +1757,39 @@ function ModerationInner() {
                 </div>
               </div>
             </section>
+          )}
+
+          {tab === "reports" && !selectedReport && (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>📝</div>
+              Aucun signalement disponible.
+            </div>
+          )}
+
+          {tab === "reports" && selectedReport && (
+            <ReportDetail
+              guildID={guildID}
+              report={selectedReport}
+              linkedSanction={linkedSanctionForReport}
+              onNavigateToSanction={handleNavigateToSanction}
+            />
+          )}
+
+          {tab === "flags" && !selectedFlag && (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>🚩</div>
+              Aucun message signalé disponible.
+            </div>
+          )}
+
+          {tab === "flags" && selectedFlag && (
+            <FlagDetail
+              guildID={guildID}
+              flag={selectedFlag}
+              linkedSanction={linkedSanctionForFlag}
+              allSanctions={sanctions}
+              onNavigateToSanction={handleNavigateToSanction}
+            />
           )}
         </main>
       </div>
