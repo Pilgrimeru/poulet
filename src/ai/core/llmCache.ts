@@ -1,8 +1,8 @@
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { Database } from "bun:sqlite";
 import { BaseCache, deserializeStoredGeneration, serializeGeneration } from "@langchain/core/caches";
 import type { Generation } from "@langchain/core/outputs";
+import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 
 const DEFAULT_CACHE_PATH = path.resolve(process.cwd(), "cache/langchain-llm-cache.sqlite");
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -36,16 +36,18 @@ function getDatabase(): Database {
   mkdirSync(path.dirname(cachePath), { recursive: true });
 
   const db = new Database(cachePath, { create: true });
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS llm_exact_cache (
       cache_key TEXT PRIMARY KEY,
       prompt TEXT NOT NULL,
       llm_key TEXT NOT NULL,
       value_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
-    );
+    )
+  `);
+  db.run(`
     CREATE INDEX IF NOT EXISTS idx_llm_exact_cache_updated_at
-      ON llm_exact_cache (updated_at);
+      ON llm_exact_cache (updated_at)
   `);
 
   globalState.__pouletLangChainCache = {
@@ -120,7 +122,7 @@ export function getLlmCache(): SqliteExactMatchCache {
 
   const cache = new SqliteExactMatchCache(getDatabase(), resolveCacheTtlMs());
   globalState.__pouletLangChainCache = {
-    ...(globalState.__pouletLangChainCache ?? {}),
+    ...globalState.__pouletLangChainCache,
     cache,
   };
 

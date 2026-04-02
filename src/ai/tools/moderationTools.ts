@@ -2,10 +2,10 @@ import { channelMetaService } from "@/api/channelMetaService";
 import { guildSettingsService } from "@/api/guildSettingsService";
 import { messageSnapshotService } from "@/api/messageSnapshotService";
 import { sanctionApiService } from "@/api/sanctionApiService";
+import { formatReplySuffix } from "@/moderation/messageFormatting";
 import { DuckDuckGoSearch } from "@langchain/community/tools/duckduckgo_search";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { formatReplySuffix } from "@/moderation/messageFormatting";
 import {
   GuildChannelsToolSchema,
   HistoryQueryToolSchema,
@@ -244,7 +244,7 @@ export function createModerationTools(guildID: string) {
     (query: HistoryQuery) => fetchHistoryToolResult(guildID, query),
     {
       name: "historyQuery",
-      description: "Consulte l'historique des messages d'un utilisateur dans la base de donnees du serveur. Privilegie des recherches larges: variantes orthographiques, mots racines, plusieurs termes, et mode 'any' pour ne pas rater des messages pertinents.",
+      description: "Fetch a user's server message history. Prefer broad queries: spelling variants, word stems, multiple terms, and 'any' mode.",
       schema: HistoryQueryToolSchema,
     },
   );
@@ -256,7 +256,7 @@ export function createModerationTools(guildID: string) {
     },
     {
       name: "searchQuery",
-      description: "Lance une recherche DuckDuckGo pour verifier des faits externes ou du jargon ambigu.",
+      description: "Run a web search to verify external facts or ambiguous jargon.",
       schema: SearchQueryToolSchema,
     },
   );
@@ -265,7 +265,7 @@ export function createModerationTools(guildID: string) {
     (query: SanctionsQuery) => fetchSanctionsToolResult(guildID, query),
     {
       name: "userSanctions",
-      description: "Recupere uniquement les sanctions actives d'un utilisateur. Utilise cet outil pour verifier une recidive ou eviter de redemander une information deja disponible.",
+      description: "Fetch only a user's active sanctions. Use it for recidivism checks or to avoid re-asking known facts.",
       schema: UserSanctionsToolSchema,
     },
   );
@@ -274,7 +274,7 @@ export function createModerationTools(guildID: string) {
     (query: ChannelsQuery) => fetchChannelsToolResult(guildID, query),
     {
       name: "guildChannels",
-      description: "Liste les salons actuels du serveur directement depuis l'API Discord, avec leur nom et leur categorie parente. Utilise cet outil pour retrouver des noms de salons sans demander d'ID a l'utilisateur.",
+      description: "List current server channels from Discord, including names and parent categories. Use it to find channel names without asking for IDs.",
       schema: GuildChannelsToolSchema,
     },
   );

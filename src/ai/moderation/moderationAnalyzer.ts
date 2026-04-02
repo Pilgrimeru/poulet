@@ -1,8 +1,8 @@
 import { SystemMessage } from "@langchain/core/messages";
-import { flagChatPrompt, summaryChatPrompt } from "./prompts";
-import { FlagAnalysisSchema, SummarySchema } from "./schemas";
-import { buildSummaryInputContext, getSourceReportTimezone, postProcessSummaryResult } from "./reportContext";
 import { runWithTools } from "../core/runtime";
+import { flagChatPrompt, summaryChatPrompt } from "./prompts";
+import { buildSummaryInputContext, getSourceReportTimezone, postProcessSummaryResult } from "./reportContext";
+import { FlagAnalysisSchema, SummarySchema } from "./schemas";
 import type { FlagAnalysisInput, FlagAnalysisResult, ReportAnalysisInput, SummaryResult } from "./types";
 
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
@@ -44,7 +44,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       isViolation: false,
       severity: "NONE",
       sanctionKind: "WARN",
-      reason: "L'analyse IA du signalement a echoue. Le cas doit etre revu via le flux de ticket.",
+      reason: "L'analyse IA du signalement a échoué. Le cas doit être revu via le flux de ticket.",
       nature: "Harassment",
       similarSanctionIDs: [],
       victimUserID: null,
@@ -80,19 +80,19 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
     return {
       needsFollowUp: true,
       questions: [
-        "Decris plus precisement le comportement reproche avec les mots exacts ou actions visees.",
+        "Décris plus précisément le comportement reproché en reprenant les mots exacts ou les actions visées.",
         "Quand cela s'est-il produit ? Donne une date ou une heure approximative.",
       ],
       isViolation: false,
       severity: "NONE",
       sanctionKind: "WARN",
-      reason: "Analyse IA indisponible en mode degrade.",
+      reason: "L'analyse IA est indisponible.",
       nature: "Harassment",
       similarSanctionIDs: [],
       victimUserID: null,
       searchQuery: null,
       historyQuery: null,
-      summary: "Analyse indisponible. Le dossier doit etre examine manuellement par un moderateur.",
+      summary: "Analyse indisponible. Le dossier doit être examiné manuellement par un modérateur.",
     };
   }
 }

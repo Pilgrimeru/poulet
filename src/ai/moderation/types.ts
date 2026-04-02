@@ -2,16 +2,6 @@ import { z } from "zod";
 import type { ContextMessage } from "@/api/flaggedMessageApiService";
 import { FlagAnalysisSchema, SummarySchema } from "./schemas";
 
-export type PriorSanctionSummary = {
-  id: string;
-  type: string;
-  severity: string;
-  nature: string;
-  reason: string;
-  state: string;
-  createdAt: number;
-};
-
 export interface FlagAnalysisInput {
   guildID: string;
   reporterID: string;
@@ -20,7 +10,6 @@ export interface FlagAnalysisInput {
   targetUserID: string;
   targetUsername?: string | null;
   targetDisplayName?: string | null;
-  priorSanctions?: PriorSanctionSummary[];
   messageMentions?: Array<{ id: string; username?: string | null; displayName?: string | null }>;
   messageContent: string;
   contextMessages: ContextMessage[];
@@ -31,7 +20,6 @@ export interface ReportAnalysisInput {
   reporterID: string;
   targetUserID: string;
   transcript: string;
-  priorSanctions?: PriorSanctionSummary[];
 }
 
 export type HistoryQuery = {

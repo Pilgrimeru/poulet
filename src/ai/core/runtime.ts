@@ -127,7 +127,7 @@ function createFinalAnswerTool<T extends Record<string, unknown>>(schema: Struct
     async (payload: T) => JSON.stringify(payload),
     {
       name: FINAL_RESPONSE_TOOL_NAME,
-      description: "Appelle cet outil exactement une fois quand tu as suffisamment d'informations. N'appelle cet outil qu'en toute fin pour renvoyer la decision structuree complete.",
+      description: "Call exactly once, only at the end, to return the full structured decision.",
       schema,
     },
   );

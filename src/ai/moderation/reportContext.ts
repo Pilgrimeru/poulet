@@ -142,29 +142,6 @@ function mentionsYesterday(text: string): boolean {
   return /(?<!avant[-\s])\bhier\b/i.test(text);
 }
 
-function formatPriorSanctions(input: ReportAnalysisInput): string[] {
-  const sanctions = input.priorSanctions ?? [];
-  if (sanctions.length === 0) {
-    return ["Sanctions actives de l'utilisateur cible: aucune."];
-  }
-
-  const formatted = sanctions
-    .toSorted((a, b) => b.createdAt - a.createdAt)
-    .map((sanction) =>
-      [
-        `- id=${sanction.id}`,
-        `date=${new Date(sanction.createdAt).toISOString()}`,
-        `type=${sanction.type}`,
-        `severity=${sanction.severity}`,
-        `nature=${sanction.nature}`,
-        `state=${sanction.state}`,
-        `reason=${sanction.reason}`,
-      ].join(" | "),
-    );
-
-  return ["Sanctions actives de l'utilisateur cible:", ...formatted];
-}
-
 export function getSourceReportTimezone(): string {
   return SOURCE_REPORT_TIMEZONE;
 }
@@ -183,7 +160,7 @@ export function buildSummaryInputContext(input: ReportAnalysisInput): string[] {
   const reporterEntry = entries.find((entry) => !entry.isBot);
   const firstReporterEntry = reporterEntry ?? null;
   const firstTimestamp = entries[0]?.timestamp ?? null;
-  const lines: string[] = [...formatPriorSanctions(input)];
+  const lines: string[] = [];
 
   if (firstReporterEntry) {
     lines.push(`Signalement initial: ${firstReporterEntry.content}`);

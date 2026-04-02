@@ -1,12 +1,12 @@
-import { config } from "@/app";
-import { appealApiService, flaggedMessageApiService, guildSettingsService, messageSnapshotService, moderationReportApiService, sanctionApiService } from "@/api";
-import type { ContextMessage } from "@/api";
-import { analyzeFlag, summarizeReport, computeSanction } from "@/ai";
 import type { SummaryResult } from "@/ai";
+import { analyzeFlag, computeSanction, summarizeReport } from "@/ai";
+import type { ContextMessage } from "@/api";
+import { appealApiService, flaggedMessageApiService, guildSettingsService, messageSnapshotService, moderationReportApiService, sanctionApiService } from "@/api";
 import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
+import { config } from "@/app";
 import { componentRouter } from "@/discord/interactions";
-import { formatTranscriptLine } from "@/moderation/messageFormatting";
 import { Command, ContextMenuCommand } from "@/discord/types";
+import { formatTranscriptLine } from "@/moderation/messageFormatting";
 import {
   ActionRowBuilder,
   ApplicationCommandOptionType,
@@ -375,7 +375,7 @@ async function enrichContent(guild: Guild, content: string): Promise<string> {
     const versions = await messageSnapshotService.getMessageHistory(messageId).catch(() => null);
     if (!versions || versions.length === 0) continue;
 
-    const latest = versions[versions.length - 1];
+    const latest = versions.at(-1)!;
     const date = new Date(latest.createdAt).toISOString();
     const editedFlag = versions.length > 1 ? " [EDITE]" : "";
     let block = `[lien-message: @${latest.authorUsername} le ${date}${editedFlag}: "${latest.content}"`;
@@ -578,8 +578,6 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
 
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = await ticketMessagesToTranscript(guild, ticketMessages);
-  const { sanctions } = await getSimilarityInputs(guild.id, meta.targetUserID);
-
   const existingReport = await moderationReportApiService.getByChannel(guild.id, channel.id);
   const report = existingReport
     ? await moderationReportApiService.update(guild.id, existingReport.id, {
@@ -602,7 +600,6 @@ async function processTicketSubmission(guild: Guild, channel: TextChannel) {
     reporterID: meta.reporterID,
     targetUserID: meta.targetUserID,
     transcript,
-    priorSanctions: sanctions,
   });
 
   await moderationReportApiService.update(guild.id, report!.id, {
@@ -655,7 +652,7 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
   const channelId = interaction.customId.slice("report:submit:".length);
   if (!interaction.guild) return;
   const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) return;
+  if (channel?.type !== ChannelType.GuildText) return;
 
   const meta = decodeTicketMeta(channel.topic);
   if (!meta) {
@@ -690,7 +687,7 @@ async function handleTicketCancel(interaction: ButtonInteraction): Promise<void>
   const channelId = interaction.customId.slice("report:cancel:".length);
   if (!interaction.guild) return;
   const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) return;
+  if (channel?.type !== ChannelType.GuildText) return;
 
   const meta = decodeTicketMeta(channel.topic);
   const canModerateTicket =
@@ -727,7 +724,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) {
+  if (channel?.type !== ChannelType.GuildText) {
     await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -773,7 +770,7 @@ async function handleReportModify(interaction: ButtonInteraction): Promise<void>
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) {
+  if (channel?.type !== ChannelType.GuildText) {
     await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -818,7 +815,7 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) {
+  if (channel?.type !== ChannelType.GuildText) {
     await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -834,14 +831,11 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
 
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = await ticketMessagesToTranscript(interaction.guild, ticketMessages);
-  const { sanctions } = await getSimilarityInputs(interaction.guild.id, meta!.targetUserID);
-
   const summary = await summarizeReport({
     guildID: interaction.guild.id,
     reporterID: meta!.reporterID,
     targetUserID: meta!.targetUserID,
     transcript,
-    priorSanctions: sanctions,
   });
 
   await moderationReportApiService.update(interaction.guild.id, reportId, {
@@ -900,7 +894,7 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
-  if (!channel || channel.type !== ChannelType.GuildText) {
+  if (channel?.type !== ChannelType.GuildText) {
     await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -1130,7 +1124,6 @@ export class ReportMessageContextMenuCommand extends ContextMenuCommand {
       targetUserID: target.id,
       targetUsername: target.username,
       targetDisplayName: interaction.guild.members.cache.get(target.id)?.displayName ?? target.globalName ?? target.username,
-      priorSanctions: (await getSimilarityInputs(interaction.guild.id, target.id, targetMessage.createdTimestamp)).sanctions,
       messageMentions,
       messageContent: targetMessage.content,
       contextMessages,

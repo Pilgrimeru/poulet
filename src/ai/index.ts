@@ -13,9 +13,7 @@ export type {
   FlagAnalysisInput,
   FlagAnalysisResult,
   HistoryQuery,
-  PriorSanctionSummary,
   ReportAnalysisInput,
   SanctionsQuery,
   SummaryResult
 } from "./moderation/types";
-
