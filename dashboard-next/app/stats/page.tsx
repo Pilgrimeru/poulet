@@ -3,30 +3,24 @@
 import { fetchChannels, fetchGuilds } from "@/lib/api-client";
 import {
   fetchMessagesByChannel,
-  fetchMessagesByDay,
-  fetchMessagesByHour,
-  fetchMessagesByHourTimeline,
   fetchMessagesByUser,
+  fetchMessagesOverview,
   fetchVoiceByChannel,
-  fetchVoiceByDay,
-  fetchVoiceByHour,
-  fetchVoiceByHourTimeline,
   fetchVoiceByUser,
+  fetchVoiceOverview,
   type ChannelValue,
-  type DailyValue,
-  type HourlyTimelineValue,
-  type HourlyValue,
+  type StatsOverview,
   type UserValue,
 } from "@/lib/api-stats";
 import type { ChannelEntry } from "@/types";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -37,29 +31,40 @@ import {
 import styles from "./Stats.module.css";
 
 type Precision = "day" | "hour-timeline" | "hour";
+type ActivityPoint = {
+  label: string;
+  total: number;
+  uniqueUsers: number;
+  uniqueChannels: number;
+};
+type ActivitySeriesKey = "total" | "uniqueUsers" | "uniqueChannels";
+type ActivityTooltipEntry = {
+  dataKey?: string | number;
+  color?: string;
+  value?: number;
+};
 
 type StatsData = {
-  msgByDay: DailyValue[];
-  msgByHour: HourlyValue[];
-  msgByHourTimeline: HourlyTimelineValue[];
+  msgOverview: StatsOverview;
   msgByChannel: ChannelValue[];
   msgByUser: UserValue[];
-  voiceByDay: DailyValue[];
-  voiceByHour: HourlyValue[];
-  voiceByHourTimeline: HourlyTimelineValue[];
+  voiceOverview: StatsOverview;
   voiceByChannel: ChannelValue[];
   voiceByUser: UserValue[];
 };
 
+const EMPTY_OVERVIEW: StatsOverview = {
+  summary: { total: 0, uniqueUsers: 0, uniqueChannels: 0 },
+  byDay: [],
+  byHour: [],
+  byHourTimeline: [],
+};
+
 const EMPTY_STATS: StatsData = {
-  msgByDay: [],
-  msgByHour: [],
-  msgByHourTimeline: [],
+  msgOverview: EMPTY_OVERVIEW,
   msgByChannel: [],
   msgByUser: [],
-  voiceByDay: [],
-  voiceByHour: [],
-  voiceByHourTimeline: [],
+  voiceOverview: EMPTY_OVERVIEW,
   voiceByChannel: [],
   voiceByUser: [],
 };
@@ -69,13 +74,18 @@ const CHART_COLORS = [
   "#eb459e", "#57f287", "#fee75c", "#9b59b6", "#1abc9c",
 ];
 
+const SERIES_COLORS = {
+  total: "#38d26b",
+  users: "#8d6bff",
+  channels: "#ff4f9a",
+};
+
 const PRESETS = [
   { label: "7 jours", days: 7 },
   { label: "30 jours", days: 30 },
   { label: "90 jours", days: 90 },
 ];
 
-// Forum (15), Media (16), and thread types (11, 12) are grouped under their parent
 const CHILD_TYPES = new Set([11, 12]);
 
 function groupChannelData(channels: ChannelValue[]): { name: string; value: number }[] {
@@ -84,7 +94,7 @@ function groupChannelData(channels: ChannelValue[]): { name: string; value: numb
   for (const c of channels) {
     const isChild = (c.channelType != null && CHILD_TYPES.has(c.channelType)) ||
       (c.parentID != null && c.channelType != null && CHILD_TYPES.has(c.channelType));
-    const parentIsForumOrMedia = c.parentID != null; // threads always have a parent; we group if parent is forum/media type OR if channel is a thread
+    const parentIsForumOrMedia = c.parentID != null;
     const useParent = isChild && parentIsForumOrMedia && c.parentName;
 
     const key = useParent ? (c.parentName ?? c.channelName ?? c.channelID) : (c.channelName ?? c.channelID);
@@ -109,6 +119,10 @@ function fmtSecs(s: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function fmtCompactCount(value: number): string {
+  return new Intl.NumberFormat("fr-FR").format(value);
 }
 
 function fmtHour(h: number): string {
@@ -175,66 +189,227 @@ function PrecisionToggle({ value, onChange, disableHourTimeline }: Readonly<{ va
   );
 }
 
-function EvolutionChart({ byDay, byHour, byHourTimeline, precision, color, gradientId, label, formatValue }: Readonly<{ byDay: DailyValue[]; byHour: HourlyValue[]; byHourTimeline: HourlyTimelineValue[]; precision: Precision; color: string; gradientId: string; label: string; formatValue?: (v: number) => string }>) {
-  const tooltipStyle = { background: "#2b2d31", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "#dcdee1" };
-  const tooltipFmt = formatValue ? (v: unknown) => [formatValue(v as number), label] as [string, string] : undefined;
-
-  if (precision === "day") {
-    if (byDay.length === 0) return <Empty />;
-    return (
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={byDay.map((d) => ({ ...d, date: fmtDate(d.date) }))}>
-          <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.3} /><stop offset="95%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="date" tick={{ fill: "#80848e", fontSize: 11 }} />
-          <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
-          <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#b5bac1" }} formatter={tooltipFmt} />
-          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId})`} strokeWidth={2} dot={false} isAnimationActive animationDuration={600} animationEasing="ease-out" />
-        </AreaChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (precision === "hour-timeline") {
-    if (byHourTimeline.length === 0) return <Empty />;
-    return (
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={byHourTimeline.map((d) => ({ ...d, datetime: fmtDatetime(d.datetime) }))}>
-          <defs><linearGradient id={`${gradientId}Ht`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={color} stopOpacity={0.3} /><stop offset="95%" stopColor={color} stopOpacity={0} /></linearGradient></defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-          <XAxis dataKey="datetime" tick={{ fill: "#80848e", fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
-          <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#b5bac1" }} formatter={tooltipFmt} />
-          <Area type="monotone" dataKey="value" name={label} stroke={color} fill={`url(#${gradientId}Ht)`} strokeWidth={2} dot={false} isAnimationActive animationDuration={600} animationEasing="ease-out" />
-        </AreaChart>
-      </ResponsiveContainer>
-    );
-  }
-
-  if (!byHour.some((h) => h.value > 0)) return <Empty />;
+function MetricCard({ label, value, color, hidden, onClick }: Readonly<{ label: string; value: string; color: string; hidden?: boolean; onClick?: () => void }>) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={byHour.map((h) => ({ ...h, hour: fmtHour(h.hour) }))}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-        <XAxis dataKey="hour" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
-        <YAxis tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={formatValue} />
-        <Tooltip
-          contentStyle={tooltipStyle}
-          formatter={tooltipFmt}
-          cursor={{ fill: "rgba(255,255,255,0.04)" }}
-        />
-        <Bar
-          dataKey="value"
-          name={label}
-          fill={color}
-          activeBar={{ fill: color, fillOpacity: 0.9, stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
-          radius={[3, 3, 0, 0]}
-          isAnimationActive
-          animationDuration={500}
-          animationEasing="ease-out"
-        />
-      </BarChart>
-    </ResponsiveContainer>
+    <div 
+      className={`${styles.metricCard} ${hidden ? styles.metricCardHidden : ""} ${onClick ? styles.metricCardClickable : ""}`} 
+      style={{ "--metric-color": color } as React.CSSProperties}
+      onClick={onClick}
+    >
+      <span className={styles.metricLabel}>{label}</span>
+      <strong className={styles.metricValue}>{value}</strong>
+    </div>
+  );
+}
+
+function ActivityTooltip({
+  active,
+  label,
+  payload,
+  totalLabel,
+  totalFormatter,
+}: Readonly<{
+  active?: boolean;
+  label?: string;
+  payload?: readonly ActivityTooltipEntry[];
+  totalLabel: string;
+  totalFormatter: (value: number) => string;
+}>) {
+  if (!active || !payload?.length) return null;
+
+  const rows = payload
+    .map((entry) => {
+      const key = String(entry.dataKey ?? "");
+      if (key === "total") {
+        return {
+          label: totalLabel,
+          value: totalFormatter(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.total,
+        };
+      }
+      if (key === "uniqueUsers") {
+        return {
+          label: "Membres uniques",
+          value: fmtCompactCount(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.users,
+        };
+      }
+      if (key === "uniqueChannels") {
+        return {
+          label: "Salons uniques",
+          value: fmtCompactCount(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.channels,
+        };
+      }
+      return null;
+    })
+    .filter((entry): entry is { label: string; value: string; color: string } => entry !== null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className={styles.activityTooltip}>
+      <div className={styles.activityTooltipLabel}>{label}</div>
+      <div className={styles.activityTooltipRows}>
+        {rows.map((row) => (
+          <div key={row.label} className={styles.activityTooltipRow}>
+            <div className={styles.activityTooltipSeries}>
+              <span className={styles.activityTooltipDot} style={{ backgroundColor: row.color }} />
+              <span>{row.label}</span>
+            </div>
+            <strong className={styles.activityTooltipValue}>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActivityChart({
+  overview,
+  precision,
+  totalLabel,
+  totalFormatter = fmtCompactCount,
+}: Readonly<{
+  overview: StatsOverview;
+  precision: Precision;
+  totalLabel: string;
+  totalFormatter?: (value: number) => string;
+}>) {
+  const [hiddenSeries, setHiddenSeries] = useState<Set<ActivitySeriesKey>>(new Set());
+  const data: ActivityPoint[] = precision === "day"
+    ? overview.byDay.map((item) => ({ ...item, label: fmtDate(item.date) }))
+    : precision === "hour-timeline"
+      ? overview.byHourTimeline.map((item) => ({ ...item, label: fmtDatetime(item.datetime) }))
+      : overview.byHour.map((item) => ({ ...item, label: fmtHour(item.hour) }));
+
+  const hasActivity = data.some((item) => item.total > 0 || item.uniqueUsers > 0 || item.uniqueChannels > 0);
+  const showTotal = !hiddenSeries.has("total");
+  const showUsers = !hiddenSeries.has("uniqueUsers");
+  const showChannels = !hiddenSeries.has("uniqueChannels");
+  const showCountAxis = showUsers || showChannels;
+
+  if (!hasActivity) return <Empty />;
+
+  function toggleSeries(key: ActivitySeriesKey) {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <div className={styles.activityChartShell}>
+      <div className={styles.metricGrid}>
+        <MetricCard label={totalLabel} value={totalFormatter(overview.summary.total)} color={SERIES_COLORS.total} hidden={!showTotal} onClick={() => toggleSeries("total")} />
+        <MetricCard label="Membres uniques" value={fmtCompactCount(overview.summary.uniqueUsers)} color={SERIES_COLORS.users} hidden={!showUsers} onClick={() => toggleSeries("uniqueUsers")} />
+        <MetricCard label="Salons uniques" value={fmtCompactCount(overview.summary.uniqueChannels)} color={SERIES_COLORS.channels} hidden={!showChannels} onClick={() => toggleSeries("uniqueChannels")} />
+      </div>
+      <div className={styles.seriesToggleRow}>
+        <button type="button" className={`${styles.seriesToggleBtn} ${!showTotal ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("total")}>
+          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.total }} />
+          {totalLabel}
+        </button>
+        <button type="button" className={`${styles.seriesToggleBtn} ${!showUsers ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("uniqueUsers")}>
+          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.users }} />
+          Membres uniques
+        </button>
+        <button type="button" className={`${styles.seriesToggleBtn} ${!showChannels ? styles.seriesToggleBtnHidden : ""}`} onClick={() => toggleSeries("uniqueChannels")}>
+          <span className={styles.seriesToggleSwatch} style={{ backgroundColor: SERIES_COLORS.channels }} />
+          Salons uniques
+        </button>
+      </div>
+
+      {precision === "hour" ? (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }} barGap={6} barCategoryGap="18%">
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
+            {showTotal && (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={totalFormatter}
+                width={56}
+              />
+            )}
+            {showCountAxis && (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            )}
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              content={(props) => (
+                <ActivityTooltip
+                  active={props.active}
+                  label={typeof props.label === "string" ? props.label : undefined}
+                  payload={props.payload as readonly ActivityTooltipEntry[] | undefined}
+                  totalLabel={totalLabel}
+                  totalFormatter={totalFormatter}
+                />
+              )}
+            />
+            {showTotal && <Bar yAxisId="total" dataKey="total" name={totalLabel} fill={SERIES_COLORS.total} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
+            {showUsers && <Bar yAxisId="counts" dataKey="uniqueUsers" name="Membres uniques" fill={SERIES_COLORS.users} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
+            {showChannels && <Bar yAxisId="counts" dataKey="uniqueChannels" name="Salons uniques" fill={SERIES_COLORS.channels} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" />}
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#80848e", fontSize: precision === "hour-timeline" ? 10 : 11 }}
+              interval={precision === "hour-timeline" ? "preserveStartEnd" : 0}
+              minTickGap={20}
+            />
+            {showTotal && (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={totalFormatter}
+                width={56}
+              />
+            )}
+            {showCountAxis && (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            )}
+            <Tooltip
+              content={(props) => (
+                <ActivityTooltip
+                  active={props.active}
+                  label={typeof props.label === "string" ? props.label : undefined}
+                  payload={props.payload as readonly ActivityTooltipEntry[] | undefined}
+                  totalLabel={totalLabel}
+                  totalFormatter={totalFormatter}
+                />
+              )}
+            />
+            {showTotal && <Line yAxisId="total" type="monotone" dataKey="total" name={totalLabel} stroke={SERIES_COLORS.total} strokeWidth={3} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
+            {showUsers && <Line yAxisId="counts" type="monotone" dataKey="uniqueUsers" name="Membres uniques" stroke={SERIES_COLORS.users} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
+            {showChannels && <Line yAxisId="counts" type="monotone" dataKey="uniqueChannels" name="Salons uniques" stroke={SERIES_COLORS.channels} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" />}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
   );
 }
 
@@ -492,28 +667,20 @@ function StatsPageContent() {
     else setLoadingStats(true);
 
     Promise.all([
-      fetchMessagesByDay(selectedGuildID, start, end),
-      fetchMessagesByHour(selectedGuildID, start, end),
-      fetchMessagesByHourTimeline(selectedGuildID, start, end),
+      fetchMessagesOverview(selectedGuildID, start, end),
       fetchMessagesByChannel(selectedGuildID, start, end),
       fetchMessagesByUser(selectedGuildID, start, end),
-      fetchVoiceByDay(selectedGuildID, start, end),
-      fetchVoiceByHour(selectedGuildID, start, end),
-      fetchVoiceByHourTimeline(selectedGuildID, start, end),
+      fetchVoiceOverview(selectedGuildID, start, end),
       fetchVoiceByChannel(selectedGuildID, start, end),
       fetchVoiceByUser(selectedGuildID, start, end),
     ])
-      .then(([mDay, mHour, mHourTl, mChan, mUser, vDay, vHour, vHourTl, vChan, vUser]) => {
+      .then(([msgOverview, mChan, mUser, voiceOverview, vChan, vUser]) => {
         if (statsRequestRef.current !== requestId) return;
         setStats({
-          msgByDay: mDay,
-          msgByHour: mHour,
-          msgByHourTimeline: mHourTl,
+          msgOverview,
           msgByChannel: mChan,
           msgByUser: mUser,
-          voiceByDay: vDay,
-          voiceByHour: vHour,
-          voiceByHourTimeline: vHourTl,
+          voiceOverview,
           voiceByChannel: vChan,
           voiceByUser: vUser,
         });
@@ -563,10 +730,10 @@ function StatsPageContent() {
         <div className={styles.row}>
           <Card wide>
             <div className={styles.cardHeader}>
-              <span className={styles.cardTitle}>Évolution</span>
+              <span className={styles.cardTitle}>Évolution détaillée</span>
               <PrecisionToggle value={msgPrecision} onChange={setMsgPrecision} disableHourTimeline={presetIdx === 2} />
             </div>
-            <EvolutionChart byDay={stats.msgByDay} byHour={stats.msgByHour} byHourTimeline={stats.msgByHourTimeline} precision={msgPrecision} color="#5865f2" gradientId="msgGrad" label="Messages" />
+            <ActivityChart overview={stats.msgOverview} precision={msgPrecision} totalLabel="Total messages" />
           </Card>
         </div>
         <div className={styles.row}>
@@ -581,10 +748,10 @@ function StatsPageContent() {
         <div className={styles.row}>
           <Card wide>
             <div className={styles.cardHeader}>
-              <span className={styles.cardTitle}>Évolution</span>
+              <span className={styles.cardTitle}>Évolution détaillée</span>
               <PrecisionToggle value={voicePrecision} onChange={setVoicePrecision} disableHourTimeline={presetIdx === 2} />
             </div>
-            <EvolutionChart byDay={stats.voiceByDay} byHour={stats.voiceByHour} byHourTimeline={stats.voiceByHourTimeline} precision={voicePrecision} color="#23a55a" gradientId="voiceGrad" label="Temps vocal" formatValue={fmtSecs} />
+            <ActivityChart overview={stats.voiceOverview} precision={voicePrecision} totalLabel="Temps vocal" totalFormatter={fmtSecs} />
           </Card>
         </div>
         <div className={styles.row}>
