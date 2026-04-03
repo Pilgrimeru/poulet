@@ -2,21 +2,20 @@
 
 import styles from "@/app/moderation/Moderation.module.css";
 import {
-  Collapsible,
-  ContextViewer,
-  SeverityTag,
-  UserCard,
+    Collapsible,
+    ContextViewer,
+    UserCard,
 } from "@/features/moderation/components/shared";
 import {
-  NATURE_LABELS,
-  REPORT_STATUS_LABELS,
-  SEVERITY_LABELS,
-  TYPE_LABELS,
+    NATURE_LABELS,
+    REPORT_STATUS_LABELS,
+    SEVERITY_LABELS,
+    TYPE_LABELS,
 } from "@/features/moderation/constants";
 import { formatDate, getStatusClassName } from "@/features/moderation/helpers";
 import type {
-  ModerationReportItem,
-  SanctionItem,
+    ModerationReportItem,
+    SanctionItem,
 } from "@/features/moderation/types";
 
 export function ReportsSection({
@@ -46,7 +45,13 @@ export function ReportsSection({
             >
               {REPORT_STATUS_LABELS[report.status]}
             </span>
-            {aiSummary?.severity && <SeverityTag value={aiSummary.severity} />}
+            {aiSummary?.severity && aiSummary.severity !== "NONE" && (
+              <span
+                className={`${styles.pill} ${styles[`sev${aiSummary.severity}`]}`}
+              >
+                {SEVERITY_LABELS[aiSummary.severity]}
+              </span>
+            )}
             {aiSummary?.nature && (
               <span className={styles.categoryBadge}>
                 {NATURE_LABELS[aiSummary.nature]}

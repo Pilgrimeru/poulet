@@ -4,7 +4,6 @@ import styles from "@/app/moderation/Moderation.module.css";
 import {
   Collapsible,
   ContextViewer,
-  SeverityTag,
   UserCard,
 } from "@/features/moderation/components/shared";
 import {
@@ -55,8 +54,12 @@ export function FlagsSection({
             >
               {FLAG_STATUS_LABELS[flag.status]}
             </span>
-            {flag.aiAnalysis?.severity && (
-              <SeverityTag value={flag.aiAnalysis.severity} />
+            {flag.aiAnalysis?.severity && flag.aiAnalysis.severity !== "NONE" && (
+              <span
+                className={`${styles.pill} ${styles[`sev${flag.aiAnalysis.severity}`]}`}
+              >
+                {SEVERITY_LABELS[flag.aiAnalysis.severity]}
+              </span>
             )}
             {flag.aiAnalysis?.nature && (
               <span className={styles.categoryBadge}>
@@ -100,21 +103,23 @@ export function FlagsSection({
 
             <div className={`${styles.block} ${styles.blockMuted}`}>
               <div className={styles.label}>Analyse IA</div>
-              <div className={styles.aiFlags}>
-                <span className={styles.aiFlag}>
-                  {flag.aiAnalysis?.isViolation
-                    ? "Violation probable"
-                    : "Violation non confirmée"}
-                </span>
-                {flag.aiAnalysis?.needsMoreContext && (
-                  <span className={styles.aiFlag}>Contexte insuffisant</span>
-                )}
-                {flag.aiAnalysis?.sanctionKind && (
+              {flag.aiAnalysis && (
+                <div className={styles.aiFlags}>
                   <span className={styles.aiFlag}>
-                    {TYPE_LABELS[flag.aiAnalysis.sanctionKind]}
+                    {flag.aiAnalysis.isViolation
+                      ? "Violation probable"
+                      : "Violation non confirmée"}
                   </span>
-                )}
-              </div>
+                  {flag.aiAnalysis.needsMoreContext && (
+                    <span className={styles.aiFlag}>Contexte insuffisant</span>
+                  )}
+                  {flag.aiAnalysis.sanctionKind && TYPE_LABELS[flag.aiAnalysis.sanctionKind] && (
+                    <span className={styles.aiFlag}>
+                      {TYPE_LABELS[flag.aiAnalysis.sanctionKind]}
+                    </span>
+                  )}
+                </div>
+              )}
               <p className={styles.blockTextMuted}>
                 {flag.aiAnalysis?.reason || "—"}
               </p>

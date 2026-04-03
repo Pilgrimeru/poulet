@@ -6,12 +6,11 @@ import {
   IconSave,
   IconUndo,
   SanctionEditor,
-  SeverityTag,
   UserCard,
 } from "@/features/moderation/components/shared";
 import {
   NATURE_LABELS,
-  TYPE_LABELS,
+  TYPE_LABELS
 } from "@/features/moderation/constants";
 import {
   formatDate,
@@ -66,7 +65,13 @@ export function SanctionsSection({
             <span className={styles.heroDate}>
               {formatDate(selectedSanction.createdAt)}
             </span>
-            <SeverityTag value={selectedSanction.severity} />
+            {selectedSanction.severity !== "NONE" && (
+              <span
+                className={`${styles.pill} ${styles[`sev${selectedSanction.severity}`]}`}
+              >
+                {SEVERITY_LABELS[selectedSanction.severity]}
+              </span>
+            )}
             <span className={styles.categoryBadge}>
               {NATURE_LABELS[selectedSanction.nature]}
             </span>

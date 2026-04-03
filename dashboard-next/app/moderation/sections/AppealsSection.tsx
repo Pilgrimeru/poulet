@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import styles from "@/app/moderation/Moderation.module.css";
 import {
   IconEdit,
@@ -22,6 +21,7 @@ import type {
   SanctionItem,
   SourceMeta,
 } from "@/features/moderation/types";
+import { useEffect, useRef, useState } from "react";
 
 export function AppealsSection({
   guildID,
@@ -103,7 +103,7 @@ export function AppealsSection({
                   : "Traité"
                 : "En attente"}
             </span>
-            {linkedSanction && (
+            {linkedSanction && linkedSanction.severity !== "NONE" && (
               <span
                 className={`${styles.pill} ${styles[`sev${linkedSanction.severity}`]}`}
               >
