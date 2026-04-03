@@ -1,4 +1,5 @@
 import styles from "./Home.module.css";
+import { PageHeader, Panel } from "@/components/ui";
 
 export default function HomePage() {
   return (
@@ -13,14 +14,13 @@ export default function HomePage() {
             <line x1="16" y1="16" x2="16" y2="16"></line>
           </svg>
         </div>
-        <h1 className={styles.title}>Bienvenue sur le Dashboard</h1>
-        <p className={styles.subtitle}>
-          Gérez votre bot, consultez l&apos;historique des messages, les statistiques du serveur et configurez les paramètres.
-          Sélectionnez une fonctionnalité dans la barre de navigation à gauche pour commencer.
-        </p>
+        <PageHeader
+          title="Bienvenue sur le Dashboard"
+          subtitle="Gérez votre bot, consultez l'historique des messages, les statistiques du serveur et configurez les paramètres. Sélectionnez une fonctionnalité dans la barre de navigation à gauche pour commencer."
+        />
 
         <div className={styles.featureGrid}>
-          <div className={styles.featureCard}>
+          <Panel className={styles.featureCard}>
             <div className={styles.featureIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -28,8 +28,8 @@ export default function HomePage() {
             </div>
             <h3>Historique</h3>
             <p>Retrouvez, filtrez et parcourez les messages du serveur.</p>
-          </div>
-          <div className={styles.featureCard}>
+          </Panel>
+          <Panel className={styles.featureCard}>
             <div className={styles.featureIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -39,8 +39,8 @@ export default function HomePage() {
             </div>
             <h3>Statistiques</h3>
             <p>Analysez l&apos;activité vocale et textuelle de votre communauté.</p>
-          </div>
-          <div className={styles.featureCard}>
+          </Panel>
+          <Panel className={styles.featureCard}>
             <div className={styles.featureIcon}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
@@ -49,7 +49,7 @@ export default function HomePage() {
             </div>
             <h3>Paramètres</h3>
             <p>Configurez le bot facilement depuis cette interface web.</p>
-          </div>
+          </Panel>
         </div>
       </div>
     </div>

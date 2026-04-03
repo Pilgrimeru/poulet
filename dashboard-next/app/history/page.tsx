@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { FilterBar } from "@/components/FilterBar/FilterBar";
@@ -60,7 +61,7 @@ function HistoryPageContent() {
         channels={channels}
         selectedChannelID={selectedChannelID}
         onSelectChannel={handleSelectChannel}
-      />
+      /> 
 
       <main className={styles.main}>
         {selectedChannelID && (() => {
@@ -100,6 +101,7 @@ function HistoryPageContent() {
             </div>
           );
         })()}
+        {!selectedChannelID ? <EmptyState title="Sélectionnez un salon" description="Choisissez un salon dans la colonne de gauche pour parcourir son historique." /> : null}
         {selectedChannelID && (
           <FilterBar filters={filters} onChange={setFilters} />
         )}

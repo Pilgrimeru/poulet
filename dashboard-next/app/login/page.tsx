@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ErrorBanner, Panel, StatusBadge } from "@/components/ui";
 import styles from "./LoginPage.module.css";
 
 export default async function LoginPage({
@@ -12,25 +13,23 @@ export default async function LoginPage({
 
   return (
     <main className={styles.page}>
-      <section className={styles.card}>
+      <Panel className={styles.card}>
         <span className={styles.eyebrow}>Poulet Dashboard</span>
         <h1 className={styles.title}>Connexion via Discord</h1>
         <p className={styles.text}>
           Connecte-toi avec ton compte Discord pour accéder uniquement aux serveurs que tu partages avec le bot.
         </p>
         {hasError && (
-          <div className={styles.error}>
-            La connexion Discord a échoué. Vérifie la configuration OAuth puis réessaie.
-          </div>
+          <ErrorBanner message="La connexion Discord a échoué. Vérifie la configuration OAuth puis réessaie." />
         )}
         <Link href={`/api/auth/login?next=${encodeURIComponent(nextPath)}`} className={styles.button}>
           Continuer avec Discord
         </Link>
         <div className={styles.meta}>
           <span>Scopes: identify, guilds</span>
-          <span className={styles.badge}>OAuth2</span>
+          <StatusBadge tone="accent">OAuth2</StatusBadge>
         </div>
-      </section>
+      </Panel>
     </main>
   );
 }
