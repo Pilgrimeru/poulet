@@ -208,14 +208,6 @@ function truncate(text: string | null | undefined, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
-function getActionableReportCount(items: ModerationReportItem[]): number {
-  return items.filter((item) => item.status !== "sanctioned" && item.status !== "dismissed").length;
-}
-
-function getActionableFlagCount(items: FlaggedMessageItem[]): number {
-  return items.filter((item) => item.status !== "sanctioned" && item.status !== "dismissed").length;
-}
-
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 async function fetchAppeals(guildID: string, status?: AppealStatus): Promise<AppealItem[]> {
@@ -616,26 +608,21 @@ function ReportDetail({
                 <span className={styles.factValue}>{report.confirmationCount ?? 0}</span>
               </div>
               <div className={styles.fact}>
-                <span className={styles.label}>Violation IA</span>
+                <span className={styles.label}>Violation</span>
                 <span className={styles.factValue}>{aiSummary?.isViolation ? "Oui" : "Non"}</span>
               </div>
             </div>
 
-            <div className={styles.block}>
-              <div className={styles.label}>Résumé du signalant</div>
-              <p className={styles.blockText}>{report.reporterSummary || "—"}</p>
-            </div>
-
             {aiSummary?.summary && (
               <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Synthèse IA</div>
+                <div className={styles.label}>Synthèse</div>
                 <p className={styles.blockTextMuted}>{aiSummary.summary}</p>
               </div>
             )}
 
             {aiSummary?.reason && (
               <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Motif IA</div>
+                <div className={styles.label}>Motif</div>
                 <p className={styles.blockTextMuted}>{aiSummary.reason}</p>
               </div>
             )}
@@ -674,9 +661,8 @@ function ReportDetail({
             )}
           </section>
         </div>
-
         <Collapsible title="Messages de contexte" defaultOpen>
-          <ContextViewer messages={report.context?.messages ?? []} />
+            <ContextViewer messages={report.context?.messages ?? []} />
         </Collapsible>
       </div>
     </section>
@@ -1386,8 +1372,6 @@ function ModerationInner() {
   }
 
   const actionableAppeals = appeals.filter((item) => item.status === "pending_review").length;
-  const actionableReports = getActionableReportCount(reports);
-  const actionableFlags = getActionableFlagCount(flags);
   const sidebarTitle = tab === "appeals"
     ? (appealFilter === "all" ? "Tous" : "En attente")
     : tab === "sanctions"
@@ -1428,7 +1412,6 @@ function ModerationInner() {
             onClick={() => setTab("sanctions")}
           >
             Sanctions
-            {sanctions.length > 0 && <span className={styles.tabBadge}>{sanctions.length}</span>}
           </button>
           <button
             role="tab"
@@ -1437,7 +1420,6 @@ function ModerationInner() {
             onClick={() => setTab("reports")}
           >
             Signalements
-            {actionableReports > 0 && <span className={styles.tabBadge}>{actionableReports}</span>}
           </button>
           <button
             role="tab"
@@ -1446,7 +1428,6 @@ function ModerationInner() {
             onClick={() => setTab("flags")}
           >
             Messages signalés
-            {actionableFlags > 0 && <span className={styles.tabBadge}>{actionableFlags}</span>}
           </button>
         </div>
       </header>
@@ -1630,10 +1611,6 @@ function ModerationInner() {
                       <div className={styles.fact}>
                         <span className={styles.label}>Créée le</span>
                         <span className={styles.factValue}>{formatDate(selectedSanction.createdAt)}</span>
-                      </div>
-                      <div className={styles.fact}>
-                        <span className={styles.label}>ID</span>
-                        <span className={`${styles.factValue} ${styles.factMono}`}>{selectedSanction.id}</span>
                       </div>
                     </div>
 
