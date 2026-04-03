@@ -1,0 +1,17 @@
+import path from "path";
+import { Sequelize } from "sequelize";
+
+export const DB_PATH =
+  process.env["DATABASE_PATH"] ??
+  path.resolve(process.cwd(), "database/database.sqlite");
+
+// Singleton — prevents multiple instances during hot reload in dev
+const globalForDb = globalThis as unknown as { _sequelize?: Sequelize };
+
+export const sequelize =
+  globalForDb._sequelize ??
+  new Sequelize({ dialect: "sqlite", storage: DB_PATH, logging: false });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForDb._sequelize = sequelize;
+}

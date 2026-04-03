@@ -86,40 +86,37 @@ export function AppealsSection({
   };
 
   return (
-    <section className={styles.hero} aria-label="Détail de l'appel">
-      <div className={styles.heroHeader}>
-        <div className={styles.heroTitleGroup}>
-          <span className={styles.heroKind}>
+    <section className={styles.detail} aria-label="Détail de l'appel">
+      <header className={styles.detailHeader}>
+        <div className={styles.detailHeaderLeft}>
+          <span className={styles.detailTitle}>
             {isResolved ? "Appel résolu" : "Appel en attente"}
           </span>
-          <div className={styles.heroMeta}>
-            <span className={styles.heroDate}>
-              {formatDate(appeal.createdAt)}
-            </span>
-            <span className={`${styles.statusBadge} ${styles.statusNeutral}`}>
-              {isResolved
-                ? appeal.reviewOutcome === "overturned"
-                  ? "Accepté"
-                  : "Traité"
-                : "En attente"}
-            </span>
-            {linkedSanction && linkedSanction.severity !== "NONE" && (
-              <span
-                className={`${styles.pill} ${styles[`sev${linkedSanction.severity}`]}`}
-              >
-                {SEVERITY_LABELS[linkedSanction.severity]}
-              </span>
-            )}
-            {linkedSanction && (
-              <span className={styles.categoryBadge}>
-                {NATURE_LABELS[linkedSanction.nature]}
-              </span>
-            )}
-          </div>
+          <time className={styles.detailDate} dateTime={new Date(appeal.createdAt).toISOString()}>
+            {formatDate(appeal.createdAt)}
+          </time>
         </div>
-
+        <div className={styles.detailBadges}>
+          <span className={`${styles.statusBadge} ${styles.statusNeutral}`}>
+            {isResolved
+              ? appeal.reviewOutcome === "overturned"
+                ? "Accepté"
+                : "Traité"
+              : "En attente"}
+          </span>
+          {linkedSanction && linkedSanction.severity !== "NONE" && (
+            <span className={`${styles.pill} ${styles[`sev${linkedSanction.severity}`]}`}>
+              {SEVERITY_LABELS[linkedSanction.severity]}
+            </span>
+          )}
+          {linkedSanction && (
+            <span className={styles.categoryBadge}>
+              {NATURE_LABELS[linkedSanction.nature]}
+            </span>
+          )}
+        </div>
         {!isResolved && (
-          <div className={styles.actionGroup}>
+          <div className={styles.detailActions}>
             <button
               className={`${styles.btn} ${styles.btnGhost}`}
               onClick={() => {
@@ -149,183 +146,146 @@ export function AppealsSection({
             </button>
           </div>
         )}
-      </div>
+      </header>
 
-      <div className={styles.heroBody}>
-        <div className={styles.primaryGrid}>
-          <section className={styles.panel} aria-label="Dossier">
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>Dossier</h2>
-            </div>
-
-            {(targetUserID || reporterID) && (
-              <div className={styles.userGrid}>
-                {targetUserID && (
-                  <UserCard
-                    guildID={guildID}
-                    userID={targetUserID}
-                    label="Utilisateur sanctionné"
-                  />
-                )}
-                {reporterID && (
-                  <UserCard
-                    guildID={guildID}
-                    userID={reporterID}
-                    label="Signalé par"
-                  />
-                )}
-              </div>
+      <div className={styles.detailBody}>
+        {(targetUserID || reporterID) && (
+          <div className={styles.detailUsers}>
+            {targetUserID && (
+              <UserCard
+                guildID={guildID}
+                userID={targetUserID}
+                label="Utilisateur sanctionné"
+              />
             )}
-
-            <div className={styles.block}>
-              <div className={styles.label}>Déclaration d'appel</div>
-              <p className={styles.blockText}>{appeal.text || "—"}</p>
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.label}>
-                Motif de décision modérateur
-              </label>
-              {isResolved ? (
-                <div className={styles.block}>
-                  <p className={styles.blockText}>
-                    {appeal.resolutionReason || "—"}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <textarea
-                    ref={reasonTextareaRef}
-                    className={`${styles.textarea} ${reasonFlash ? styles.textareaFlashError : ""}`}
-                    value={resolutionReason}
-                    onChange={(event) =>
-                      setResolutionReason(event.target.value)
-                    }
-                    placeholder="Explique la décision humaine prise sur cet appel."
-                  />
-                  {reasonMissing && (
-                    <div className={styles.panelHint}>
-                      Un motif de décision est requis avant de trancher cet
-                      appel.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {aiAnalysis && (
-              <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Analyse IA</div>
-                <p className={styles.blockTextMuted}>{aiAnalysis.reason}</p>
-                {aiAnalysis.needsMoreContext && (
-                  <span
-                    className={styles.aiFlag}
-                    style={{ marginTop: 6, display: "inline-flex" }}
-                  >
-                    Contexte insuffisant
-                  </span>
-                )}
-              </div>
+            {reporterID && (
+              <UserCard
+                guildID={guildID}
+                userID={reporterID}
+                label="Signalé par"
+              />
             )}
+          </div>
+        )}
 
-            {aiSummary?.summary && (
-              <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Synthèse IA (QQOQCCP)</div>
-                <p className={styles.blockTextMuted}>{aiSummary.summary}</p>
-              </div>
-            )}
-
-            {sourceMeta?.kind === "flag" && (
-              <a
-                className={styles.messageLink}
-                href={`/history?guild=${encodeURIComponent(guildID)}&channel=${encodeURIComponent(sourceMeta.data.channelID)}&message=${encodeURIComponent(sourceMeta.data.messageID)}`}
-              >
-                <IconExternalLink />
-                Ouvrir dans l'historique
-              </a>
-            )}
-          </section>
-
-          <section className={styles.panel} aria-label="Sanction liée">
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>Sanction liée</h2>
-              <div className={styles.panelHint}>
-                Vérifie ou ajuste avant de trancher
-              </div>
-            </div>
-
-            {linkedSanction && draft ? (
-              <>
-                <SanctionEditor
-                  draft={appeal.revisedSanction ?? draft}
-                  onChange={setDraft}
-                  isEditing={!isResolved && isEditing}
-                />
-
-                {!isResolved && (
-                  <div className={styles.actionBar}>
-                    <div className={styles.actionGroup}>
-                      {!isEditing ? (
-                        <button
-                          className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
-                          onClick={() => setIsEditing(true)}
-                          title="Modifier la sanction"
-                          aria-label="Modifier la sanction"
-                        >
-                          <IconEdit />
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            className={`${styles.btn} ${styles.btnPrimary} ${styles.iconOnly}`}
-                            onClick={() => void handleSanctionSave()}
-                            title="Enregistrer"
-                          >
-                            <IconSave />
-                          </button>
-                          <button
-                            className={`${styles.btn} ${styles.btnDanger}`}
-                            onClick={() => {
-                              if (reasonMissing) {
-                                triggerReasonFlash();
-                                return;
-                              }
-                              void onDecision({
-                                reviewOutcome: "sanctioned_bad_faith",
-                                resolutionReason,
-                                badFaithSanction: {
-                                  ...draft,
-                                  reason: resolutionReason,
-                                },
-                              });
-                            }}
-                            title="Sanctionner l'appel de mauvaise foi"
-                          >
-                            Mauvaise foi
-                          </button>
-                          <button
-                            className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
-                            onClick={() => {
-                              setDraft(toDraft(linkedSanction));
-                              setIsEditing(false);
-                            }}
-                            title="Annuler"
-                          >
-                            <IconUndo />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                Aucune sanction liée à cet appel.
-              </p>
-            )}
-          </section>
+        <div className={styles.detailCard}>
+          <h3 className={styles.detailCardTitle}>Déclaration d'appel</h3>
+          <p className={styles.detailCardText}>{appeal.text || "—"}</p>
         </div>
+
+        <div className={styles.detailCard}>
+          <h3 className={styles.detailCardTitle}>Décision modérateur</h3>
+          {isResolved ? (
+            <p className={styles.detailCardText}>{appeal.resolutionReason || "—"}</p>
+          ) : (
+            <>
+              <textarea
+                ref={reasonTextareaRef}
+                className={`${styles.textarea} ${reasonFlash ? styles.textareaFlashError : ""}`}
+                value={resolutionReason}
+                onChange={(event) => setResolutionReason(event.target.value)}
+                placeholder="Explique la décision humaine prise sur cet appel."
+              />
+              {reasonMissing && (
+                <p className={styles.detailHint}>
+                  Un motif de décision est requis avant de trancher cet appel.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {aiAnalysis && (
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Analyse IA</h3>
+            <p className={styles.detailCardTextMuted}>{aiAnalysis.reason}</p>
+            {aiAnalysis.needsMoreContext && (
+              <span className={styles.aiFlag}>Contexte insuffisant</span>
+            )}
+          </div>
+        )}
+
+        {aiSummary?.summary && (
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Synthèse IA (QQOQCCP)</h3>
+            <p className={styles.detailCardTextMuted}>{aiSummary.summary}</p>
+          </div>
+        )}
+
+        {sourceMeta?.kind === "flag" && (
+          <a
+            className={styles.messageLink}
+            href={`/history?guild=${encodeURIComponent(guildID)}&channel=${encodeURIComponent(sourceMeta.data.channelID)}&message=${encodeURIComponent(sourceMeta.data.messageID)}`}
+          >
+            <IconExternalLink />
+            Ouvrir dans l'historique
+          </a>
+        )}
+
+        {linkedSanction && draft && (
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Sanction liée</h3>
+            <SanctionEditor
+              draft={appeal.revisedSanction ?? draft}
+              onChange={setDraft}
+              isEditing={!isResolved && isEditing}
+            />
+            {!isResolved && (
+              <div className={styles.detailCardActions}>
+                {!isEditing ? (
+                  <button
+                    className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                    onClick={() => setIsEditing(true)}
+                    title="Modifier la sanction"
+                    aria-label="Modifier la sanction"
+                  >
+                    <IconEdit />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className={`${styles.btn} ${styles.btnPrimary} ${styles.iconOnly}`}
+                      onClick={() => void handleSanctionSave()}
+                      title="Enregistrer"
+                    >
+                      <IconSave />
+                    </button>
+                    <button
+                      className={`${styles.btn} ${styles.btnDanger}`}
+                      onClick={() => {
+                        if (reasonMissing) {
+                          triggerReasonFlash();
+                          return;
+                        }
+                        void onDecision({
+                          reviewOutcome: "sanctioned_bad_faith",
+                          resolutionReason,
+                          badFaithSanction: {
+                            ...draft,
+                            reason: resolutionReason,
+                          },
+                        });
+                      }}
+                      title="Sanctionner l'appel de mauvaise foi"
+                    >
+                      Mauvaise foi
+                    </button>
+                    <button
+                      className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                      onClick={() => {
+                        setDraft(toDraft(linkedSanction));
+                        setIsEditing(false);
+                      }}
+                      title="Annuler"
+                    >
+                      <IconUndo />
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

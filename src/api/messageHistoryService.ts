@@ -1,4 +1,6 @@
 import { apiGet, apiPost } from "./client";
+import { MessageHistory } from "../database/models/MessageHistory";
+import { Op } from "sequelize";
 
 export interface MessageHistoryAttributes {
   userID: string;
@@ -37,7 +39,27 @@ export const messageHistoryService = {
     startDate: number,
     endDate: number,
   ): Promise<MessageCountByUserAndChannel[]> {
-    const params = new URLSearchParams({ guildID, startDate: String(startDate), endDate: String(endDate) });
-    return apiGet(`/message-history/count?${params}`);
+    const rows = await MessageHistory.findAll({
+      attributes: ["userID", "channelID"],
+      where: { guildID, date: { [Op.between]: [startDate, endDate] } },
+    });
+
+    const countMap = new Map<
+      string,
+      { userID: string; channelID: string; messageCount: number }
+    >();
+    for (const row of rows as any[]) {
+      const key = `${row.userID}:${row.channelID}`;
+      if (!countMap.has(key)) {
+        countMap.set(key, {
+          userID: row.userID,
+          channelID: row.channelID,
+          messageCount: 0,
+        });
+      }
+      countMap.get(key)!.messageCount += 1;
+    }
+
+    return Array.from(countMap.values());
   },
 };

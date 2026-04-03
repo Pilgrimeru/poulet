@@ -208,12 +208,12 @@
 
 .cardKindFlag {
   background: rgba(88, 101, 242, 0.15);
-  color: #a5b4fc;
+  color: color-mix(in srgb, #5865f2 75%, var(--text-primary));
 }
 
 .cardKindReport {
   background: rgba(250, 166, 26, 0.15);
-  color: #fcd78c;
+  color: color-mix(in srgb, #faa61a 75%, var(--text-primary));
 }
 
 .cardExcerpt {
@@ -250,7 +250,260 @@
   opacity: 0.5;
 }
 
-/* ─── Hero section ────────────────────────────────────────────────────────── */
+/* ─── Detail view (standard web pattern) ──────────────────────────── */
+
+.detail {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-secondary) 98%, white 2%);
+  overflow: hidden;
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.detailHeaderLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.detailTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.detailDate {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.detailDate::before {
+  content: "·";
+  margin-right: 10px;
+  color: var(--border-strong);
+}
+
+.detailBadges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.detailActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detailBody {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── User cards row ─────────────────────────────────────────────── */
+
+.detailUsers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+/* ─── Card ───────────────────────────────────────────────────────── */
+
+.detailCard {
+  padding: 16px 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.detailCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.detailCard:hover .copyBtn {
+  opacity: 1;
+}
+
+.copyBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.detailCard > .btn {
+  align-self: flex-start;
+}
+
+.detailCardTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.detailCardText {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.detailCardTextMuted {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.detailHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.detailCardActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.detailCardGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ─── Sanction compact display ─────────────────────────────────── */
+
+.sanctionCompact {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sanctionCompactBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+/* ─── Description list ──────────────────────────────────────────── */
+
+.detailDl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detailDlRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detailDlRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.detailDlRow:first-child {
+  padding-top: 0;
+}
+
+.detailDlLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.detailDlValue {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ─── Collapsible inside detail card ───────────────────────────── */
+
+.detailCard .section {
+  border: none;
+  background: transparent;
+}
+
+.detailCard .collapsibleBtn {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.detailCard .sectionBody {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
+}
+
+.detailCardText,
+.detailCardTextMuted,
+.detailCard .sectionBody,
+.detailCard .sectionBody * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ─── Hero section (legacy, keep for SidebarCard etc.) ──────────── */
 
 .hero {
   border: 1px solid var(--border-subtle);
@@ -550,7 +803,7 @@
     box-shadow: 0 0 0 0 rgba(214, 69, 69, 0);
   }
   30% {
-    border-color: #d64545;
+    border-color: color-mix(in srgb, #d64545 85%, var(--text-primary));
     box-shadow: 0 0 0 4px rgba(214, 69, 69, 0.28);
   }
   100% {
@@ -831,11 +1084,11 @@
   color: var(--text-secondary);
 }
 
-.sevNONE        { background: rgba(128, 132, 142, 0.18); color: #d1d5db; }
-.sevLOW         { background: rgba(35, 165, 90, 0.18);   color: #84d8a7; }
-.sevMEDIUM      { background: rgba(250, 166, 26, 0.18);  color: #ffd58a; }
-.sevHIGH        { background: rgba(214, 69, 69, 0.18);   color: #ffb3b8; }
-.sevUNFORGIVABLE{ background: rgba(134, 77, 255, 0.2);   color: #d8b8ff; }
+.sevNONE        { background: rgba(128, 132, 142, 0.18); color: var(--text-muted); }
+.sevLOW         { background: rgba(35, 165, 90, 0.18);   color: color-mix(in srgb, var(--success) 80%, var(--text-primary)); }
+.sevMEDIUM      { background: rgba(250, 166, 26, 0.18);  color: color-mix(in srgb, #faa61a 80%, var(--text-primary)); }
+.sevHIGH        { background: rgba(214, 69, 69, 0.18);   color: color-mix(in srgb, #d64545 80%, var(--text-primary)); }
+.sevUNFORGIVABLE{ background: rgba(134, 77, 255, 0.2);   color: color-mix(in srgb, #864dff 75%, var(--text-primary)); }
 
 /* ─── AI flags ────────────────────────────────────────────────────────────── */
 
@@ -854,7 +1107,7 @@
   font-size: 11px;
   font-weight: 600;
   background: rgba(250, 166, 26, 0.12);
-  color: #fcd78c;
+  color: color-mix(in srgb, #faa61a 75%, var(--text-primary));
   border: 1px solid rgba(250, 166, 26, 0.2);
 }
 
@@ -926,7 +1179,7 @@
 
 .statusSanctioned {
   background: rgba(35, 165, 90, 0.18);
-  color: #84d8a7;
+  color: color-mix(in srgb, var(--success) 80%, var(--text-primary));
 }
 
 .statusDismissed {
@@ -936,17 +1189,17 @@
 
 .statusReady {
   background: rgba(0, 168, 252, 0.14);
-  color: #8fd5ff;
+  color: color-mix(in srgb, #00a8fc 80%, var(--text-primary));
 }
 
 .statusNeedsFollowup {
   background: rgba(250, 166, 26, 0.18);
-  color: #ffd58a;
+  color: color-mix(in srgb, #faa61a 80%, var(--text-primary));
 }
 
 .statusNeutral {
   background: rgba(145, 116, 255, 0.18);
-  color: #d8c7ff;
+  color: color-mix(in srgb, #9174ff 80%, var(--text-primary));
 }
 
 .filterRow {
@@ -1067,6 +1320,28 @@
   color: var(--text-link);
   font-size: 12px;
   text-decoration: none;
+}
+
+/* ─── Collapsible inside detail section (no extra border) ────────── */
+
+.detailSection .section {
+  border: none;
+  background: transparent;
+}
+
+.detailSection .collapsibleBtn {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.detailSection .sectionBody {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
 }
 
 .similarList {

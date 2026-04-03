@@ -2,21 +2,21 @@
 
 import styles from "@/app/moderation/Moderation.module.css";
 import {
-    Collapsible,
-    ContextViewer,
-    UserCard,
+  Collapsible,
+  ContextViewer,
+  UserCard,
 } from "@/features/moderation/components/shared";
 import {
-    NATURE_LABELS,
-    REPORT_STATUS_LABELS,
-    SEVERITY_LABELS,
-    TYPE_LABELS,
+  NATURE_LABELS,
+  REPORT_STATUS_LABELS,
+  SEVERITY_LABELS
 } from "@/features/moderation/constants";
 import { formatDate, getStatusClassName } from "@/features/moderation/helpers";
 import type {
-    ModerationReportItem,
-    SanctionItem,
+  ModerationReportItem,
+  SanctionItem,
 } from "@/features/moderation/types";
+import { useState } from "react";
 
 export function ReportsSection({
   guildID,
@@ -30,136 +30,108 @@ export function ReportsSection({
   onNavigateToSanction: (sanctionID: string) => void;
 }>) {
   const aiSummary = report.context?.aiSummary ?? null;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!aiSummary?.summary) return;
+    await navigator.clipboard.writeText(aiSummary.summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
   return (
-    <section className={styles.hero} aria-label="Détail du signalement">
-      <div className={styles.heroHeader}>
-        <div className={styles.heroTitleGroup}>
-          <span className={styles.heroKind}>Signalement</span>
-          <div className={styles.heroMeta}>
-            <span className={styles.heroDate}>
-              {formatDate(report.createdAt)}
+    <section className={styles.detail} aria-label="Détail du signalement">
+      <header className={styles.detailHeader}>
+        <div className={styles.detailHeaderLeft}>
+          <span className={styles.detailTitle}>Signalement</span>
+          <time className={styles.detailDate} dateTime={new Date(report.createdAt).toISOString()}>
+            {formatDate(report.createdAt)}
+          </time>
+        </div>
+        <div className={styles.detailBadges}>
+          <span className={`${styles.statusBadge} ${getStatusClassName(report.status)}`}>
+            {REPORT_STATUS_LABELS[report.status]}
+          </span>
+          {aiSummary?.severity && aiSummary.severity !== "NONE" && (
+            <span className={`${styles.pill} ${styles[`sev${aiSummary.severity}`]}`}>
+              {SEVERITY_LABELS[aiSummary.severity]}
             </span>
-            <span
-              className={`${styles.statusBadge} ${getStatusClassName(report.status)}`}
-            >
-              {REPORT_STATUS_LABELS[report.status]}
+          )}
+          {aiSummary?.nature && (
+            <span className={styles.categoryBadge}>
+              {NATURE_LABELS[aiSummary.nature]}
             </span>
-            {aiSummary?.severity && aiSummary.severity !== "NONE" && (
-              <span
-                className={`${styles.pill} ${styles[`sev${aiSummary.severity}`]}`}
+          )}
+        </div>
+      </header>
+
+      <div className={styles.detailBody}>
+        <div className={styles.detailUsers}>
+          <UserCard
+            guildID={guildID}
+            userID={report.reporterID}
+            label="Signalant"
+          />
+          <UserCard
+            guildID={guildID}
+            userID={report.targetUserID}
+            label="Mis en cause"
+          />
+        </div>
+
+        {aiSummary?.summary && (
+          <div className={styles.detailCard}>
+            <div className={styles.detailCardHeader}>
+              <h3 className={styles.detailCardTitle}>Synthèse IA</h3>
+              <button
+                className={styles.copyBtn}
+                onClick={handleCopy}
+                title="Copier"
+                aria-label="Copier la synthèse"
               >
-                {SEVERITY_LABELS[aiSummary.severity]}
-              </span>
-            )}
-            {aiSummary?.nature && (
-              <span className={styles.categoryBadge}>
-                {NATURE_LABELS[aiSummary.nature]}
-              </span>
-            )}
+                {copied ? (
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z" />
+                    <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            <p className={styles.detailCardTextMuted}>{aiSummary.summary}</p>
           </div>
+        )}
+
+        {aiSummary?.reason && (
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Motif</h3>
+            <p className={styles.detailCardTextMuted}>{aiSummary.reason}</p>
+          </div>
+        )}
+
+        {linkedSanction && (
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Sanction liée</h3>
+            <p className={styles.detailCardTextMuted}>
+              Une sanction a été appliquée suite à ce signalement.
+            </p>
+            <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => onNavigateToSanction(linkedSanction.id)}
+            >
+              Voir la sanction →
+            </button>
+          </div>
+        )}
+
+        <div className={styles.detailCard}>
+          <Collapsible title="Messages de contexte" defaultOpen>
+            <ContextViewer messages={report.context?.messages ?? []} />
+          </Collapsible>
         </div>
-      </div>
-
-      <div className={styles.heroBody}>
-        <div className={styles.primaryGrid}>
-          <section className={styles.panel} aria-label="Résumé du signalement">
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>Résumé</h2>
-            </div>
-
-            <div className={styles.userGrid}>
-              <UserCard
-                guildID={guildID}
-                userID={report.reporterID}
-                label="Signalant"
-              />
-              <UserCard
-                guildID={guildID}
-                userID={report.targetUserID}
-                label="Mis en cause"
-              />
-            </div>
-
-            <div className={styles.factsGrid}>
-              <div className={styles.fact}>
-                <span className={styles.label}>Confirmations</span>
-                <span className={styles.factValue}>
-                  {report.confirmationCount ?? 0}
-                </span>
-              </div>
-              <div className={styles.fact}>
-                <span className={styles.label}>Violation</span>
-                <span className={styles.factValue}>
-                  {aiSummary?.isViolation ? "Oui" : "Non"}
-                </span>
-              </div>
-            </div>
-
-            {aiSummary?.summary && (
-              <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Synthèse</div>
-                <p className={styles.blockTextMuted}>{aiSummary.summary}</p>
-              </div>
-            )}
-
-            {aiSummary?.reason && (
-              <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Motif</div>
-                <p className={styles.blockTextMuted}>{aiSummary.reason}</p>
-              </div>
-            )}
-          </section>
-
-          <section
-            className={styles.panel}
-            aria-label="Sanction liée au signalement"
-          >
-            <div className={styles.panelHeader}>
-              <h2 className={styles.panelTitle}>Sanction liée</h2>
-            </div>
-
-            {linkedSanction ? (
-              <>
-                <div className={styles.factsGrid}>
-                  <div className={styles.fact}>
-                    <span className={styles.label}>Type</span>
-                    <span className={styles.factValue}>
-                      {TYPE_LABELS[linkedSanction.type]}
-                    </span>
-                  </div>
-                  <div className={styles.fact}>
-                    <span className={styles.label}>Sévérité</span>
-                    <span className={styles.factValue}>
-                      {SEVERITY_LABELS[linkedSanction.severity]}
-                    </span>
-                  </div>
-                  <div className={styles.fact}>
-                    <span className={styles.label}>Nature</span>
-                    <span className={styles.factValue}>
-                      {NATURE_LABELS[linkedSanction.nature]}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className={`${styles.btn} ${styles.btnPrimary}`}
-                  onClick={() => onNavigateToSanction(linkedSanction.id)}
-                >
-                  Voir la sanction →
-                </button>
-              </>
-            ) : (
-              <div className={`${styles.block} ${styles.blockMuted}`}>
-                <div className={styles.label}>Statut</div>
-                <p className={styles.blockTextMuted}>Aucune sanction liée.</p>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <Collapsible title="Messages de contexte" defaultOpen>
-          <ContextViewer messages={report.context?.messages ?? []} />
-        </Collapsible>
       </div>
     </section>
   );

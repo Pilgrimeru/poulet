@@ -31,6 +31,21 @@ const APPEAL_MODAL_PREFIX = "appeal:modal:";
 
 type StoredReportAnalysis = SummaryResult;
 
+async function hasReporterTextMessageSince(
+  channel: TextChannel,
+  reporterID: string,
+  sinceTimestamp: number,
+): Promise<boolean> {
+  const allMessages = await channel.messages.fetch({ limit: 100 });
+  return [...allMessages.values()].some(
+    (message) =>
+      !message.author.bot &&
+      message.author.id === reporterID &&
+      message.createdTimestamp > sinceTimestamp &&
+      message.content.trim() !== "",
+  );
+}
+
 function buildSummaryDescription(summary: SummaryResult): string {
   return [
     `Violation: **${summary.isViolation ? "Oui" : "Non"}**`,
@@ -398,6 +413,13 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
     await interaction.reply({ content: "Seul le signaleur peut soumettre ce dossier.", flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
+    await interaction.reply({
+      content: "Ajoute d'abord tes précisions dans le ticket avant de relancer l'analyse.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 
   await interaction.update({ components: [] });
   await interaction.followUp({ content: "Analyse en cours...", flags: MessageFlags.Ephemeral });
@@ -438,6 +460,13 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   const meta = decodeTicketMeta(channel.topic);
   if (meta && interaction.user.id !== meta.reporterID) {
     await interaction.reply({ content: "Seul le signaleur peut relancer l'analyse.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
+    await interaction.reply({
+      content: "Réponds d'abord dans le ticket avant de cliquer sur `J'ai répondu`.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 

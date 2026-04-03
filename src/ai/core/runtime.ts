@@ -1,4 +1,4 @@
-import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { createModerationTools, executeModerationToolCall } from "../tools";
@@ -7,9 +7,10 @@ import { fallbackLLM, moderationLLM } from "./client";
 function getBoundLLMWithFallback<T extends Record<string, unknown>>(
   tools: ReturnType<typeof createModerationTools>,
   finalAnswerTool: ReturnType<typeof createFinalAnswerTool<T>>,
+  toolChoice?: "required" | "auto",
 ) {
   if (!moderationLLM) throw new Error("OPENROUTER_API_KEY is not configured");
-  const opts = { parallel_tool_calls: false, tool_choice: "required" } as const;
+  const opts = { parallel_tool_calls: false, tool_choice: toolChoice ?? "required" } as const;
   const allTools = [...tools, finalAnswerTool];
   const primary = moderationLLM.bindTools(allTools, opts);
   if (!fallbackLLM || fallbackLLM === moderationLLM) return primary;
@@ -104,6 +105,44 @@ function finalizeSchemaOutput<T extends Record<string, unknown>>(value: T): T {
   return output as T;
 }
 
+function extractTextContent(content: AIMessage["content"]): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part && typeof part.text === "string") return part.text;
+      return "";
+    })
+    .join("\n")
+    .trim();
+}
+
+function parseStructuredContent<T extends Record<string, unknown>>(
+  response: AIMessage,
+  schema: StructuredSchema<T>,
+): T | null {
+  const raw = extractTextContent(response.content).trim();
+  if (!raw) return null;
+
+  const candidates = [raw];
+  const fenced = new RegExp(/```(?:json)?\s*([\s\S]*?)```/i).exec(raw)?.[1]?.trim();
+  if (fenced) candidates.push(fenced);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const normalized = normalizeStructuredPayload(parsed);
+      console.log(`[ai] ← structured content: ${JSON.stringify(normalized).slice(0, 300)}`);
+      return finalizeSchemaOutput(schema.parse(normalized));
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 function buildToolExecutor(guildID: string) {
   const cache = new Map<string, Promise<string>>();
 
@@ -133,6 +172,17 @@ function createFinalAnswerTool<T extends Record<string, unknown>>(schema: Struct
   );
 }
 
+function getFinalAnswerOnlyChain<T extends Record<string, unknown>>(
+  finalAnswerTool: ReturnType<typeof createFinalAnswerTool<T>>,
+) {
+  if (!moderationLLM) throw new Error("OPENROUTER_API_KEY is not configured");
+  const opts = { parallel_tool_calls: false, tool_choice: "required" } as const;
+  const primary = moderationLLM.bindTools([finalAnswerTool], opts);
+  if (!fallbackLLM || fallbackLLM === moderationLLM) return primary;
+  const fallback = fallbackLLM.bindTools([finalAnswerTool], opts);
+  return primary.withFallbacks([fallback]);
+}
+
 export async function runWithTools<T extends Record<string, unknown>>(
   initialMessages: BaseMessage[],
   schema: StructuredSchema<T>,
@@ -140,13 +190,16 @@ export async function runWithTools<T extends Record<string, unknown>>(
 ): Promise<T> {
   const tools = createModerationTools(guildID);
   const finalAnswerTool = createFinalAnswerTool(schema);
-  const chain = getBoundLLMWithFallback(tools, finalAnswerTool);
+  const finalAnswerOnlyChain = getFinalAnswerOnlyChain(finalAnswerTool);
+  const requiredChain = getBoundLLMWithFallback(tools, finalAnswerTool, "required");
+  const followUpChain = getBoundLLMWithFallback(tools, finalAnswerTool, "auto");
   const executeTool = buildToolExecutor(guildID);
   let messages = [...initialMessages];
 
   logMessages(`→ invoke with tools (${messages.length} messages)`, messages);
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+    const chain = iteration === 0 ? requiredChain : followUpChain;
     const response = await chain.invoke(messages) as AIMessage;
     messages = [...messages, response];
 
@@ -154,7 +207,12 @@ export async function runWithTools<T extends Record<string, unknown>>(
     console.log(`[ai] ← tool calls: ${toolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
 
     if (toolCalls.length === 0) {
-      throw new Error("The model did not call any tool despite tool_choice='required'");
+      const parsed = parseStructuredContent(response, schema);
+      if (parsed) return parsed;
+      if (iteration === 0) {
+        throw new Error("The model did not call any tool despite tool_choice='required'");
+      }
+      throw new Error("The model returned neither tool calls nor a structured final answer");
     }
 
     const finalCall = toolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
@@ -176,6 +234,31 @@ export async function runWithTools<T extends Record<string, unknown>>(
       messages = [...messages, new ToolMessage({ content: result, tool_call_id: call.id ?? call.name })];
     }
   }
+
+  const forcedFinalPrompt = new HumanMessage({
+    content: [
+      "Le budget d'outils est epuise.",
+      "N'appelle plus aucun outil.",
+      "Rends maintenant la decision finale complete via submitFinalAnswer en t'appuyant uniquement sur les verifications deja effectuees.",
+      "Si les preuves sont insuffisantes, conclus isViolation=false et explique l'insuffisance dans summary.",
+    ].join(" "),
+  });
+  messages = [...messages, forcedFinalPrompt];
+  console.log("[ai] → finalization pass with submitFinalAnswer only");
+
+  const finalResponse = await finalAnswerOnlyChain.invoke(messages) as AIMessage;
+  const finalToolCalls = finalResponse.tool_calls ?? [];
+  console.log(`[ai] ← finalization tool calls: ${finalToolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
+
+  const finalCall = finalToolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
+  if (finalCall) {
+    const normalized = normalizeStructuredPayload(finalCall.args);
+    console.log(`[ai] ← structured result: ${JSON.stringify(normalized).slice(0, 300)}`);
+    return finalizeSchemaOutput(schema.parse(normalized));
+  }
+
+  const parsed = parseStructuredContent(finalResponse, schema);
+  if (parsed) return parsed;
 
   throw new Error("The model did not produce a final structured answer");
 }
