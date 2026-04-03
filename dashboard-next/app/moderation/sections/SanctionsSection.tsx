@@ -51,6 +51,8 @@ export function SanctionsSection({
   onNavigateToReport: (reportID: string) => void;
   onNavigateToFlag: (flagID: string) => void;
 }>) {
+  const isRevoked = selectedSanction.state === "canceled";
+
   return (
     <section className={styles.detail} aria-label="Détail de la sanction">
       <header className={styles.detailHeader}>
@@ -63,8 +65,8 @@ export function SanctionsSection({
           </time>
         </div>
         <div className={styles.detailBadges}>
-          <span className={`${styles.pill} ${selectedSanction.state === "created" ? styles.pillActive : styles.pillInactive}`}>
-            {selectedSanction.state === "created" ? "Active" : "Levée"}
+          <span className={`${styles.pill} ${isRevoked ? styles.pillInactive : styles.pillActive}`}>
+            {isRevoked ? "Révoquée" : "Active"}
           </span>
           {selectedSanction.severity !== "NONE" && (
             <span className={`${styles.pill} ${styles[`sev${selectedSanction.severity}`]}`}>
@@ -91,119 +93,128 @@ export function SanctionsSection({
           />
         </div>
 
-        {selectedSanction.state === "created" ? (
-          <>
-            {/* Informations (top) */}
-            <div className={styles.detailCard}>
-              <h3 className={styles.detailCardTitle}>Informations</h3>
-              <SanctionEditor
-                draft={sanctionDraft}
-                onChange={setSanctionDraft}
-                isEditing={isEditingSanction}
-              />
-              <div className={styles.detailCardActions}>
-                {!isEditingSanction ? (
+        {/* Informations — always visible */}
+        <div className={`${styles.detailCard} ${isRevoked ? styles.detailCardRevoked : ""}`}>
+          {isRevoked && (
+            <div className={styles.detailCardRevokedBanner}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16Zm.5-4.5a.5.5 0 0 1-1 0v-1a.5.5 0 0 1 1 0v1Zm.242-5.242a.5.5 0 0 1-.708.708l-1-1a.5.5 0 0 1 0-.708l1-1a.5.5 0 1 1 .708.708L8.5 7.5l-.258.258Z" />
+              </svg>
+              <span>Sanction révoquée — informations d'origine</span>
+            </div>
+          )}
+          <h3 className={styles.detailCardTitle}>Informations</h3>
+          <SanctionEditor
+            draft={sanctionDraft}
+            onChange={setSanctionDraft}
+            isEditing={!isRevoked && isEditingSanction}
+          />
+          {!isRevoked && (
+            <div className={styles.detailCardActions}>
+              {!isEditingSanction ? (
+                <button
+                  className={`${styles.btn} ${styles.btnGhost}`}
+                  onClick={() => setIsEditingSanction(true)}
+                >
+                  <IconEdit /> Modifier
+                </button>
+              ) : (
+                <>
+                  <button
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={() => void onSave()}
+                  >
+                    <IconSave /> Enregistrer
+                  </button>
                   <button
                     className={`${styles.btn} ${styles.btnGhost}`}
-                    onClick={() => setIsEditingSanction(true)}
+                    onClick={() => {
+                      setSanctionDraft(toDraft(selectedSanction));
+                      setIsEditingSanction(false);
+                    }}
                   >
-                    <IconEdit /> Modifier
+                    <IconUndo /> Réinitialiser
                   </button>
-                ) : (
-                  <>
-                    <button
-                      className={`${styles.btn} ${styles.btnPrimary}`}
-                      onClick={() => void onSave()}
-                    >
-                      <IconSave /> Enregistrer
-                    </button>
-                    <button
-                      className={`${styles.btn} ${styles.btnGhost}`}
-                      onClick={() => {
-                        setSanctionDraft(toDraft(selectedSanction));
-                        setIsEditingSanction(false);
-                      }}
-                    >
-                      <IconUndo /> Réinitialiser
-                    </button>
-                  </>
-                )}
-              </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!isRevoked && (
+          <div className={styles.detailCardGrid}>
+            <div className={styles.detailCard}>
+              <h3 className={styles.detailCardTitle}>Source liée</h3>
+              {selectedSanctionSourceMeta?.kind === "report" && (
+                <>
+                  <p className={styles.detailCardTextMuted}>
+                    Cette sanction provient d'un signalement ticket.
+                  </p>
+                  <button
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={() => onNavigateToReport(selectedSanctionSourceMeta.data.id)}
+                  >
+                    Voir le signalement →
+                  </button>
+                </>
+              )}
+              {selectedSanctionSourceMeta?.kind === "flag" && (
+                <>
+                  <p className={styles.detailCardTextMuted}>
+                    Cette sanction provient d'un message signalé.
+                  </p>
+                  <button
+                    className={`${styles.btn} ${styles.btnPrimary}`}
+                    onClick={() => onNavigateToFlag(selectedSanctionSourceMeta.data.id)}
+                  >
+                    Voir le message signalé →
+                  </button>
+                </>
+              )}
+              {!selectedSanctionSourceMeta && (
+                <p className={styles.detailCardTextMuted}>
+                  Aucune source de signalement liée trouvée.
+                </p>
+              )}
             </div>
 
-            {/* Source liée + Révocation side by side */}
-            <div className={styles.detailCardGrid}>
-              <div className={styles.detailCard}>
-                <h3 className={styles.detailCardTitle}>Source liée</h3>
-                {selectedSanctionSourceMeta?.kind === "report" && (
-                  <>
-                    <p className={styles.detailCardTextMuted}>
-                      Cette sanction provient d'un signalement ticket.
-                    </p>
-                    <button
-                      className={`${styles.btn} ${styles.btnPrimary}`}
-                      onClick={() => onNavigateToReport(selectedSanctionSourceMeta.data.id)}
-                    >
-                      Voir le signalement →
-                    </button>
-                  </>
-                )}
-                {selectedSanctionSourceMeta?.kind === "flag" && (
-                  <>
-                    <p className={styles.detailCardTextMuted}>
-                      Cette sanction provient d'un message signalé.
-                    </p>
-                    <button
-                      className={`${styles.btn} ${styles.btnPrimary}`}
-                      onClick={() => onNavigateToFlag(selectedSanctionSourceMeta.data.id)}
-                    >
-                      Voir le message signalé →
-                    </button>
-                  </>
-                )}
-                {!selectedSanctionSourceMeta && (
-                  <p className={styles.detailCardTextMuted}>
-                    Aucune source de signalement liée trouvée.
-                  </p>
-                )}
-              </div>
-
-              <div className={styles.detailCard}>
-                <h3 className={styles.detailCardTitle}>Révocation</h3>
-                <p className={styles.detailCardTextMuted}>
-                  Annule la sanction côté dashboard et Discord.
-                </p>
-                {!confirmRevoke ? (
+            <div className={styles.detailCard}>
+              <h3 className={styles.detailCardTitle}>Révocation</h3>
+              <p className={styles.detailCardTextMuted}>
+                Annule la sanction côté dashboard et Discord.
+              </p>
+              {!confirmRevoke ? (
+                <button
+                  className={`${styles.btn} ${styles.btnDanger}`}
+                  onClick={() => setConfirmRevoke(true)}
+                >
+                  Révoquer
+                </button>
+              ) : (
+                <div className={styles.detailCardActions}>
+                  <button
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    onClick={() => setConfirmRevoke(false)}
+                  >
+                    Annuler
+                  </button>
                   <button
                     className={`${styles.btn} ${styles.btnDanger}`}
-                    onClick={() => setConfirmRevoke(true)}
+                    onClick={() => void onRevoke()}
                   >
-                    Révoquer
+                    Confirmer
                   </button>
-                ) : (
-                  <div className={styles.detailCardActions}>
-                    <button
-                      className={`${styles.btn} ${styles.btnGhost}`}
-                      onClick={() => setConfirmRevoke(false)}
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      className={`${styles.btn} ${styles.btnDanger}`}
-                      onClick={() => void onRevoke()}
-                    >
-                      Confirmer
-                    </button>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          </>
-        ) : (
+          </div>
+        )}
+
+        {isRevoked && (
           <div className={styles.detailCard}>
-            <h3 className={styles.detailCardTitle}>Statut</h3>
+            <h3 className={styles.detailCardTitle}>Réouverture</h3>
             <p className={styles.detailCardTextMuted}>
-              Cette sanction a été levée.
+              Cette sanction a été révoquée. Réouvre-la pour la réactiver.
             </p>
             <button
               className={`${styles.btn} ${styles.btnPrimary}`}

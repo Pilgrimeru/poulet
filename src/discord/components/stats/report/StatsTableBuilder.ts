@@ -1,5 +1,5 @@
-import { bot } from "@/app/runtime";
 import { deafSessionService, messageHistoryService, voiceSessionService } from "@/api";
+import { bot } from "@/app/runtime";
 import {
   deafSessionManager,
   SessionManager,
@@ -46,7 +46,8 @@ export class StatsTableBuilder {
       options,
     );
 
-    const voiceMap = await StatsTableBuilder.createVoiceTotalMap(processedOptions);
+    const voiceMap =
+      await StatsTableBuilder.createVoiceTotalMap(processedOptions);
     const messagesMap =
       await StatsTableBuilder.createMessagesTotalMap(processedOptions);
 
@@ -111,13 +112,16 @@ export class StatsTableBuilder {
     options?: Partial<FilterOptions>,
   ): Promise<ProcessedOptions> {
     const processedBlacklistUser = new Set<string>();
-    try {
-      await guild.members.fetch({ time: 15000 });
-    } catch (error) {
-      console.warn(
-        `[stats] members fetch failed for guild ${guild.id}, using cache only`,
-        error,
-      );
+    // Only fetch members if cache is significantly incomplete to avoid rate limits
+    if (guild.members.cache.size < guild.memberCount * 0.8) {
+      try {
+        await guild.members.fetch({ time: 15000 });
+      } catch (error) {
+        console.warn(
+          `[stats] members fetch failed for guild ${guild.id}, using cache only`,
+          error,
+        );
+      }
     }
 
     if (!options?.allowBots && !options?.whitelistUser?.length) {
@@ -187,10 +191,10 @@ export class StatsTableBuilder {
       if (
         ((!options.whitelistChannel &&
           !options.blacklistChannel.includes(value.channelID)) ||
-          (options.whitelistChannel?.includes(value.channelID))) &&
+          options.whitelistChannel?.includes(value.channelID)) &&
         ((!options.whitelistUser &&
           !options.blacklistUser.includes(value.userID)) ||
-          (options.whitelistUser?.includes(value.userID)))
+          options.whitelistUser?.includes(value.userID))
       ) {
         if (!totalByMember.has(value.userID)) {
           totalByMember.set(value.userID, 0);
@@ -222,16 +226,18 @@ export class StatsTableBuilder {
       if (
         ((!options.whitelistChannel &&
           !options.blacklistChannel.includes(session.channelID)) ||
-          (options.whitelistChannel?.includes(session.channelID))) &&
+          options.whitelistChannel?.includes(session.channelID)) &&
         ((!options.whitelistUser &&
           !options.blacklistUser.includes(session.userID)) ||
-          (options.whitelistUser?.includes(session.userID)))
+          options.whitelistUser?.includes(session.userID))
       ) {
         if (!totalByMember.has(session.userID)) {
           totalByMember.set(session.userID, 0);
         }
 
-        const sessionDuration = Math.min(session.end, options.end) - Math.max(session.start, options.start);
+        const sessionDuration =
+          Math.min(session.end, options.end) -
+          Math.max(session.start, options.start);
         const previousDuration = totalByMember.get(session.userID)!;
 
         totalByMember.set(session.userID, previousDuration + sessionDuration);
@@ -246,10 +252,10 @@ export class StatsTableBuilder {
       if (
         ((!options.whitelistChannel &&
           !options.blacklistChannel.includes(unfinishedSession.channelID)) ||
-          (options.whitelistChannel?.includes(unfinishedSession.channelID))) &&
+          options.whitelistChannel?.includes(unfinishedSession.channelID)) &&
         ((!options.whitelistUser &&
           !options.blacklistUser.includes(unfinishedSession.userID)) ||
-          (options.whitelistUser?.includes(unfinishedSession.userID)))
+          options.whitelistUser?.includes(unfinishedSession.userID))
       ) {
         if (!totalByMember.has(unfinishedSession.userID)) {
           totalByMember.set(unfinishedSession.userID, 0);
