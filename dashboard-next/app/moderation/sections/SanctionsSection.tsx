@@ -93,7 +93,7 @@ export function SanctionsSection({
           />
         </div>
 
-        {/* Informations — always visible */}
+        {/* Informations */}
         <div className={`${styles.detailCard} ${isRevoked ? styles.detailCardRevoked : ""}`}>
           {isRevoked && (
             <div className={styles.detailCardRevokedBanner}>
@@ -141,43 +141,44 @@ export function SanctionsSection({
           )}
         </div>
 
-        {!isRevoked && (
-          <div className={styles.detailCardGrid}>
-            <div className={styles.detailCard}>
-              <h3 className={styles.detailCardTitle}>Source liée</h3>
-              {selectedSanctionSourceMeta?.kind === "report" && (
-                <>
-                  <p className={styles.detailCardTextMuted}>
-                    Cette sanction provient d'un signalement ticket.
-                  </p>
-                  <button
-                    className={`${styles.btn} ${styles.btnPrimary}`}
-                    onClick={() => onNavigateToReport(selectedSanctionSourceMeta.data.id)}
-                  >
-                    Voir le signalement →
-                  </button>
-                </>
-              )}
-              {selectedSanctionSourceMeta?.kind === "flag" && (
-                <>
-                  <p className={styles.detailCardTextMuted}>
-                    Cette sanction provient d'un message signalé.
-                  </p>
-                  <button
-                    className={`${styles.btn} ${styles.btnPrimary}`}
-                    onClick={() => onNavigateToFlag(selectedSanctionSourceMeta.data.id)}
-                  >
-                    Voir le message signalé →
-                  </button>
-                </>
-              )}
-              {!selectedSanctionSourceMeta && (
+        {/* Source liée + Révocation/Réouverture side by side */}
+        <div className={styles.detailCardGrid}>
+          <div className={styles.detailCard}>
+            <h3 className={styles.detailCardTitle}>Source liée</h3>
+            {selectedSanctionSourceMeta?.kind === "report" && (
+              <>
                 <p className={styles.detailCardTextMuted}>
-                  Aucune source de signalement liée trouvée.
+                  Cette sanction provient d'un signalement ticket.
                 </p>
-              )}
-            </div>
+                <button
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={() => onNavigateToReport(selectedSanctionSourceMeta.data.id)}
+                >
+                  Voir le signalement →
+                </button>
+              </>
+            )}
+            {selectedSanctionSourceMeta?.kind === "flag" && (
+              <>
+                <p className={styles.detailCardTextMuted}>
+                  Cette sanction provient d'un message signalé.
+                </p>
+                <button
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={() => onNavigateToFlag(selectedSanctionSourceMeta.data.id)}
+                >
+                  Voir le message signalé →
+                </button>
+              </>
+            )}
+            {!selectedSanctionSourceMeta && (
+              <p className={styles.detailCardTextMuted}>
+                Aucune source de signalement liée trouvée.
+              </p>
+            )}
+          </div>
 
+          {!isRevoked ? (
             <div className={styles.detailCard}>
               <h3 className={styles.detailCardTitle}>Révocation</h3>
               <p className={styles.detailCardTextMuted}>
@@ -207,23 +208,21 @@ export function SanctionsSection({
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {isRevoked && (
-          <div className={styles.detailCard}>
-            <h3 className={styles.detailCardTitle}>Réouverture</h3>
-            <p className={styles.detailCardTextMuted}>
-              Cette sanction a été révoquée. Réouvre-la pour la réactiver.
-            </p>
-            <button
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => void onReopen()}
-            >
-              Réouvrir la sanction
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className={styles.detailCard}>
+              <h3 className={styles.detailCardTitle}>Réouverture</h3>
+              <p className={styles.detailCardTextMuted}>
+                Réouvre la sanction pour la réactiver.
+              </p>
+              <button
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => void onReopen()}
+              >
+                Réouvrir la sanction
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

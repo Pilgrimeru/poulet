@@ -1,16 +1,16 @@
 "use client";
 
-import { EmptyState } from "@/components/ui";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
 import { FilterBar } from "@/components/FilterBar/FilterBar";
 import { HistoryModal } from "@/components/HistoryModal/HistoryModal";
 import { MessageList } from "@/components/MessageList/MessageList";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
+import { EmptyState } from "@/components/ui";
 import { useChannels } from "@/hooks/useChannels";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { MessageFilters } from "@/hooks/useMessages";
 import { DEFAULT_FILTERS, useMessages } from "@/hooks/useMessages";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import styles from "./MessageHistory.module.css";
 
 function HistoryPageContent() {
@@ -114,6 +114,7 @@ function HistoryPageContent() {
           channelID={selectedChannelID}
           loadedChannelID={loadedChannelID}
           updateMode={updateMode}
+          scrollToMessageID={historyMessageID}
         />
       </main>
 
