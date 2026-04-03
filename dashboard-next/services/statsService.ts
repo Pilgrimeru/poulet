@@ -1,6 +1,6 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
+import { sequelize } from "../lib/db";
 import { MessageHistory } from "../models/MessageHistory";
-import { MessageSnapshot } from "../models/MessageSnapshot";
 import { VoiceSession } from "../models/VoiceSession";
 
 export interface UserMeta {
@@ -136,13 +136,26 @@ function clamp(session: { start: number; end: number }, start: number, end: numb
 
 export async function getUserMetas(userIDs: string[]): Promise<Map<string, UserMeta>> {
   if (userIDs.length === 0) return new Map();
-  const rows = await MessageSnapshot.findAll({
-    attributes: ["authorID", "authorUsername", "authorDisplayName", "authorAvatarURL", "snapshotAt"],
-    where: { authorID: { [Op.in]: userIDs } },
-    order: [["snapshotAt", "DESC"]],
-  });
+  const placeholders = userIDs.map(() => "?").join(", ");
+  const rows = await sequelize.query<{
+    authorID: string;
+    authorUsername: string;
+    authorDisplayName: string;
+    authorAvatarURL: string;
+  }>(
+    `SELECT ms.authorID, ms.authorUsername, ms.authorDisplayName, ms.authorAvatarURL
+     FROM MessageSnapshots ms
+     INNER JOIN (
+       SELECT authorID, MAX(snapshotAt) AS maxSnap
+       FROM MessageSnapshots
+       WHERE authorID IN (${placeholders})
+       GROUP BY authorID
+     ) latest ON ms.authorID = latest.authorID AND ms.snapshotAt = latest.maxSnap
+     WHERE ms.authorID IN (${placeholders})`,
+    { replacements: [...userIDs, ...userIDs], type: QueryTypes.SELECT },
+  );
   const map = new Map<string, UserMeta>();
-  for (const r of rows as any[]) {
+  for (const r of rows) {
     if (!map.has(r.authorID)) {
       map.set(r.authorID, {
         userID: r.authorID,

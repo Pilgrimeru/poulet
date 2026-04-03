@@ -2,13 +2,7 @@
 
 import { fetchChannels, fetchGuilds } from "@/lib/api-client";
 import {
-  fetchMessagesByChannel,
-  fetchMessagesByUser,
-  fetchMessagesOverview,
-  fetchMembersOverview,
-  fetchVoiceByChannel,
-  fetchVoiceByUser,
-  fetchVoiceOverview,
+  fetchStatsAll,
   type ChannelValue,
   type MemberOverview,
   type StatsOverview,
@@ -1279,38 +1273,20 @@ function StatsPageContent() {
     if (hasLoadedStatsRef.current) setIsRefreshing(true);
     else setLoadingStats(true);
 
-    Promise.all([
-      fetchMessagesOverview(selectedGuildID, start, end),
-      fetchMessagesByChannel(selectedGuildID, start, end),
-      fetchMessagesByUser(selectedGuildID, start, end),
-      fetchVoiceOverview(selectedGuildID, start, end),
-      fetchVoiceByChannel(selectedGuildID, start, end),
-      fetchVoiceByUser(selectedGuildID, start, end),
-      fetchMembersOverview(selectedGuildID, start, end),
-    ])
-      .then(
-        ([
-          msgOverview,
-          mChan,
-          mUser,
-          voiceOverview,
-          vChan,
-          vUser,
-          memberOverview,
-        ]) => {
-          if (statsRequestRef.current !== requestId) return;
-          setStats({
-            msgOverview,
-            msgByChannel: mChan,
-            msgByUser: mUser,
-            voiceOverview,
-            voiceByChannel: vChan,
-            voiceByUser: vUser,
-            memberOverview,
-          });
-          hasLoadedStatsRef.current = true;
-        },
-      )
+    fetchStatsAll(selectedGuildID, start, end)
+      .then((data) => {
+        if (statsRequestRef.current !== requestId) return;
+        setStats({
+          msgOverview: data.msgOverview,
+          msgByChannel: data.msgByChannel,
+          msgByUser: data.msgByUser,
+          voiceOverview: data.voiceOverview,
+          voiceByChannel: data.voiceByChannel,
+          voiceByUser: data.voiceByUser,
+          memberOverview: data.memberOverview,
+        });
+        hasLoadedStatsRef.current = true;
+      })
       .catch(() => {
         if (statsRequestRef.current !== requestId) return;
         setStatsError("Impossible de charger les statistiques.");

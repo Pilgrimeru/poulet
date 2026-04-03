@@ -77,3 +77,17 @@ export interface MemberOverview {
 export function fetchMembersOverview(guildID: string, start: number, end: number) {
   return getJson<MemberOverview>(`/api/guilds/${guildID}/stats/members/overview${range(start, end)}`);
 }
+
+export interface StatsAll {
+  msgOverview: StatsOverview;
+  msgByChannel: ChannelValue[];
+  msgByUser: UserValue[];
+  voiceOverview: StatsOverview;
+  voiceByChannel: ChannelValue[];
+  voiceByUser: UserValue[];
+  memberOverview: MemberOverview;
+}
+
+export function fetchStatsAll(guildID: string, start: number, end: number) {
+  return getJson<StatsAll>(`/api/guilds/${guildID}/stats/all${range(start, end)}`);
+}

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { hydrateUserMetas } from "@/services/discordMetaService";
 import { getVoiceStatsByUser, getUserMetas } from "@/services/statsService";
 
 export async function GET(req: Request, { params }: { params: Promise<{ guildId: string }> }) {
@@ -10,7 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ guildId:
     const endDate = Number(url.searchParams.get("endDate"));
     const rows = await getVoiceStatsByUser(guildId, startDate, endDate);
     const userIDs = rows.map((r) => r.userID);
-    const metas = await hydrateUserMetas(guildId, userIDs, await getUserMetas(userIDs));
+    const metas = await getUserMetas(userIDs);
     return NextResponse.json(rows.map((r) => ({ ...r, ...(metas.get(r.userID) ?? {}) })));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
