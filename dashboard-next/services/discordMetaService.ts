@@ -376,7 +376,7 @@ export async function setMemberTimeout(
   const result = await discordWrite(`/guilds/${guildID}/members/${userID}`, {
     method: "PATCH",
     headers: {
-      "X-Audit-Log-Reason": encodeURIComponent(reason).slice(0, 512),
+      "X-Audit-Log-Reason": encodeURIComponent(reason.slice(0, 512)),
     },
     body: JSON.stringify({
       communication_disabled_until: communicationDisabledUntil,

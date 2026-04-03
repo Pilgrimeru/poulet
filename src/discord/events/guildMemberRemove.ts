@@ -6,12 +6,10 @@ import { memberEventService } from "@/api/memberEventService";
 export default new Event(
   "guildMemberRemove",
   async (member: GuildMember | PartialGuildMember) => {
-    if (!member.user?.bot) {
-      memberEventService.recordLeave(member.guild.id, member.user?.id ?? "unknown").catch(() => undefined);
-      if (member.user?.id) {
-        userMetaService.markDeleted(member.user.id, member.guild.id).catch(() => undefined);
-      }
-    }
+    if (!member.user || member.user.bot) return;
+
+    memberEventService.recordLeave(member.guild.id, member.user.id).catch(() => undefined);
+    userMetaService.markDeleted(member.user.id, member.guild.id).catch(() => undefined);
 
     const settings = await guildSettingsService.getByGuildID(member.guild.id).catch(() => null);
     if (!settings?.inviteLogChannelID) return;

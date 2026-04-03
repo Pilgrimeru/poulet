@@ -69,7 +69,10 @@ export default new Event("clientReady", () => {
   startStatsReportScheduler();
   registerPollHandlers();
   void syncOverturnedAppeals();
-  setInterval(() => void syncOverturnedAppeals(), 60_000);
+  let appealSyncChain = Promise.resolve();
+  setInterval(() => {
+    appealSyncChain = appealSyncChain.then(() => syncOverturnedAppeals(), () => syncOverturnedAppeals());
+  }, 60_000);
 
   // Purge old message snapshots on startup then every 24h
   void messageSnapshotService.purgeOldSnapshots().then((n) => {
@@ -86,9 +89,12 @@ export default new Event("clientReady", () => {
 async function seedMemberJoins(): Promise<void> {
   const now = Date.now();
   const events: Array<{ guildID: string; userID: string; date: number }> = [];
+  const LARGE_GUILD_THRESHOLD = 500;
 
   for (const guild of bot.guilds.cache.values()) {
-    const members = await guild.members.fetch().catch(() => guild.members.cache);
+    const members = guild.memberCount <= LARGE_GUILD_THRESHOLD
+      ? await guild.members.fetch().catch(() => guild.members.cache)
+      : guild.members.cache;
     for (const member of members.values()) {
       if (member.user.bot) continue;
       events.push({ guildID: guild.id, userID: member.id, date: member.joinedTimestamp ?? now });
@@ -120,9 +126,17 @@ async function seedUserMetas(): Promise<void> {
   if (rows.length === 0) return;
   await userMetaService.bulkUpsert(rows);
 
+  // Group active IDs by guildID for efficient per-guild soft-delete
+  const activeIDsByGuild = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = activeIDsByGuild.get(r.guildID) ?? [];
+    list.push(r.userID);
+    activeIDsByGuild.set(r.guildID, list);
+  }
+
   // Soft-delete members no longer in Discord (per guild)
   for (const guild of bot.guilds.cache.values()) {
-    const activeIDs = rows.filter((r) => r.guildID === guild.id).map((r) => r.userID);
+    const activeIDs = activeIDsByGuild.get(guild.id) ?? [];
     await userMetaService.markDeletedExcept(guild.id, activeIDs).catch(() => undefined);
   }
 

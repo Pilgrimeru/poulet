@@ -47,6 +47,7 @@ export class Bot extends Client {
 
   private async initialize(): Promise<void> {
     await sequelize.authenticate();
+    await sequelize.sync({ force: false });
     console.log("[bot] Database connection established.");
     await Promise.all([this.loadEvents(), this.loadCommands()]);
     await this.login(config.TOKEN);

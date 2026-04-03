@@ -89,23 +89,29 @@ export async function enrichContent(guild: Guild, content: string): Promise<stri
   let result = content;
 
   const channelMatches = [...result.matchAll(CHANNEL_MENTION_RE)];
+  const seenChannelIds = new Set<string>();
   for (const match of channelMatches) {
     const channelId = match[1];
+    if (seenChannelIds.has(channelId)) continue;
+    seenChannelIds.add(channelId);
     const channel = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
     if (channel) {
-      result = result.replace(match[0], `${match[0]} (#${channel.name})`);
+      result = result.replaceAll(match[0], `${match[0]} (#${channel.name})`);
     }
   }
 
   const userMatches = [...result.matchAll(USER_MENTION_RE)];
+  const seenUserIds = new Set<string>();
   for (const match of userMatches) {
     const userId = match[1];
+    if (seenUserIds.has(userId)) continue;
+    seenUserIds.add(userId);
     const member = guild.members.cache.get(userId) ?? await guild.members.fetch(userId).catch(() => null);
     const display = member
       ? `${member.user.username}${member.nickname ? ` / ${member.nickname}` : ""}`
       : null;
     if (display) {
-      result = result.replace(match[0], `${match[0]} (${display})`);
+      result = result.replaceAll(match[0], `${match[0]} (${display})`);
     }
   }
 

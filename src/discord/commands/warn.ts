@@ -1,5 +1,5 @@
 import { Command } from "@/discord/types";
-import { buildSanctionEmbed } from "@/services/sanctionService";
+import { buildSanctionEmbed } from "@/discord/components/moderation/sanctionHelpers";
 import {
   ApplicationCommandOptionType,
   ChatInputCommandInteraction,
@@ -72,12 +72,10 @@ export default class WarnCommand extends Command {
     }
 
     const embed = buildSanctionEmbed({
-      targetTag: target.tag ?? target.username,
-      targetAvatarURL: target.displayAvatarURL(),
-      moderatorTag: interaction.user.tag ?? interaction.user.username,
+      target,
+      moderator: interaction.user,
       type: warnSeverityToType(severity),
       severity,
-      nature: "Harassment",
       reason: message,
     });
 

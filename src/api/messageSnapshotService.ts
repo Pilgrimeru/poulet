@@ -80,12 +80,6 @@ export const messageSnapshotService = {
     if (options.searchTerms?.length) params.set("searchTerms", JSON.stringify(options.searchTerms));
     if (options.searchMode)  params.set("searchMode",  options.searchMode);
     const qs = params.size > 0 ? `?${params.toString()}` : "";
-    console.log("[messageSnapshotService] getUserMessages", {
-      guildID,
-      userID,
-      options,
-      path: `/guilds/${guildID}/users/${userID}/messages${qs}`,
-    });
     return apiGet<MessageSnapshotDTO[]>(`/guilds/${guildID}/users/${userID}/messages${qs}`);
   },
 

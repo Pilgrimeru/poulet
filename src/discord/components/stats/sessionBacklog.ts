@@ -11,6 +11,15 @@ interface SessionBacklogFile {
 
 const BACKLOG_PATH = join(process.cwd(), "data", "pending-sessions.json");
 
+// Serializes all backlog read-modify-write operations to prevent concurrent overwrites
+let backlogMutex = Promise.resolve();
+function withBacklogLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = backlogMutex.then(fn);
+  // Even if fn rejects, the chain must keep resolving so the lock is always released
+  backlogMutex = next.then(() => undefined, () => undefined);
+  return next;
+}
+
 function createEmptyBacklog(): SessionBacklogFile {
   return {
     voice: [],
@@ -48,9 +57,11 @@ async function writeBacklog(backlog: SessionBacklogFile): Promise<void> {
 export async function enqueuePendingSessions(kind: SessionKind, sessions: SessionAttributes[]): Promise<void> {
   if (sessions.length === 0) return;
 
-  const backlog = await readBacklog();
-  backlog[kind].push(...sessions);
-  await writeBacklog(backlog);
+  await withBacklogLock(async () => {
+    const backlog = await readBacklog();
+    backlog[kind].push(...sessions);
+    await writeBacklog(backlog);
+  });
 
   console.warn(`[sessions] ${sessions.length} session(s) ${kind} stockée(s) localement en attente de l'API.`);
 }
@@ -59,30 +70,32 @@ export async function flushPendingSessions(
   kind: SessionKind,
   createSession: (data: SessionAttributes) => Promise<void>,
 ): Promise<void> {
-  const backlog = await readBacklog();
-  const pendingSessions = backlog[kind];
+  await withBacklogLock(async () => {
+    const backlog = await readBacklog();
+    const pendingSessions = backlog[kind];
 
-  if (pendingSessions.length === 0) return;
+    if (pendingSessions.length === 0) return;
 
-  const remainingSessions: SessionAttributes[] = [];
+    const remainingSessions: SessionAttributes[] = [];
 
-  for (const session of pendingSessions) {
-    try {
-      await createSession(session);
-    } catch (error) {
-      remainingSessions.push(session);
-      console.error(`[sessions] Échec de la relecture d'une session ${kind} en attente.`, error);
+    for (const session of pendingSessions) {
+      try {
+        await createSession(session);
+      } catch (error) {
+        remainingSessions.push(session);
+        console.error(`[sessions] Échec de la relecture d'une session ${kind} en attente.`, error);
+      }
     }
-  }
 
-  backlog[kind] = remainingSessions;
+    backlog[kind] = remainingSessions;
 
-  if (backlog.voice.length === 0 && backlog.deaf.length === 0) {
-    await rm(BACKLOG_PATH, { force: true });
-    console.log("[sessions] Backlog local vidé.");
-    return;
-  }
+    if (backlog.voice.length === 0 && backlog.deaf.length === 0) {
+      await rm(BACKLOG_PATH, { force: true });
+      console.log("[sessions] Backlog local vidé.");
+      return;
+    }
 
-  await writeBacklog(backlog);
-  console.warn(`[sessions] ${remainingSessions.length} session(s) ${kind} restent en attente.`);
+    await writeBacklog(backlog);
+    console.warn(`[sessions] ${remainingSessions.length} session(s) ${kind} restent en attente.`);
+  });
 }
