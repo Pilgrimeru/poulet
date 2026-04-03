@@ -1,7 +1,8 @@
 "use client";
 
+import styles from "@/app/stats/Stats.module.css";
 import type { MemberOverview, StatsOverview, UserValue } from "@/lib/api-stats";
-import { SegmentedControl } from "@/components/ui";
+import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -15,10 +16,22 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useState } from "react";
-import styles from "@/app/stats/Stats.module.css";
-import type { ActivitySeriesKey, ActivityTooltipEntry, ChartDatum, MemberSeriesKey, Precision } from "./types";
-import { CHART_COLORS, MEMBER_SERIES_COLORS, SERIES_COLORS, fmtCompactCount, fmtDate, fmtDatetime, fmtHour } from "./stats.utils";
+import {
+  CHART_COLORS,
+  MEMBER_SERIES_COLORS,
+  SERIES_COLORS,
+  fmtCompactCount,
+  fmtDate,
+  fmtDatetime,
+  fmtHour,
+} from "./stats.utils";
+import type {
+  ActivitySeriesKey,
+  ActivityTooltipEntry,
+  ChartDatum,
+  MemberSeriesKey,
+  Precision,
+} from "./types";
 
 type ActivityPoint = {
   label: string;
@@ -38,7 +51,9 @@ function Empty() {
   return <div className={styles.empty}>Aucune donnée sur cette période</div>;
 }
 
-export function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
+export function SectionTitle({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return <h2 className={styles.sectionTitle}>{children}</h2>;
 }
 
@@ -46,26 +61,50 @@ export function Card({
   children,
   wide,
 }: Readonly<{ children: React.ReactNode; wide?: boolean }>) {
-  return <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>{children}</div>;
+  return (
+    <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>
+      {children}
+    </div>
+  );
 }
 
 export function StatsSkeleton() {
   return (
     <div className={styles.content}>
       <SectionTitle>Messages</SectionTitle>
-      <div className={styles.row}><Card wide><div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} /></Card></div>
       <div className={styles.row}>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+        <Card wide>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+        </Card>
+      </div>
+      <div className={styles.row}>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} />
+        </Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} />
+        </Card>
       </div>
       <SectionTitle>Vocal</SectionTitle>
-      <div className={styles.row}><Card wide><div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} /></Card></div>
       <div className={styles.row}>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} /></Card>
-        <Card><div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} /></Card>
+        <Card wide>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+        </Card>
+      </div>
+      <div className={styles.row}>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonPie}`} />
+        </Card>
+        <Card>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonTable}`} />
+        </Card>
       </div>
       <SectionTitle>Membres</SectionTitle>
-      <div className={styles.row}><Card wide><div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} /></Card></div>
+      <div className={styles.row}>
+        <Card wide>
+          <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+        </Card>
+      </div>
     </div>
   );
 }
@@ -80,15 +119,32 @@ export function PrecisionToggle({
   disableHourTimeline?: boolean;
 }>) {
   return (
-    <SegmentedControl
-      value={value}
-      onChange={onChange}
-      options={[
+    <div className={styles.precisionToggle}>
+      {[
         { value: "day", label: "Jour" },
-        { value: "hour-timeline", label: "Heure (timeline)", disabled: disableHourTimeline, title: disableHourTimeline ? "Disponible sur 7 et 30 jours uniquement" : undefined },
+        {
+          value: "hour-timeline",
+          label: "Heure (timeline)",
+          disabled: disableHourTimeline,
+          title: disableHourTimeline
+            ? "Disponible sur 7 et 30 jours uniquement"
+            : undefined,
+        },
         { value: "hour", label: "Heure (somme)" },
-      ]}
-    />
+      ].map((option) => (
+        <button
+          key={option.value}
+          className={`${styles.precisionBtn} ${value === option.value ? styles.precisionBtnActive : ""} ${option.disabled ? styles.precisionBtnDisabled : ""}`}
+          onClick={() =>
+            !option.disabled && onChange(option.value as Precision)
+          }
+          disabled={option.disabled}
+          title={option.title}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -135,12 +191,30 @@ function ActivityTooltip({
   const rows = payload
     .map((entry) => {
       const key = String(entry.dataKey ?? "");
-      if (key === "total") return { label: totalLabel, value: totalFormatter(entry.value ?? 0), color: entry.color ?? SERIES_COLORS.total };
-      if (key === "uniqueUsers") return { label: "Membres uniques", value: fmtCompactCount(entry.value ?? 0), color: entry.color ?? SERIES_COLORS.users };
-      if (key === "uniqueChannels") return { label: "Salons uniques", value: fmtCompactCount(entry.value ?? 0), color: entry.color ?? SERIES_COLORS.channels };
+      if (key === "total")
+        return {
+          label: totalLabel,
+          value: totalFormatter(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.total,
+        };
+      if (key === "uniqueUsers")
+        return {
+          label: "Membres uniques",
+          value: fmtCompactCount(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.users,
+        };
+      if (key === "uniqueChannels")
+        return {
+          label: "Salons uniques",
+          value: fmtCompactCount(entry.value ?? 0),
+          color: entry.color ?? SERIES_COLORS.channels,
+        };
       return null;
     })
-    .filter((entry): entry is { label: string; value: string; color: string } => entry !== null);
+    .filter(
+      (entry): entry is { label: string; value: string; color: string } =>
+        entry !== null,
+    );
 
   if (rows.length === 0) return null;
 
@@ -151,7 +225,10 @@ function ActivityTooltip({
         {rows.map((row) => (
           <div key={row.label} className={styles.activityTooltipRow}>
             <div className={styles.activityTooltipSeries}>
-              <span className={styles.activityTooltipDot} style={{ backgroundColor: row.color }} />
+              <span
+                className={styles.activityTooltipDot}
+                style={{ backgroundColor: row.color }}
+              />
               <span>{row.label}</span>
             </div>
             <strong className={styles.activityTooltipValue}>{row.value}</strong>
@@ -173,14 +250,34 @@ export function ActivityChart({
   totalLabel: string;
   totalFormatter?: (value: number) => string;
 }>) {
-  const [hiddenSeries, setHiddenSeries] = useState<Set<ActivitySeriesKey>>(new Set());
-  const data: ActivityPoint[] = precision === "day"
-    ? overview.byDay.map((item) => ({ label: fmtDate(item.date), total: item.total, uniqueUsers: item.uniqueUsers, uniqueChannels: item.uniqueChannels }))
-    : precision === "hour-timeline"
-      ? overview.byHourTimeline.map((item) => ({ label: fmtDatetime(item.datetime), total: item.total, uniqueUsers: item.uniqueUsers, uniqueChannels: item.uniqueChannels }))
-      : overview.byHour.map((item) => ({ label: fmtHour(item.hour), total: item.total, uniqueUsers: item.uniqueUsers, uniqueChannels: item.uniqueChannels }));
+  const [hiddenSeries, setHiddenSeries] = useState<Set<ActivitySeriesKey>>(
+    new Set(),
+  );
+  const data: ActivityPoint[] =
+    precision === "day"
+      ? overview.byDay.map((item) => ({
+          label: fmtDate(item.date),
+          total: item.total,
+          uniqueUsers: item.uniqueUsers,
+          uniqueChannels: item.uniqueChannels,
+        }))
+      : precision === "hour-timeline"
+        ? overview.byHourTimeline.map((item) => ({
+            label: fmtDatetime(item.datetime),
+            total: item.total,
+            uniqueUsers: item.uniqueUsers,
+            uniqueChannels: item.uniqueChannels,
+          }))
+        : overview.byHour.map((item) => ({
+            label: fmtHour(item.hour),
+            total: item.total,
+            uniqueUsers: item.uniqueUsers,
+            uniqueChannels: item.uniqueChannels,
+          }));
 
-  const hasActivity = data.some((item) => item.total > 0 || item.uniqueUsers > 0 || item.uniqueChannels > 0);
+  const hasActivity = data.some(
+    (item) => item.total > 0 || item.uniqueUsers > 0 || item.uniqueChannels > 0,
+  );
   if (!hasActivity) return <Empty />;
 
   const showTotal = !hiddenSeries.has("total");
@@ -200,34 +297,210 @@ export function ActivityChart({
   return (
     <div className={styles.activityChartShell}>
       <div className={styles.metricGrid}>
-        <MetricCard label={totalLabel} value={totalFormatter(overview.summary.total)} color={SERIES_COLORS.total} hidden={!showTotal} onClick={() => toggleSeries("total")} />
-        <MetricCard label="Membres uniques" value={fmtCompactCount(overview.summary.uniqueUsers)} color={SERIES_COLORS.users} hidden={!showUsers} onClick={() => toggleSeries("uniqueUsers")} />
-        <MetricCard label="Salons uniques" value={fmtCompactCount(overview.summary.uniqueChannels)} color={SERIES_COLORS.channels} hidden={!showChannels} onClick={() => toggleSeries("uniqueChannels")} />
+        <MetricCard
+          label={totalLabel}
+          value={totalFormatter(overview.summary.total)}
+          color={SERIES_COLORS.total}
+          hidden={!showTotal}
+          onClick={() => toggleSeries("total")}
+        />
+        <MetricCard
+          label="Membres uniques"
+          value={fmtCompactCount(overview.summary.uniqueUsers)}
+          color={SERIES_COLORS.users}
+          hidden={!showUsers}
+          onClick={() => toggleSeries("uniqueUsers")}
+        />
+        <MetricCard
+          label="Salons uniques"
+          value={fmtCompactCount(overview.summary.uniqueChannels)}
+          color={SERIES_COLORS.channels}
+          hidden={!showChannels}
+          onClick={() => toggleSeries("uniqueChannels")}
+        />
       </div>
       {precision === "hour" ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }} barGap={6} barCategoryGap="18%">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
-            {showTotal ? <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={totalFormatter} width={56} /> : null}
-            {showCountAxis ? <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} /> : null}
-            <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={(props) => <ActivityTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} totalLabel={totalLabel} totalFormatter={totalFormatter} />} />
-            {showTotal ? <Bar yAxisId="total" dataKey="total" fill={SERIES_COLORS.total} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
-            {showUsers ? <Bar yAxisId="counts" dataKey="uniqueUsers" fill={SERIES_COLORS.users} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
-            {showChannels ? <Bar yAxisId="counts" dataKey="uniqueChannels" fill={SERIES_COLORS.channels} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
+          <BarChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            barGap={6}
+            barCategoryGap="18%"
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#80848e", fontSize: 10 }}
+              interval={1}
+            />
+            {showTotal ? (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={totalFormatter}
+                width={56}
+              />
+            ) : null}
+            {showCountAxis ? (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            ) : null}
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              content={(props) => (
+                <ActivityTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                  totalLabel={totalLabel}
+                  totalFormatter={totalFormatter}
+                />
+              )}
+            />
+            {showTotal ? (
+              <Bar
+                yAxisId="total"
+                dataKey="total"
+                fill={SERIES_COLORS.total}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showUsers ? (
+              <Bar
+                yAxisId="counts"
+                dataKey="uniqueUsers"
+                fill={SERIES_COLORS.users}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showChannels ? (
+              <Bar
+                yAxisId="counts"
+                dataKey="uniqueChannels"
+                fill={SERIES_COLORS.channels}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
           </BarChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: precision === "hour-timeline" ? 10 : 11 }} interval={precision === "hour-timeline" ? "preserveStartEnd" : 0} minTickGap={20} />
-            {showTotal ? <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={totalFormatter} width={56} /> : null}
-            {showCountAxis ? <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} /> : null}
-            <Tooltip content={(props) => <ActivityTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} totalLabel={totalLabel} totalFormatter={totalFormatter} />} />
-            {showTotal ? <Line yAxisId="total" type="monotone" dataKey="total" stroke={SERIES_COLORS.total} strokeWidth={3} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
-            {showUsers ? <Line yAxisId="counts" type="monotone" dataKey="uniqueUsers" stroke={SERIES_COLORS.users} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
-            {showChannels ? <Line yAxisId="counts" type="monotone" dataKey="uniqueChannels" stroke={SERIES_COLORS.channels} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{
+                fill: "#80848e",
+                fontSize: precision === "hour-timeline" ? 10 : 11,
+              }}
+              interval={precision === "hour-timeline" ? "preserveStartEnd" : 0}
+              minTickGap={20}
+            />
+            {showTotal ? (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={totalFormatter}
+                width={56}
+              />
+            ) : null}
+            {showCountAxis ? (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            ) : null}
+            <Tooltip
+              content={(props) => (
+                <ActivityTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                  totalLabel={totalLabel}
+                  totalFormatter={totalFormatter}
+                />
+              )}
+            />
+            {showTotal ? (
+              <Line
+                yAxisId="total"
+                type="monotone"
+                dataKey="total"
+                stroke={SERIES_COLORS.total}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showUsers ? (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="uniqueUsers"
+                stroke={SERIES_COLORS.users}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showChannels ? (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="uniqueChannels"
+                stroke={SERIES_COLORS.channels}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -252,12 +525,23 @@ function MemberTooltip({
     .map((entry) => {
       const key = String(entry.dataKey ?? "");
       if (key === "total" && hideTotal) return null;
-      const labels: Record<string, string> = { total: "Total membres", joined: "Arrivées", left: "Départs" };
+      const labels: Record<string, string> = {
+        total: "Total membres",
+        joined: "Arrivées",
+        left: "Départs",
+      };
       const colors: Record<string, string> = MEMBER_SERIES_COLORS;
       if (!(key in labels)) return null;
-      return { label: labels[key], value: fmtCompactCount(entry.value ?? 0), color: colors[key] };
+      return {
+        label: labels[key],
+        value: fmtCompactCount(entry.value ?? 0),
+        color: colors[key],
+      };
     })
-    .filter((entry): entry is { label: string; value: string; color: string } => entry !== null);
+    .filter(
+      (entry): entry is { label: string; value: string; color: string } =>
+        entry !== null,
+    );
 
   if (rows.length === 0) return null;
 
@@ -268,7 +552,10 @@ function MemberTooltip({
         {rows.map((row) => (
           <div key={row.label} className={styles.activityTooltipRow}>
             <div className={styles.activityTooltipSeries}>
-              <span className={styles.activityTooltipDot} style={{ backgroundColor: row.color }} />
+              <span
+                className={styles.activityTooltipDot}
+                style={{ backgroundColor: row.color }}
+              />
               <span>{row.label}</span>
             </div>
             <strong className={styles.activityTooltipValue}>{row.value}</strong>
@@ -283,12 +570,30 @@ export function MemberChart({
   overview,
   precision,
 }: Readonly<{ overview: MemberOverview; precision: Precision }>) {
-  const [hiddenSeries, setHiddenSeries] = useState<Set<MemberSeriesKey>>(new Set());
-  const data: MemberPoint[] = precision === "day"
-    ? overview.byDay.map((item) => ({ label: fmtDate(item.date), total: item.total, joined: item.joined, left: item.left }))
-    : precision === "hour-timeline"
-      ? overview.byHourTimeline.map((item) => ({ label: fmtDatetime(item.datetime), total: item.total, joined: item.joined, left: item.left }))
-      : overview.byHour.map((item) => ({ label: fmtHour(item.hour), total: 0, joined: item.joined, left: item.left }));
+  const [hiddenSeries, setHiddenSeries] = useState<Set<MemberSeriesKey>>(
+    new Set(),
+  );
+  const data: MemberPoint[] =
+    precision === "day"
+      ? overview.byDay.map((item) => ({
+          label: fmtDate(item.date),
+          total: item.total,
+          joined: item.joined,
+          left: item.left,
+        }))
+      : precision === "hour-timeline"
+        ? overview.byHourTimeline.map((item) => ({
+            label: fmtDatetime(item.datetime),
+            total: item.total,
+            joined: item.joined,
+            left: item.left,
+          }))
+        : overview.byHour.map((item) => ({
+            label: fmtHour(item.hour),
+            total: 0,
+            joined: item.joined,
+            left: item.left,
+          }));
 
   const hasActivity = data.some((item) => item.joined > 0 || item.left > 0);
   if (!hasActivity) return <Empty />;
@@ -309,34 +614,207 @@ export function MemberChart({
   return (
     <div className={styles.activityChartShell}>
       <div className={styles.metricGrid}>
-        <MetricCard label="Total membres" value={fmtCompactCount(overview.summary.total)} color={MEMBER_SERIES_COLORS.total} hidden={!showTotal} onClick={() => toggleSeries("total")} />
-        <MetricCard label="Arrivées" value={fmtCompactCount(overview.summary.joined)} color={MEMBER_SERIES_COLORS.joined} hidden={!showJoined} onClick={() => toggleSeries("joined")} />
-        <MetricCard label="Départs" value={fmtCompactCount(overview.summary.left)} color={MEMBER_SERIES_COLORS.left} hidden={!showLeft} onClick={() => toggleSeries("left")} />
+        <MetricCard
+          label="Total membres"
+          value={fmtCompactCount(overview.summary.total)}
+          color={MEMBER_SERIES_COLORS.total}
+          hidden={!showTotal}
+          onClick={() => toggleSeries("total")}
+        />
+        <MetricCard
+          label="Arrivées"
+          value={fmtCompactCount(overview.summary.joined)}
+          color={MEMBER_SERIES_COLORS.joined}
+          hidden={!showJoined}
+          onClick={() => toggleSeries("joined")}
+        />
+        <MetricCard
+          label="Départs"
+          value={fmtCompactCount(overview.summary.left)}
+          color={MEMBER_SERIES_COLORS.left}
+          hidden={!showLeft}
+          onClick={() => toggleSeries("left")}
+        />
       </div>
       {precision === "hour" ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }} barGap={6} barCategoryGap="18%">
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: 10 }} interval={1} />
-            {showTotal ? <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={56} /> : null}
-            {showJoined || showLeft ? <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} /> : null}
-            <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={(props) => <MemberTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} hideTotal />} />
-            {showTotal ? <Bar yAxisId="total" dataKey="total" fill={MEMBER_SERIES_COLORS.total} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
-            {showJoined ? <Bar yAxisId="counts" dataKey="joined" fill={MEMBER_SERIES_COLORS.joined} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
-            {showLeft ? <Bar yAxisId="counts" dataKey="left" fill={MEMBER_SERIES_COLORS.left} radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} animationEasing="ease-out" /> : null}
+          <BarChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            barGap={6}
+            barCategoryGap="18%"
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#80848e", fontSize: 10 }}
+              interval={1}
+            />
+            {showTotal ? (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={56}
+              />
+            ) : null}
+            {showJoined || showLeft ? (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            ) : null}
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.04)" }}
+              content={(props) => (
+                <MemberTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                  hideTotal
+                />
+              )}
+            />
+            {showTotal ? (
+              <Bar
+                yAxisId="total"
+                dataKey="total"
+                fill={MEMBER_SERIES_COLORS.total}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showJoined ? (
+              <Bar
+                yAxisId="counts"
+                dataKey="joined"
+                fill={MEMBER_SERIES_COLORS.joined}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showLeft ? (
+              <Bar
+                yAxisId="counts"
+                dataKey="left"
+                fill={MEMBER_SERIES_COLORS.left}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
+            ) : null}
           </BarChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis dataKey="label" tick={{ fill: "#80848e", fontSize: precision === "hour-timeline" ? 10 : 11 }} interval={precision === "hour-timeline" ? "preserveStartEnd" : 0} minTickGap={20} />
-            {showTotal ? <YAxis yAxisId="total" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={56} /> : null}
-            {showJoined || showLeft ? <YAxis yAxisId="counts" orientation="right" tick={{ fill: "#80848e", fontSize: 11 }} allowDecimals={false} tickFormatter={fmtCompactCount} width={42} /> : null}
-            <Tooltip content={(props) => <MemberTooltip active={props.active} label={typeof props.label === "string" ? props.label : undefined} payload={props.payload as readonly ActivityTooltipEntry[] | undefined} />} />
-            {showTotal ? <Line yAxisId="total" type="monotone" dataKey="total" stroke={MEMBER_SERIES_COLORS.total} strokeWidth={3} dot={false} activeDot={{ r: 5, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
-            {showJoined ? <Line yAxisId="counts" type="monotone" dataKey="joined" stroke={MEMBER_SERIES_COLORS.joined} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
-            {showLeft ? <Line yAxisId="counts" type="monotone" dataKey="left" stroke={MEMBER_SERIES_COLORS.left} strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} isAnimationActive animationDuration={600} animationEasing="ease-out" /> : null}
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.06)"
+            />
+            <XAxis
+              dataKey="label"
+              tick={{
+                fill: "#80848e",
+                fontSize: precision === "hour-timeline" ? 10 : 11,
+              }}
+              interval={precision === "hour-timeline" ? "preserveStartEnd" : 0}
+              minTickGap={20}
+            />
+            {showTotal ? (
+              <YAxis
+                yAxisId="total"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={56}
+              />
+            ) : null}
+            {showJoined || showLeft ? (
+              <YAxis
+                yAxisId="counts"
+                orientation="right"
+                tick={{ fill: "#80848e", fontSize: 11 }}
+                allowDecimals={false}
+                tickFormatter={fmtCompactCount}
+                width={42}
+              />
+            ) : null}
+            <Tooltip
+              content={(props) => (
+                <MemberTooltip
+                  active={props.active}
+                  label={
+                    typeof props.label === "string" ? props.label : undefined
+                  }
+                  payload={
+                    props.payload as readonly ActivityTooltipEntry[] | undefined
+                  }
+                />
+              )}
+            />
+            {showTotal ? (
+              <Line
+                yAxisId="total"
+                type="monotone"
+                dataKey="total"
+                stroke={MEMBER_SERIES_COLORS.total}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showJoined ? (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="joined"
+                stroke={MEMBER_SERIES_COLORS.joined}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
+            {showLeft ? (
+              <Line
+                yAxisId="counts"
+                type="monotone"
+                dataKey="left"
+                stroke={MEMBER_SERIES_COLORS.left}
+                strokeWidth={2.4}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                isAnimationActive
+                animationDuration={600}
+                animationEasing="ease-out"
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -348,13 +826,23 @@ export function UserTable({
   rows,
   formatValue,
 }: Readonly<{ rows: UserValue[]; formatValue: (value: number) => string }>) {
-  const [tooltip, setTooltip] = useState<{ userID: string; x: number; y: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    userID: string;
+    x: number;
+    y: number;
+  } | null>(null);
   if (rows.length === 0) return <Empty />;
 
   return (
     <div className={styles.tableShell}>
       <table className={styles.table}>
-        <thead><tr><th className={styles.thRank}>#</th><th className={styles.thUser}>Utilisateur</th><th className={styles.thValue}>Valeur</th></tr></thead>
+        <thead>
+          <tr>
+            <th className={styles.thRank}>#</th>
+            <th className={styles.thUser}>Utilisateur</th>
+            <th className={styles.thValue}>Valeur</th>
+          </tr>
+        </thead>
       </table>
       <div className={styles.tableScroll}>
         <table className={styles.table}>
@@ -366,12 +854,27 @@ export function UserTable({
                   <td className={styles.tdRank}>{index + 1}</td>
                   <td className={styles.tdUser}>
                     <div className={styles.userCell}>
-                      {row.avatarURL ? <img src={row.avatarURL} alt="" className={styles.userAvatar} /> : <span className={styles.userAvatarFallback}>{name.slice(0, 2).toUpperCase()}</span>}
+                      {row.avatarURL ? (
+                        <img
+                          src={row.avatarURL}
+                          alt=""
+                          className={styles.userAvatar}
+                        />
+                      ) : (
+                        <span className={styles.userAvatarFallback}>
+                          {name.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
                       <span
                         className={styles.userName}
                         onMouseEnter={(event) => {
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          setTooltip({ userID: row.userID, x: rect.left, y: rect.bottom + 6 });
+                          const rect =
+                            event.currentTarget.getBoundingClientRect();
+                          setTooltip({
+                            userID: row.userID,
+                            x: rect.left,
+                            y: rect.bottom + 6,
+                          });
                         }}
                         onMouseLeave={() => setTooltip(null)}
                       >
@@ -386,7 +889,14 @@ export function UserTable({
           </tbody>
         </table>
       </div>
-      {tooltip ? <span className={`${styles.userIDTooltip} ${styles.userIDTooltipFloating}`} style={{ left: tooltip.x, top: tooltip.y }}>{tooltip.userID}</span> : null}
+      {tooltip ? (
+        <span
+          className={`${styles.userIDTooltip} ${styles.userIDTooltipFloating}`}
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          {tooltip.userID}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -406,32 +916,69 @@ export function ChannelPie({
     .filter((entry) => !hiddenNames.has(entry.name))
     .map((entry) => ({
       ...entry,
-      fill: CHART_COLORS[data.findIndex((candidate) => candidate.name === entry.name) % CHART_COLORS.length],
+      fill: CHART_COLORS[
+        data.findIndex((candidate) => candidate.name === entry.name) %
+          CHART_COLORS.length
+      ],
     }));
   const total = visible.reduce((sum, entry) => sum + entry.value, 0);
 
   return (
     <div className={styles.pieCard}>
       <div className={styles.pieViewToggle}>
-        <SegmentedControl value={mode} onChange={setMode} options={[{ value: "pie", label: "Donut" }, { value: "list", label: "Liste" }]} />
+        <div className={styles.precisionToggle}>
+          {[
+            { value: "pie", label: "Donut" },
+            { value: "list", label: "Liste" },
+          ].map((option) => (
+            <button
+              key={option.value}
+              className={`${styles.precisionBtn} ${mode === option.value ? styles.precisionBtnActive : ""}`}
+              onClick={() => setMode(option.value as "pie" | "list")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       {mode === "pie" ? (
         <>
           <ResponsiveContainer width="100%" height={320}>
             <PieChart>
-              <Pie data={visible} dataKey="value" nameKey="name" fill="#5865f2" cx="50%" cy="50%" innerRadius={54} outerRadius={118} paddingAngle={2} isAnimationActive animationDuration={500} animationEasing="ease-out" />
+              <Pie
+                data={visible}
+                dataKey="value"
+                nameKey="name"
+                fill="#5865f2"
+                cx="50%"
+                cy="50%"
+                innerRadius={54}
+                outerRadius={118}
+                paddingAngle={2}
+                isAnimationActive
+                animationDuration={500}
+                animationEasing="ease-out"
+              />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
-                  const item = payload[0]?.payload as { name: string; value: number } | undefined;
+                  const item = payload[0]?.payload as
+                    | { name: string; value: number }
+                    | undefined;
                   if (!item) return null;
                   const percentage = total > 0 ? (item.value / total) * 100 : 0;
                   return (
                     <div className={styles.activityTooltip}>
-                      <div className={styles.activityTooltipLabel}>{item.name}</div>
+                      <div className={styles.activityTooltipLabel}>
+                        {item.name}
+                      </div>
                       <div className={styles.activityTooltipRows}>
-                        <div className={styles.activityTooltipRow}><span>{formatValue(item.value)}</span></div>
-                        <div className={styles.activityTooltipRow}><span>{percentage.toFixed(1)}%</span></div>
+                        <div className={styles.activityTooltipRow}>
+                          <span>{formatValue(item.value)}</span>
+                        </div>
+                        <div className={styles.activityTooltipRow}>
+                          <span>{percentage.toFixed(1)}%</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -455,9 +1002,17 @@ export function ChannelPie({
                       return next;
                     });
                   }}
-                  title={hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`}
+                  title={
+                    hidden ? `Afficher ${entry.name}` : `Masquer ${entry.name}`
+                  }
                 >
-                  <span className={styles.pieLegendSwatch} style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <span
+                    className={styles.pieLegendSwatch}
+                    style={{
+                      backgroundColor:
+                        CHART_COLORS[index % CHART_COLORS.length],
+                    }}
+                  />
                   <span className={styles.pieLegendLabel}>{entry.name}</span>
                 </button>
               );
@@ -467,7 +1022,13 @@ export function ChannelPie({
       ) : (
         <div className={styles.tableShell}>
           <table className={styles.table}>
-            <thead><tr><th className={styles.thRank}>#</th><th>Salon</th><th className={styles.thValue}>Valeur</th></tr></thead>
+            <thead>
+              <tr>
+                <th className={styles.thRank}>#</th>
+                <th>Salon</th>
+                <th className={styles.thValue}>Valeur</th>
+              </tr>
+            </thead>
           </table>
           <div className={styles.tableScroll}>
             <table className={styles.table}>
@@ -476,10 +1037,18 @@ export function ChannelPie({
                   <tr key={entry.name} className={styles.tr}>
                     <td className={styles.tdRank}>{index + 1}</td>
                     <td className={styles.tdChannel}>
-                      <span className={styles.channelSwatch} style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                      <span
+                        className={styles.channelSwatch}
+                        style={{
+                          backgroundColor:
+                            CHART_COLORS[index % CHART_COLORS.length],
+                        }}
+                      />
                       <span className={styles.channelName}>{entry.name}</span>
                     </td>
-                    <td className={styles.tdValue}>{formatValue(entry.value)}</td>
+                    <td className={styles.tdValue}>
+                      {formatValue(entry.value)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -1,18 +1,18 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
-import styles from "./Moderation.module.css";
+import { AppealsSection } from "@/app/moderation/sections/AppealsSection";
+import { FlagsSection } from "@/app/moderation/sections/FlagsSection";
+import { ReportsSection } from "@/app/moderation/sections/ReportsSection";
+import { SanctionsSection } from "@/app/moderation/sections/SanctionsSection";
 import { fetchAppeals, fetchFlags, fetchReports, fetchSanctions, patchAppeal, patchSanction } from "@/features/moderation/api";
+import { SidebarCard } from "@/features/moderation/components/shared";
 import { FLAG_STATUS_LABELS, REPORT_STATUS_LABELS, TYPE_LABELS } from "@/features/moderation/constants";
 import { toDraft } from "@/features/moderation/helpers";
 import { usePreloadUserMetas } from "@/features/moderation/hooks/userMeta";
-import { AppealsSection } from "@/features/moderation/sections/AppealsSection";
-import { FlagsSection } from "@/features/moderation/sections/FlagsSection";
-import { ReportsSection } from "@/features/moderation/sections/ReportsSection";
-import { SanctionsSection } from "@/features/moderation/sections/SanctionsSection";
-import { SidebarCard } from "@/features/moderation/components/shared";
 import type { AppealDecision, AppealItem, FlaggedMessageItem, ModerationReportItem, SanctionDraft, SanctionItem, Tab } from "@/features/moderation/types";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import styles from "./Moderation.module.css";
 
 export default function ModerationPage() {
   return (

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import styles from "@/app/moderation/Moderation.module.css";
-import { Avatar, UserCard, useUserMeta } from "../hooks/userMeta";
+import { useEffect, useRef, useState } from "react";
 import { SEVERITY_LABELS, SEVERITY_LEVELS, TYPE_LABELS } from "../constants";
 import { formatDate, formatDuration, truncate } from "../helpers";
+import { Avatar, UserCard, useUserMeta } from "../hooks/userMeta";
 import type { ContextMessage, SanctionDraft, SanctionState, Severity } from "../types";
 
 export function IconEdit() {
@@ -103,7 +103,7 @@ export function SidebarCard(props: {
   const name = meta?.displayName || meta?.username || props.userID;
 
   return (
-    <button className={`${styles.card} ${props.active ? styles.cardActive : ""}`} onClick={props.onClick} aria-pressed={props.active}>
+    <button className={`${styles.card} ${styles[`cardSev${props.severity ?? "NONE"}`] ?? ""} ${props.active ? styles.cardActive : ""}`} onClick={props.onClick} aria-pressed={props.active}>
       <div className={styles.cardRow}>
         <Avatar src={meta?.avatarURL ?? ""} name={name} size={30} />
         <div className={styles.cardInfo}>
@@ -245,3 +245,4 @@ export function SanctionEditor({ draft, onChange, isEditing }: Readonly<{ draft:
 }
 
 export { UserCard };
+

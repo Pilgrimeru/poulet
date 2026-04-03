@@ -1,10 +1,23 @@
 "use client";
 
 import styles from "@/app/moderation/Moderation.module.css";
-import { Collapsible, ContextViewer, SeverityTag, UserCard } from "../components/shared";
-import { NATURE_LABELS, REPORT_STATUS_LABELS, SEVERITY_LABELS, TYPE_LABELS } from "../constants";
-import { formatDate, getStatusClassName } from "../helpers";
-import type { ModerationReportItem, SanctionItem } from "../types";
+import {
+  Collapsible,
+  ContextViewer,
+  SeverityTag,
+  UserCard,
+} from "@/features/moderation/components/shared";
+import {
+  NATURE_LABELS,
+  REPORT_STATUS_LABELS,
+  SEVERITY_LABELS,
+  TYPE_LABELS,
+} from "@/features/moderation/constants";
+import { formatDate, getStatusClassName } from "@/features/moderation/helpers";
+import type {
+  ModerationReportItem,
+  SanctionItem,
+} from "@/features/moderation/types";
 
 export function ReportsSection({
   guildID,
@@ -25,10 +38,20 @@ export function ReportsSection({
         <div className={styles.heroTitleGroup}>
           <span className={styles.heroKind}>Signalement</span>
           <div className={styles.heroMeta}>
-            <span className={styles.heroDate}>{formatDate(report.createdAt)}</span>
-            <span className={`${styles.statusBadge} ${getStatusClassName(report.status)}`}>{REPORT_STATUS_LABELS[report.status]}</span>
+            <span className={styles.heroDate}>
+              {formatDate(report.createdAt)}
+            </span>
+            <span
+              className={`${styles.statusBadge} ${getStatusClassName(report.status)}`}
+            >
+              {REPORT_STATUS_LABELS[report.status]}
+            </span>
             {aiSummary?.severity && <SeverityTag value={aiSummary.severity} />}
-            {aiSummary?.nature && <span className={styles.categoryBadge}>{NATURE_LABELS[aiSummary.nature]}</span>}
+            {aiSummary?.nature && (
+              <span className={styles.categoryBadge}>
+                {NATURE_LABELS[aiSummary.nature]}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -41,18 +64,30 @@ export function ReportsSection({
             </div>
 
             <div className={styles.userGrid}>
-              <UserCard guildID={guildID} userID={report.reporterID} label="Signalant" />
-              <UserCard guildID={guildID} userID={report.targetUserID} label="Mis en cause" />
+              <UserCard
+                guildID={guildID}
+                userID={report.reporterID}
+                label="Signalant"
+              />
+              <UserCard
+                guildID={guildID}
+                userID={report.targetUserID}
+                label="Mis en cause"
+              />
             </div>
 
             <div className={styles.factsGrid}>
               <div className={styles.fact}>
                 <span className={styles.label}>Confirmations</span>
-                <span className={styles.factValue}>{report.confirmationCount ?? 0}</span>
+                <span className={styles.factValue}>
+                  {report.confirmationCount ?? 0}
+                </span>
               </div>
               <div className={styles.fact}>
                 <span className={styles.label}>Violation</span>
-                <span className={styles.factValue}>{aiSummary?.isViolation ? "Oui" : "Non"}</span>
+                <span className={styles.factValue}>
+                  {aiSummary?.isViolation ? "Oui" : "Non"}
+                </span>
               </div>
             </div>
 
@@ -71,7 +106,10 @@ export function ReportsSection({
             )}
           </section>
 
-          <section className={styles.panel} aria-label="Sanction liée au signalement">
+          <section
+            className={styles.panel}
+            aria-label="Sanction liée au signalement"
+          >
             <div className={styles.panelHeader}>
               <h2 className={styles.panelTitle}>Sanction liée</h2>
             </div>
@@ -81,18 +119,27 @@ export function ReportsSection({
                 <div className={styles.factsGrid}>
                   <div className={styles.fact}>
                     <span className={styles.label}>Type</span>
-                    <span className={styles.factValue}>{TYPE_LABELS[linkedSanction.type]}</span>
+                    <span className={styles.factValue}>
+                      {TYPE_LABELS[linkedSanction.type]}
+                    </span>
                   </div>
                   <div className={styles.fact}>
                     <span className={styles.label}>Sévérité</span>
-                    <span className={styles.factValue}>{SEVERITY_LABELS[linkedSanction.severity]}</span>
+                    <span className={styles.factValue}>
+                      {SEVERITY_LABELS[linkedSanction.severity]}
+                    </span>
                   </div>
                   <div className={styles.fact}>
                     <span className={styles.label}>Nature</span>
-                    <span className={styles.factValue}>{NATURE_LABELS[linkedSanction.nature]}</span>
+                    <span className={styles.factValue}>
+                      {NATURE_LABELS[linkedSanction.nature]}
+                    </span>
                   </div>
                 </div>
-                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => onNavigateToSanction(linkedSanction.id)}>
+                <button
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={() => onNavigateToSanction(linkedSanction.id)}
+                >
                   Voir la sanction →
                 </button>
               </>

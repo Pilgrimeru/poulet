@@ -89,7 +89,9 @@
   font-size: 13px;
   padding: 5px 12px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .presetBtn:last-child {
@@ -193,7 +195,11 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .seriesToggleBtn:hover {
@@ -217,7 +223,7 @@
   min-width: 190px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: #20242c;
   color: #dcdee1;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
@@ -273,10 +279,10 @@
   padding: 14px 16px;
   padding-left: 18px;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--metric-color) 32%, rgba(255,255,255,0.06));
+  border: 1px solid
+    color-mix(in srgb, var(--metric-color) 32%, rgba(255, 255, 255, 0.06));
   background: color-mix(in srgb, var(--bg-tertiary) 92%, black);
-  box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
   overflow: hidden;
 }
 
@@ -296,7 +302,9 @@
 
 .metricCardClickable {
   cursor: pointer;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
+  transition:
+    opacity var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .metricCardClickable:hover {
@@ -327,10 +335,6 @@
 .pieViewToggle {
   display: flex;
   align-self: flex-end;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
   flex-shrink: 0;
 }
 
@@ -376,7 +380,10 @@
   font-size: 12px;
   padding: 6px 10px;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .pieLegendItem:hover {
@@ -403,7 +410,7 @@
 
 .precisionToggle {
   display: flex;
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -416,10 +423,12 @@
   border-right: 1px solid var(--border-subtle);
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 12px;
-  padding: 3px 10px;
+  font-size: 13px;
+  padding: 5px 12px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .precisionBtn:last-child {
@@ -453,7 +462,11 @@
   font-size: 12px;
   padding: 5px 10px;
   cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .refreshBtn:hover {
@@ -480,8 +493,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .empty {
@@ -623,8 +640,17 @@
   background: color-mix(in srgb, var(--text-primary) 55%, transparent);
 }
 
-.thRank { width: 28px; text-align: center !important; padding-left: 6px !important; padding-right: 6px !important; }
-.thValue { text-align: right !important; width: 116px; padding-right: 16px !important; }
+.thRank {
+  width: 28px;
+  text-align: center !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+.thValue {
+  text-align: right !important;
+  width: 116px;
+  padding-right: 16px !important;
+}
 
 .tr {
   border-bottom: 1px solid var(--border-subtle);
@@ -710,7 +736,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 11px;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: "Courier New", Courier, monospace;
   padding: 3px 7px;
   white-space: nowrap;
   pointer-events: none;
