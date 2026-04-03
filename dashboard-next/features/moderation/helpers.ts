@@ -1,6 +1,6 @@
 "use client";
 
-import styles from "./Moderation.module.css";
+import styles from "@/app/moderation/Moderation.module.css";
 import { type FlaggedMessageStatus, type ModerationReportStatus, type SanctionDraft, type SanctionItem } from "./types";
 
 export function formatDate(value: number | null): string {

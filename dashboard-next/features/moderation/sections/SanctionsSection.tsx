@@ -1,9 +1,9 @@
 "use client";
 
-import styles from "../Moderation.module.css";
+import styles from "@/app/moderation/Moderation.module.css";
+import { IconEdit, IconSave, IconUndo, SanctionEditor, SeverityTag, UserCard } from "../components/shared";
 import { NATURE_LABELS, TYPE_LABELS } from "../constants";
 import { formatDate, formatDuration, toDraft } from "../helpers";
-import { IconEdit, IconSave, IconUndo, SanctionEditor, SeverityTag, UserCard } from "../components";
 import type { SanctionDraft, SanctionItem, SourceMeta } from "../types";
 
 export function SanctionsSection({

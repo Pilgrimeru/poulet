@@ -1,9 +1,9 @@
 "use client";
 
-import styles from "../Moderation.module.css";
+import styles from "@/app/moderation/Moderation.module.css";
+import { Collapsible, ContextViewer, SeverityTag, UserCard } from "../components/shared";
 import { NATURE_LABELS, REPORT_STATUS_LABELS, SEVERITY_LABELS, TYPE_LABELS } from "../constants";
 import { formatDate, getStatusClassName } from "../helpers";
-import { Collapsible, ContextViewer, SeverityTag, UserCard } from "../components";
 import type { ModerationReportItem, SanctionItem } from "../types";
 
 export function ReportsSection({

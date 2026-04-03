@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import styles from "./Moderation.module.css";
-import { SEVERITY_LABELS, SEVERITY_LEVELS, TYPE_LABELS } from "./constants";
-import { formatDate, formatDuration, truncate } from "./helpers";
-import { Avatar, UserCard, useUserMeta } from "./userMeta";
-import type { ContextMessage, SanctionDraft, SanctionState, Severity } from "./types";
+import styles from "@/app/moderation/Moderation.module.css";
+import { Avatar, UserCard, useUserMeta } from "../hooks/userMeta";
+import { SEVERITY_LABELS, SEVERITY_LEVELS, TYPE_LABELS } from "../constants";
+import { formatDate, formatDuration, truncate } from "../helpers";
+import type { ContextMessage, SanctionDraft, SanctionState, Severity } from "../types";
 
 export function IconEdit() {
   return (

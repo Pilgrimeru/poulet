@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import styles from "./Moderation.module.css";
-import type { UserMeta } from "./types";
+import styles from "@/app/moderation/Moderation.module.css";
+import type { UserMeta } from "../types";
 
 const userMetaCache = new Map<string, UserMeta>();
 

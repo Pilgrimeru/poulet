@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import styles from "../Moderation.module.css";
+import styles from "@/app/moderation/Moderation.module.css";
+import { IconEdit, IconExternalLink, IconSave, IconUndo, SanctionEditor, UserCard } from "../components/shared";
 import { NATURE_LABELS, SEVERITY_LABELS } from "../constants";
 import { formatDate, toDraft } from "../helpers";
-import { IconEdit, IconExternalLink, IconSave, IconUndo, SanctionEditor, UserCard } from "../components";
 import type { AppealDecision, AppealItem, SanctionDraft, SanctionItem, SourceMeta } from "../types";
 
 export function AppealsSection({
