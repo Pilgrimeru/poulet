@@ -1,6 +1,6 @@
 import { EmbedBuilder, GuildMember, TextChannel } from "discord.js";
 import { Event } from "@/discord/types";
-import { guildSettingsService } from "@/api";
+import { guildSettingsService, userMetaService } from "@/api";
 import { memberEventService } from "@/api/memberEventService";
 import { findUsedInvite } from "@/services/inviteTrackerService";
 import { config } from "@/app";
@@ -8,6 +8,13 @@ import { config } from "@/app";
 export default new Event("guildMemberAdd", async (member: GuildMember) => {
   if (!member.user.bot) {
     memberEventService.recordJoin(member.guild.id, member.user.id).catch(() => undefined);
+    userMetaService.upsert(
+      member.user.id,
+      member.guild.id,
+      member.user.username,
+      member.nickname ?? member.user.globalName ?? member.user.username,
+      member.displayAvatarURL(),
+    ).catch(() => undefined);
   }
 
   const settings = await guildSettingsService.getByGuildID(member.guild.id).catch(() => null);

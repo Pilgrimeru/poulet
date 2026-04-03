@@ -46,7 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ guildId:
     const [msgByChannel, voiceByChannel, userMetas] = await Promise.all([
       hydrateChannelValues(guildId, msgByChannelRaw),
       hydrateChannelValues(guildId, voiceByChannelRaw),
-      getUserMetas(allUserIDs),
+      getUserMetas(guildId, allUserIDs),
     ]);
 
     const msgByUser = msgByUserRaw.map((r) => ({ ...r, ...(userMetas.get(r.userID) ?? {}) }));

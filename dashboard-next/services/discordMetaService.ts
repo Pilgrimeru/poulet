@@ -3,6 +3,7 @@ import { config as dotenvConfig } from "dotenv";
 import { Op } from "sequelize";
 import type { ChannelEntry, GuildEntry, MessageSnapshotDTO } from "@/types";
 import { ChannelMeta } from "@/models/ChannelMeta";
+import { ensureChannelMetaSchema } from "@/services/channelMetaService";
 import type { UserMeta } from "@/services/statsService";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
@@ -275,6 +276,7 @@ export async function hydrateChannelValues<T extends { channelID: string }>(
   if (rows.length === 0) return [];
 
   const channelIDs = [...new Set(rows.map((row) => row.channelID))];
+  await ensureChannelMetaSchema();
   const fallbackMetas = await ChannelMeta.findAll({
     attributes: ["channelID", "name", "parentID", "parentName", "channelType"],
     where: {

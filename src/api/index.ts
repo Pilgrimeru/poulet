@@ -21,3 +21,4 @@ export { flaggedMessageApiService } from "./flaggedMessageApiService";
 export type { FlaggedMessageDTO, ContextMessage } from "./flaggedMessageApiService";
 export { moderationReportApiService } from "./moderationReportApiService";
 export type { ModerationReportDTO, ReportContext } from "./moderationReportApiService";
+export { userMetaService } from "./userMetaService";

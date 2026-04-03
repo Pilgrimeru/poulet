@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "./client";
+import { apiDeleteWithBody, apiGet, apiPost } from "./client";
 
 export interface GuildChannelMetaDTO {
   channelID: string;
@@ -22,6 +22,14 @@ export const channelMetaService = {
     channelType?: number | null;
   }>): Promise<void> {
     await apiPost("/channel-meta", { rows });
+  },
+
+  async markDeleted(channelID: string): Promise<void> {
+    await apiDeleteWithBody("/channel-meta", { channelID });
+  },
+
+  async markDeletedExcept(guildID: string, activeChannelIDs: string[]): Promise<void> {
+    await apiDeleteWithBody("/channel-meta", { guildID, activeChannelIDs });
   },
 
   async listByGuild(guildID: string): Promise<GuildChannelMetaDTO[]> {

@@ -55,3 +55,14 @@ export async function apiDelete<T = void>(path: string, params?: Record<string, 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+export async function apiDeleteWithBody<T = void>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: createHeaders(true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API DELETE ${path} failed: ${res.status}`);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}

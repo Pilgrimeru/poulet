@@ -1,4 +1,4 @@
-import { appealApiService, channelMetaService, deafSessionService, guildMetaService, messageSnapshotService, sanctionApiService, voiceSessionService } from "@/api";
+import { appealApiService, channelMetaService, deafSessionService, guildMetaService, messageSnapshotService, sanctionApiService, userMetaService, voiceSessionService } from "@/api";
 import { memberEventService } from "@/api/memberEventService";
 import { bot } from "@/app/runtime";
 import { startStatsReportScheduler } from "@/discord/components";
@@ -48,6 +48,14 @@ export default new Event("clientReady", () => {
 
     await guildMetaService.bulkUpsert(guildRows);
     await channelMetaService.bulkUpsert(channelRows);
+
+    // Soft-delete channels that are no longer in Discord (per guild)
+    for (const guild of bot.guilds.cache.values()) {
+      const activeIDs = channelRows
+        .filter((r) => r.guildID === guild.id)
+        .map((r) => r.channelID);
+      await channelMetaService.markDeletedExcept(guild.id, activeIDs).catch(() => undefined);
+    }
   })();
   for (const guild of bot.guilds.cache.values()) {
     void cacheGuildInvites(guild);
@@ -56,7 +64,8 @@ export default new Event("clientReady", () => {
   void flushPendingSessions("deaf", (session) => deafSessionService.createSession(session));
   void bot.startSessionsForGuildMembers();
   void bot.startPollExpiration();
-  seedMemberJoins().catch((err) => console.error("[members] Erreur seed joins:", err));
+  seedMemberJoins().catch((err: unknown) => console.error("[members] Erreur seed joins:", err));
+  seedUserMetas().catch((err: unknown) => console.error("[userMeta] Erreur seed:", err));
   startStatsReportScheduler();
   registerPollHandlers();
   void syncOverturnedAppeals();
@@ -89,6 +98,35 @@ async function seedMemberJoins(): Promise<void> {
   if (events.length === 0) return;
   await memberEventService.seedJoins(events);
   console.log(`[members] ${events.length} jointure(s) seedée(s).`);
+}
+
+async function seedUserMetas(): Promise<void> {
+  const rows: Array<{ userID: string; guildID: string; username: string; displayName: string; avatarURL: string }> = [];
+
+  for (const guild of bot.guilds.cache.values()) {
+    const members = await guild.members.fetch().catch(() => guild.members.cache);
+    for (const member of members.values()) {
+      if (member.user.bot) continue;
+      rows.push({
+        userID: member.user.id,
+        guildID: guild.id,
+        username: member.user.username,
+        displayName: member.nickname ?? member.user.globalName ?? member.user.username,
+        avatarURL: member.displayAvatarURL(),
+      });
+    }
+  }
+
+  if (rows.length === 0) return;
+  await userMetaService.bulkUpsert(rows);
+
+  // Soft-delete members no longer in Discord (per guild)
+  for (const guild of bot.guilds.cache.values()) {
+    const activeIDs = rows.filter((r) => r.guildID === guild.id).map((r) => r.userID);
+    await userMetaService.markDeletedExcept(guild.id, activeIDs).catch(() => undefined);
+  }
+
+  console.log(`[userMeta] ${rows.length} membre(s) seedé(s).`);
 }
 
 async function syncOverturnedAppeals(): Promise<void> {

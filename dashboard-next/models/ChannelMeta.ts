@@ -8,6 +8,7 @@ class ChannelMeta extends Model {
   declare parentID: string | null;
   declare parentName: string | null;
   declare channelType: number | null;
+  declare isDeleted: boolean;
 }
 
 ChannelMeta.init(
@@ -18,6 +19,7 @@ ChannelMeta.init(
     parentID: { type: DataTypes.STRING, allowNull: true, defaultValue: null },
     parentName: { type: DataTypes.STRING, allowNull: true, defaultValue: null },
     channelType: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
+    isDeleted: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   },
   {
     sequelize,

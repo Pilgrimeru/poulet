@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { ChannelEntry } from "@/types";
 import { ChannelMeta } from "@/models/ChannelMeta";
+import { ensureChannelMetaSchema } from "@/services/channelMetaService";
 
 export async function GET(
   _req: Request,
@@ -8,8 +9,9 @@ export async function GET(
 ) {
   try {
     const { guildId } = await params;
+    await ensureChannelMetaSchema();
 
-    const rows = await ChannelMeta.findAll({ where: { guildID: guildId } });
+    const rows = await ChannelMeta.findAll({ where: { guildID: guildId, isDeleted: false } });
 
     const channels: ChannelEntry[] = rows.map((row) => ({
       channelID: row.channelID,

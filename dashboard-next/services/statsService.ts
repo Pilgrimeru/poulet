@@ -2,6 +2,7 @@ import { Op, QueryTypes } from "sequelize";
 import { sequelize } from "../lib/db";
 import { MessageHistory } from "../models/MessageHistory";
 import { VoiceSession } from "../models/VoiceSession";
+import { getUserMetasByIDs } from "./userMetaService";
 
 export interface UserMeta {
   userID: string;
@@ -134,38 +135,46 @@ function clamp(session: { start: number; end: number }, start: number, end: numb
   return Math.max(0, Math.min(session.end, end) - Math.max(session.start, start));
 }
 
-export async function getUserMetas(userIDs: string[]): Promise<Map<string, UserMeta>> {
+export async function getUserMetas(guildID: string, userIDs: string[]): Promise<Map<string, UserMeta>> {
   if (userIDs.length === 0) return new Map();
-  const placeholders = userIDs.map(() => "?").join(", ");
-  const rows = await sequelize.query<{
-    authorID: string;
-    authorUsername: string;
-    authorDisplayName: string;
-    authorAvatarURL: string;
-  }>(
-    `SELECT ms.authorID, ms.authorUsername, ms.authorDisplayName, ms.authorAvatarURL
-     FROM MessageSnapshots ms
-     INNER JOIN (
-       SELECT authorID, MAX(snapshotAt) AS maxSnap
-       FROM MessageSnapshots
-       WHERE authorID IN (${placeholders})
-       GROUP BY authorID
-     ) latest ON ms.authorID = latest.authorID AND ms.snapshotAt = latest.maxSnap
-     WHERE ms.authorID IN (${placeholders})`,
-    { replacements: [...userIDs, ...userIDs], type: QueryTypes.SELECT },
-  );
-  const map = new Map<string, UserMeta>();
-  for (const r of rows) {
-    if (!map.has(r.authorID)) {
-      map.set(r.authorID, {
-        userID: r.authorID,
-        username: r.authorUsername,
-        displayName: r.authorDisplayName,
-        avatarURL: r.authorAvatarURL,
-      });
+
+  // Primary source: dedicated UserMeta table (covers voice-only users too)
+  const metaMap = await getUserMetasByIDs(guildID, userIDs);
+
+  // Fallback: MessageSnapshot for users not yet in UserMeta
+  const missing = userIDs.filter((id) => !metaMap.has(id));
+  if (missing.length > 0) {
+    const placeholders = missing.map(() => "?").join(", ");
+    const rows = await sequelize.query<{
+      authorID: string;
+      authorUsername: string;
+      authorDisplayName: string;
+      authorAvatarURL: string;
+    }>(
+      `SELECT ms.authorID, ms.authorUsername, ms.authorDisplayName, ms.authorAvatarURL
+       FROM MessageSnapshots ms
+       INNER JOIN (
+         SELECT authorID, MAX(snapshotAt) AS maxSnap
+         FROM MessageSnapshots
+         WHERE authorID IN (${placeholders})
+         GROUP BY authorID
+       ) latest ON ms.authorID = latest.authorID AND ms.snapshotAt = latest.maxSnap
+       WHERE ms.authorID IN (${placeholders})`,
+      { replacements: [...missing, ...missing], type: QueryTypes.SELECT },
+    );
+    for (const r of rows) {
+      if (!metaMap.has(r.authorID)) {
+        metaMap.set(r.authorID, {
+          userID: r.authorID,
+          username: r.authorUsername,
+          displayName: r.authorDisplayName,
+          avatarURL: r.authorAvatarURL,
+        });
+      }
     }
   }
-  return map;
+
+  return metaMap;
 }
 
 export async function getMessageStatsByDay(
