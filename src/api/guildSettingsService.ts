@@ -13,6 +13,9 @@ export type GuildSettingsDTO = {
   sanctionDurationMs: number | null;
   moderationNotifChannelID: string;
   moderationModRoleID: string;
+  starboardChannelID: string;
+  starboardEmoji: string;
+  starboardThreshold: number;
 };
 
 const settingsCache = createTimedCache<string, GuildSettingsDTO>(30_000);

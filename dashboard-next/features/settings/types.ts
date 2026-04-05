@@ -9,6 +9,9 @@ export type GuildSettingsDTO = {
   sanctionDurationMs: number | null;
   moderationNotifChannelID: string;
   moderationModRoleID: string;
+  starboardChannelID: string;
+  starboardEmoji: string;
+  starboardThreshold: number;
 };
 
 export type SpamFilterMode = "whitelist" | "blacklist";
@@ -26,4 +29,4 @@ export type SpamRuleDTO = {
   enabled: boolean;
 };
 
-export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation";
+export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation" | "starboard";

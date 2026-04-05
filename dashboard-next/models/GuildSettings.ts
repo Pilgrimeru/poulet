@@ -13,6 +13,9 @@ class GuildSettings extends Model {
   declare sanctionDurationMs: number | null;
   declare moderationNotifChannelID: string;
   declare moderationModRoleID: string;
+  declare starboardChannelID: string;
+  declare starboardEmoji: string;
+  declare starboardThreshold: number;
 }
 
 GuildSettings.init(
@@ -28,6 +31,9 @@ GuildSettings.init(
     sanctionDurationMs: { type: DataTypes.BIGINT, allowNull: true, defaultValue: null },
     moderationNotifChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
     moderationModRoleID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
+    starboardChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
+    starboardEmoji: { type: DataTypes.STRING, allowNull: false, defaultValue: "⭐" },
+    starboardThreshold: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 5 },
   },
   { sequelize, modelName: "GuildSettings", timestamps: false },
 );

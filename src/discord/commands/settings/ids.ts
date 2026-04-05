@@ -14,6 +14,8 @@ export const SETTINGS_AS_CREATE_MODAL_ID = "settings:as:modal:create";
 export const SETTINGS_AS_META_MODAL_PREFIX = "settings:as:modal:meta:";
 export const SETTINGS_AS_THRESHOLDS_MODAL_PREFIX = "settings:as:modal:thresholds:";
 
+export const SETTINGS_SB_CONFIG_MODAL_ID = "settings:sb:modal:config";
+
 // Scoped IDs embed the userId so only the original invoker's interactions are routed
 export interface ScopedSettingsIds {
   MENU: string;
@@ -34,6 +36,8 @@ export interface ScopedSettingsIds {
   MOD_ACTIONS: string;
   MOD_CHANNEL_SELECT: string;
   MOD_ROLE_SELECT: string;
+  SB_ACTIONS: string;
+  SB_CHANNEL_SELECT: string;
 }
 
 export function scopeIds(userId: string): ScopedSettingsIds {
@@ -57,5 +61,7 @@ export function scopeIds(userId: string): ScopedSettingsIds {
     MOD_ACTIONS: `${p}:mod:actions`,
     MOD_CHANNEL_SELECT: `${p}:mod:channel_select`,
     MOD_ROLE_SELECT: `${p}:mod:role_select`,
+    SB_ACTIONS: `${p}:sb:actions`,
+    SB_CHANNEL_SELECT: `${p}:sb:channel_select`,
   };
 }

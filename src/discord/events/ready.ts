@@ -145,7 +145,8 @@ async function seedUserMetas(): Promise<void> {
 
 async function syncOverturnedAppeals(): Promise<void> {
   for (const guild of bot.guilds.cache.values()) {
-    const appeals = await appealApiService.list(guild.id, { status: "overturned" }).catch(() => []);
+    const result = await appealApiService.list(guild.id, { status: "overturned" }).catch(() => []);
+    const appeals = Array.isArray(result) ? result : [];
 
     for (const appeal of appeals) {
       const sanction = await sanctionApiService.get(guild.id, appeal.sanctionID).catch(() => null);

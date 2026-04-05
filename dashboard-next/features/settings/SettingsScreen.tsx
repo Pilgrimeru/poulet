@@ -373,6 +373,57 @@ function InviteLogSection({
   );
 }
 
+function StarboardSection({
+  settings,
+  channels,
+  onPatch,
+}: Readonly<{
+  settings: GuildSettingsDTO;
+  channels: ChannelEntry[];
+  onPatch: (patch: Partial<GuildSettingsDTO>) => void;
+}>) {
+  const active = !!(settings.starboardChannelID && settings.starboardEmoji);
+  return (
+    <>
+      <SectionHeader
+        title="Starboard"
+        description="Quand un message reçoit suffisamment de réactions avec l'emoji configuré, il est automatiquement transféré dans le salon starboard."
+      />
+      <SettingsGroup title="Configuration">
+        <SettingRow name="Salon starboard" hint="Le salon où les messages populaires sont transférés">
+          <ChannelSelect
+            channels={channels}
+            value={settings.starboardChannelID}
+            onChange={(value) => onPatch({ starboardChannelID: value })}
+            placeholder="Désactivé"
+          />
+        </SettingRow>
+        <SettingRow name="Emoji" hint="L'emoji à surveiller (ex: ⭐ ou un emoji personnalisé)">
+          <input
+            className={styles.numberInput}
+            style={{ width: 120, textAlign: "left" }}
+            value={settings.starboardEmoji}
+            placeholder="⭐"
+            onChange={(e) => onPatch({ starboardEmoji: e.target.value })}
+          />
+        </SettingRow>
+        <SettingRow name="Seuil de réactions" hint="Nombre de réactions requis pour transférer le message">
+          <NumberField
+            value={settings.starboardThreshold}
+            min={1}
+            onChange={(value) => onPatch({ starboardThreshold: Number(value) })}
+          />
+        </SettingRow>
+      </SettingsGroup>
+      <SettingsGroup title="Statut">
+        <SettingRow name="État">
+          <StatusBadge tone={active ? "success" : "neutral"}>{active ? "Actif" : "Inactif"}</StatusBadge>
+        </SettingRow>
+      </SettingsGroup>
+    </>
+  );
+}
+
 function SettingsInner() {
   const searchParams = useSearchParams();
   const guildID = searchParams.get("guild") ?? "";
@@ -387,6 +438,7 @@ function SettingsInner() {
     { id: "spam", label: "Anti-Spam", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg> },
     { id: "invite-log", label: "Invite Log", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg> },
     { id: "moderation", label: "Modération", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
+    { id: "starboard", label: "Starboard", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg> },
   ];
 
   return (
@@ -405,6 +457,7 @@ function SettingsInner() {
         {section === "spam" ? <SpamSection guildID={guildID} channels={channels} /> : null}
         {section === "invite-log" ? <InviteLogSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "moderation" ? <ModerationSection settings={settings} channels={channels} onPatch={patch} /> : null}
+        {section === "starboard" ? <StarboardSection settings={settings} channels={channels} onPatch={patch} /> : null}
       </main>
       {status !== "idle" ? <div className={styles.saveBar}><span className={styles.saveBarText}>{status === "saving" ? "Sauvegarde en cours…" : status === "saved" ? "✓ Paramètres sauvegardés" : "Erreur de sauvegarde"}</span></div> : null}
     </div>

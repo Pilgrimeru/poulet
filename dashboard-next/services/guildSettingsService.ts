@@ -14,6 +14,9 @@ export type GuildSettingsDTO = {
   sanctionDurationMs: number | null;
   moderationNotifChannelID: string;
   moderationModRoleID: string;
+  starboardChannelID: string;
+  starboardEmoji: string;
+  starboardThreshold: number;
 };
 
 const cache = new Map<string, GuildSettingsDTO>();
@@ -43,6 +46,9 @@ async function ensureColumns(): Promise<void> {
     { name: "sanctionDurationMs", type: DataTypes.BIGINT, defaultValue: null, allowNull: true },
     { name: "moderationNotifChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "moderationModRoleID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "starboardChannelID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "starboardEmoji", type: DataTypes.STRING, defaultValue: "⭐" },
+    { name: "starboardThreshold", type: DataTypes.INTEGER, defaultValue: 5 },
   ];
   for (const col of cols) {
     if (!table[col.name]) {
@@ -75,6 +81,9 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
       sanctionDurationMs: null,
       moderationNotifChannelID: "",
       moderationModRoleID: "",
+      starboardChannelID: "",
+      starboardEmoji: "⭐",
+      starboardThreshold: 5,
     } as any);
   }
 
@@ -96,6 +105,9 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
     sanctionDurationMs: row.sanctionDurationMs === null || row.sanctionDurationMs === undefined ? null : Number(row.sanctionDurationMs),
     moderationNotifChannelID: row.moderationNotifChannelID ?? "",
     moderationModRoleID: row.moderationModRoleID ?? "",
+    starboardChannelID: row.starboardChannelID ?? "",
+    starboardEmoji: row.starboardEmoji || "⭐",
+    starboardThreshold: Number(row.starboardThreshold) || 5,
   };
 
   cache.set(guildID, dto);
@@ -123,6 +135,9 @@ export async function updateByGuildID(
     sanctionDurationMs: patch.sanctionDurationMs ?? current.sanctionDurationMs,
     moderationNotifChannelID: patch.moderationNotifChannelID ?? current.moderationNotifChannelID,
     moderationModRoleID: patch.moderationModRoleID ?? current.moderationModRoleID,
+    starboardChannelID: patch.starboardChannelID ?? current.starboardChannelID,
+    starboardEmoji: patch.starboardEmoji ?? current.starboardEmoji,
+    starboardThreshold: patch.starboardThreshold ?? current.starboardThreshold,
   };
 
   await GuildSettings.upsert({
@@ -137,6 +152,9 @@ export async function updateByGuildID(
     sanctionDurationMs: next.sanctionDurationMs,
     moderationNotifChannelID: next.moderationNotifChannelID,
     moderationModRoleID: next.moderationModRoleID,
+    starboardChannelID: next.starboardChannelID,
+    starboardEmoji: next.starboardEmoji,
+    starboardThreshold: next.starboardThreshold,
   } as any);
 
   cache.set(guildID, next);

@@ -17,6 +17,7 @@ export async function renderHome(ids: ScopedSettingsIds) {
       { label: "Regles par salon", description: "Reactions, threads auto, limite de messages", value: "channel_rules" },
       { label: "Invite Log", description: "Salon de log des arrivees et departs", value: "invite_log" },
       { label: "Moderation", description: "Salon de notif et role moderateur pour les appels/contestations", value: "moderation" },
+      { label: "Starboard", description: "Transferer les messages populaires dans un salon dedie", value: "starboard" },
     ]);
 
   return {

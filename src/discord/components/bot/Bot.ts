@@ -14,6 +14,7 @@ import {
   ClientEvents,
   Collection,
   GatewayIntentBits,
+  Partials,
 } from "discord.js";
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -36,7 +37,9 @@ export class Bot extends Client {
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.GuildInvites,
+        GatewayIntentBits.GuildMessageReactions,
       ],
+      partials: [Partials.Message, Partials.Channel, Partials.Reaction],
     });
 
     this.on("warn", (info) => console.warn("[bot]", info));

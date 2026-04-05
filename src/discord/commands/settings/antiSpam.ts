@@ -298,6 +298,11 @@ export async function onMainMenuSelection(
     await interaction.update(await renderModerationSettings(guildID, ids));
     return;
   }
+  if (value === "starboard") {
+    const { renderStarboard } = await import("@/discord/commands/settings/starboard");
+    await interaction.update(await renderStarboard(guildID, ids));
+    return;
+  }
   // Channel rules navigation (delegated from main menu)
   const { onChannelRulesMenuSelection } = await import("@/discord/commands/settings/channelRules");
   await onChannelRulesMenuSelection(interaction, guildID, ids);

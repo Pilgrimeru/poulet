@@ -2,6 +2,7 @@ import { onMainMenuSelection, onRuleAction, onRuleChannels } from "@/discord/com
 import { onChannelRuleAction, onChannelRuleFilter, onChannelSelect } from "@/discord/commands/settings/channelRules";
 import { onInviteLogAction, onInviteLogChannelSelect } from "@/discord/commands/settings/inviteLog";
 import { onModerationAction, onModerationChannelSelect, onModerationRoleSelect } from "@/discord/commands/settings/moderationSettings";
+import { onStarboardAction, onStarboardChannelSelect } from "@/discord/commands/settings/starboard";
 import { renderHome } from "@/discord/commands/settings/home";
 import { ScopedSettingsIds, scopeIds } from "@/discord/commands/settings/ids";
 import {
@@ -150,6 +151,17 @@ export default class SettingsCommand extends Command {
       if (!channelID) return;
       return onChannelRuleFilter(i, guildID, channelID, ids);
     });
+
+    // Starboard handlers
+    componentRouter.register(ids.SB_ACTIONS, (i) => {
+      if (!i.isStringSelectMenu()) return;
+      return onStarboardAction(i, guildID, ids);
+    });
+
+    componentRouter.register(ids.SB_CHANNEL_SELECT, (i) => {
+      if (!i.isChannelSelectMenu()) return;
+      return onStarboardChannelSelect(i, guildID, ids);
+    });
   }
 
   private unregisterHandlers(ids: ScopedSettingsIds): void {
@@ -171,5 +183,7 @@ export default class SettingsCommand extends Command {
     componentRouter.unregister(ids.CR_CHANNEL_SELECT);
     componentRouter.unregisterPrefix(ids.CR_ACTIONS_PREFIX);
     componentRouter.unregisterPrefix(ids.CR_FILTER_PREFIX);
+    componentRouter.unregister(ids.SB_ACTIONS);
+    componentRouter.unregister(ids.SB_CHANNEL_SELECT);
   }
 }
