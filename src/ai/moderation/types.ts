@@ -20,6 +20,8 @@ export interface ReportAnalysisInput {
   reporterID: string;
   targetUserID: string;
   transcript: string;
+  /** Unix timestamp (ms) approximating when the violation occurred — used to exclude sanctions issued after the fact from recidivism escalation. Defaults to Date.now(). */
+  anchorTimestamp?: number;
 }
 
 export type HistoryQuery = {

@@ -167,7 +167,6 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     contextMessages,
   });
 
-  const isTargetedNature = analysis.nature === "Harassment" || analysis.nature === "Violence" || analysis.nature === "Hate";
   const resolvedVictimUserID = analysis.victimUserID && analysis.victimUserID !== target.id
     ? analysis.victimUserID
     : null;
@@ -197,14 +196,14 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     return;
   }
 
-  if (isTargetedNature && !resolvedVictimUserID) {
+  if (analysis.isTargeted && !resolvedVictimUserID) {
     const channel = await openTicket(guild, interaction.user, target, targetMessage.channelId);
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "escalated" });
     await interaction.editReply({ content: `La victime n'est pas identifiable avec assez de certitude. Un ticket a été créé : ${channel}` });
     return;
   }
 
-  if (resolvedVictimUserID && resolvedVictimUserID !== interaction.user.id) {
+  if (analysis.isTargeted && resolvedVictimUserID && resolvedVictimUserID !== interaction.user.id) {
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "needs_certification" });
     await interaction.editReply({ content: "Cette insulte ciblée ne peut être signalée que par la personne visée. Utilise le flux de ticket si tu es la victime." });
     return;
@@ -259,6 +258,15 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
   }
 
   const { reportId, summary } = await processTicketAnalysis(interaction.guild, channel, meta);
+
+  if (summary.isTargeted && summary.victimUserID && summary.victimUserID !== meta.reporterID) {
+    await moderationReportApiService.update(interaction.guild.id, reportId, { status: "dismissed" });
+    await interaction.editReply({ content: "Ce signalement concerne une insulte ciblée : seule la personne visée peut le déposer." });
+    await channel.send("Signalement rejeté : seule la victime identifiée peut soumettre ce dossier. Ce salon sera supprimé dans 30 secondes.");
+    setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
+    return;
+  }
+
   const result = await sendAnalysisResult(channel, reportId, summary, true);
   await interaction.editReply({
     content: result.kind === "follow_up"
@@ -431,6 +439,7 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
     reporterID: meta!.reporterID,
     targetUserID: meta!.targetUserID,
     transcript,
+    anchorTimestamp: ticketMessages[0]?.createdAt ?? Date.now(),
   });
 
   await moderationReportApiService.update(interaction.guild.id, reportId, {

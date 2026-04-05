@@ -40,8 +40,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
     if (!hasTimeout && hadTimeout) {
       await setMemberTimeout(guildId, sanction.userID, null, moderationReason).catch(() => false);
     } else if (hasTimeout) {
-      const durationMs = sanction.durationMs ?? 0;
-      await setMemberTimeout(guildId, sanction.userID, durationMs, moderationReason).catch(() => false);
+      const newDurationMs = sanction.durationMs ?? 0;
+      let effectiveDurationMs: number;
+
+      if (hadTimeout) {
+        // Mute already running: compute remaining time so it expires at createdAt + newDurationMs
+        const elapsed = Date.now() - previous.createdAt;
+        effectiveDurationMs = Math.max(0, newDurationMs - elapsed);
+      } else {
+        // New timeout (e.g. warn → mute): apply full duration from now
+        effectiveDurationMs = newDurationMs;
+      }
+
+      await setMemberTimeout(guildId, sanction.userID, effectiveDurationMs, moderationReason).catch(() => false);
     }
 
     return NextResponse.json(sanction);

@@ -37,6 +37,7 @@ export async function processTicketAnalysis(
 ): Promise<{ reportId: string; summary: SummaryResult }> {
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = await ticketMessagesToTranscript(guild, ticketMessages);
+  const anchorTimestamp = ticketMessages[0]?.createdAt ?? Date.now();
 
   const existingReport = await moderationReportApiService.getByChannel(guild.id, channel.id);
   const report = existingReport
@@ -60,6 +61,7 @@ export async function processTicketAnalysis(
     reporterID: opts.reporterID,
     targetUserID: opts.targetUserID,
     transcript,
+    anchorTimestamp,
   });
 
   await moderationReportApiService.update(guild.id, report.id, {
