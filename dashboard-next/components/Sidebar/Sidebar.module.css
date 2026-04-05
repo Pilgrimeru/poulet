@@ -275,3 +275,22 @@
 .itemActive .channelPrefix {
   color: var(--accent);
 }
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    max-height: 42vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .section {
+    padding: 6px 0 10px;
+  }
+
+  .list {
+    max-height: 28vh;
+    padding: 0 10px;
+  }
+}

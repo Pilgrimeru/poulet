@@ -63,6 +63,20 @@ export function useStatsDashboard() {
   }, [selectedGuildID]);
 
   useEffect(() => {
+    if (presetIdx !== 2) return;
+
+    if (msgPrecision === "hour-timeline") {
+      setMsgPrecision("day");
+    }
+    if (voicePrecision === "hour-timeline") {
+      setVoicePrecision("day");
+    }
+    if (memberPrecision === "hour-timeline") {
+      setMemberPrecision("day");
+    }
+  }, [presetIdx, msgPrecision, voicePrecision, memberPrecision]);
+
+  useEffect(() => {
     if (!selectedGuildID) return;
 
     const requestId = statsRequestRef.current + 1;

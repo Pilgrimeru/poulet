@@ -190,3 +190,32 @@
   top: 4px;
   transition: opacity var(--transition-fast);
 }
+
+@media (max-width: 760px) {
+  .row {
+    gap: 10px;
+    padding: 8px 12px;
+  }
+
+  .deleted {
+    padding-left: 10px;
+  }
+
+  .avatar,
+  .avatarFallback {
+    width: 34px;
+    height: 34px;
+  }
+
+  .displayName,
+  .content {
+    font-size: 14px;
+  }
+
+  .actions {
+    opacity: 1;
+    position: static;
+    margin-left: auto;
+    align-self: flex-start;
+  }
+}

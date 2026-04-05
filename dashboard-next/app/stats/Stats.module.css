@@ -796,11 +796,96 @@
 }
 
 @media (max-width: 900px) {
+  .page {
+    padding-top: calc(60px + env(safe-area-inset-top));
+  }
+
+  .header {
+    align-items: stretch;
+    padding: 16px 16px 12px;
+  }
+
+  .headerLeft,
+  .controls {
+    width: 100%;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .presetButtons {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .presetBtn {
+    flex: 1 0 auto;
+    white-space: nowrap;
+  }
+
+  .refreshBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .row {
+    flex-direction: column;
+  }
+
+  .card,
+  .cardWide {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
   .metricGrid {
     grid-template-columns: 1fr;
   }
 
   .metricValue {
     font-size: 28px;
+  }
+
+  .cardHeader {
+    flex-wrap: wrap;
+  }
+
+  .precisionToggle,
+  .pieViewToggle {
+    width: 100%;
+  }
+
+  .precisionToggle {
+    overflow-x: auto;
+  }
+
+  .precisionBtn {
+    white-space: nowrap;
+  }
+
+  .tableShell {
+    overflow: hidden;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .thValue,
+  .tdValue {
+    width: 88px;
+    padding-right: 10px !important;
+  }
+
+  .tdUser,
+  .tdChannel {
+    min-width: 0;
   }
 }

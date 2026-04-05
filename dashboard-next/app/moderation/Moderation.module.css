@@ -1209,6 +1209,47 @@
     flex: 1;
     justify-content: center;
   }
+
+  .tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .tab {
+    white-space: nowrap;
+  }
+
+  .detailHeader,
+  .heroHeader {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .detailBody,
+  .heroBody {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .detailUsers,
+  .detailCardGrid,
+  .factsGrid,
+  .primaryGrid,
+  .userGrid,
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .detailDlRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .similarItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .statusBadge {

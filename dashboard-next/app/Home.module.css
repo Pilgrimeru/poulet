@@ -163,3 +163,33 @@
     transition: none;
   }
 }
+
+@media (max-width: 760px) {
+  .container {
+    align-items: flex-start;
+    padding: calc(76px + env(safe-area-inset-top)) 16px 24px;
+  }
+
+  .content {
+    text-align: left;
+    align-items: stretch;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .subtitle {
+    margin-bottom: 32px;
+    font-size: 15px;
+  }
+
+  .featureGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .featureCard {
+    padding: 18px;
+  }
+}

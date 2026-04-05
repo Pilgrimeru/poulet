@@ -11,12 +11,15 @@ import {
 } from "@/services/statsService";
 import { getMemberStatsOverview } from "@/services/memberStatsService";
 
+const MAX_HOURLY_RANGE_MS = 30 * 86400000;
+
 export async function GET(req: Request, { params }: { params: Promise<{ guildId: string }> }) {
   try {
     const { guildId } = await params;
     const url = new URL(req.url);
     const startDate = Number(url.searchParams.get("startDate"));
     const endDate = Number(url.searchParams.get("endDate"));
+    const includeHourTimeline = endDate - startDate <= MAX_HOURLY_RANGE_MS;
 
     const [
       msgOverview,
@@ -27,13 +30,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ guildId:
       voiceByUserRaw,
       memberOverview,
     ] = await Promise.all([
-      getMessageStatsOverview(guildId, startDate, endDate),
+      getMessageStatsOverview(guildId, startDate, endDate, { includeHourly: true, includeHourTimeline }),
       getMessageStatsByChannel(guildId, startDate, endDate),
       getMessageStatsByUser(guildId, startDate, endDate),
-      getVoiceStatsOverview(guildId, startDate, endDate),
+      getVoiceStatsOverview(guildId, startDate, endDate, { includeHourly: true, includeHourTimeline }),
       getVoiceStatsByChannel(guildId, startDate, endDate),
       getVoiceStatsByUser(guildId, startDate, endDate),
-      getMemberStatsOverview(guildId, startDate, endDate),
+      getMemberStatsOverview(guildId, startDate, endDate, { includeHourly: true, includeHourTimeline }),
     ]);
 
     const allUserIDs = [

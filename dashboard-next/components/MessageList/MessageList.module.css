@@ -1,5 +1,6 @@
 .container {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -126,4 +127,15 @@
   background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-hover) 50%, var(--bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
+}
+
+@media (max-width: 760px) {
+  .container {
+    padding-bottom: 24px;
+  }
+
+  .skeleton {
+    padding: 8px 12px;
+    gap: 10px;
+  }
 }

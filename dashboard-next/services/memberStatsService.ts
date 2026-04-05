@@ -34,6 +34,11 @@ export interface MemberOverview {
   byHourTimeline: MemberHourlyTimelineValue[];
 }
 
+type MemberOverviewOptions = {
+  includeHourly?: boolean;
+  includeHourTimeline?: boolean;
+};
+
 function dayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -147,7 +152,10 @@ export async function getMemberStatsOverview(
   guildID: string,
   startDate: number,
   endDate: number,
+  options: MemberOverviewOptions = {},
 ): Promise<MemberOverview> {
+  const includeHourly = options.includeHourly ?? true;
+  const includeHourTimeline = options.includeHourTimeline ?? includeHourly;
   const [rows, allTimeRows, beforeRows] = await Promise.all([
     MemberEvent.findAll({
       attributes: ["userID", "type", "date"],
@@ -199,21 +207,24 @@ export async function getMemberStatsOverview(
     else dayBucket.left++;
     byDay.set(day, dayBucket);
 
-    const hourBucket = byHour.get(hour) ?? createBucket();
-    if (isJoin) hourBucket.joined++;
-    else hourBucket.left++;
-    byHour.set(hour, hourBucket);
-
-    const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
-    if (isJoin) timelineBucket.joined++;
-    else timelineBucket.left++;
-    byHourTimeline.set(timeline, timelineBucket);
+    if (includeHourly) {
+      const hourBucket = byHour.get(hour) ?? createBucket();
+      if (isJoin) hourBucket.joined++;
+      else hourBucket.left++;
+      byHour.set(hour, hourBucket);
+    }
+    if (includeHourTimeline) {
+      const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
+      if (isJoin) timelineBucket.joined++;
+      else timelineBucket.left++;
+      byHourTimeline.set(timeline, timelineBucket);
+    }
   }
 
   return {
     summary: { total: allTimeJoined - allTimeLeft, joined: totalJoined, left: totalLeft },
     byDay: buildDaySeries(startDate, endDate, byDay, totalBeforePeriod),
-    byHour: buildHourSeries(byHour),
-    byHourTimeline: buildHourTimelineSeries(startDate, endDate, byHourTimeline, totalBeforePeriod),
+    byHour: includeHourly ? buildHourSeries(byHour) : [],
+    byHourTimeline: includeHourTimeline ? buildHourTimelineSeries(startDate, endDate, byHourTimeline, totalBeforePeriod) : [],
   };
 }

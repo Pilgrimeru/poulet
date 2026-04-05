@@ -61,6 +61,11 @@ export interface StatsOverview {
   byHourTimeline: HourlyTimelineOverviewValue[];
 }
 
+type StatsOverviewOptions = {
+  includeHourly?: boolean;
+  includeHourTimeline?: boolean;
+};
+
 type BucketAccumulator = {
   total: number;
   uniqueUsers: Set<string>;
@@ -248,7 +253,10 @@ export async function getMessageStatsOverview(
   guildID: string,
   startDate: number,
   endDate: number,
+  options: StatsOverviewOptions = {},
 ): Promise<StatsOverview> {
+  const includeHourly = options.includeHourly ?? true;
+  const includeHourTimeline = options.includeHourTimeline ?? includeHourly;
   const rows = await MessageHistory.findAll({
     attributes: ["date", "userID", "channelID"],
     where: { guildID, date: { [Op.between]: [startDate, endDate] } },
@@ -277,17 +285,20 @@ export async function getMessageStatsOverview(
     dayBucket.uniqueChannels.add(channelID);
     byDay.set(day, dayBucket);
 
-    const hourBucket = byHour.get(hour) ?? createBucket();
-    hourBucket.total += 1;
-    hourBucket.uniqueUsers.add(userID);
-    hourBucket.uniqueChannels.add(channelID);
-    byHour.set(hour, hourBucket);
-
-    const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
-    timelineBucket.total += 1;
-    timelineBucket.uniqueUsers.add(userID);
-    timelineBucket.uniqueChannels.add(channelID);
-    byHourTimeline.set(timeline, timelineBucket);
+    if (includeHourly) {
+      const hourBucket = byHour.get(hour) ?? createBucket();
+      hourBucket.total += 1;
+      hourBucket.uniqueUsers.add(userID);
+      hourBucket.uniqueChannels.add(channelID);
+      byHour.set(hour, hourBucket);
+    }
+    if (includeHourTimeline) {
+      const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
+      timelineBucket.total += 1;
+      timelineBucket.uniqueUsers.add(userID);
+      timelineBucket.uniqueChannels.add(channelID);
+      byHourTimeline.set(timeline, timelineBucket);
+    }
   }
 
   return {
@@ -297,8 +308,8 @@ export async function getMessageStatsOverview(
       uniqueChannels: summaryChannels.size,
     },
     byDay: buildDaySeries(startDate, endDate, byDay),
-    byHour: buildHourSeries(byHour),
-    byHourTimeline: buildHourTimelineSeries(startDate, endDate, byHourTimeline),
+    byHour: includeHourly ? buildHourSeries(byHour) : [],
+    byHourTimeline: includeHourTimeline ? buildHourTimelineSeries(startDate, endDate, byHourTimeline) : [],
   };
 }
 
@@ -381,7 +392,10 @@ export async function getVoiceStatsOverview(
   guildID: string,
   startDate: number,
   endDate: number,
+  options: StatsOverviewOptions = {},
 ): Promise<StatsOverview> {
+  const includeHourly = options.includeHourly ?? true;
+  const includeHourTimeline = options.includeHourTimeline ?? includeHourly;
   const rows = await VoiceSession.findAll({
     attributes: ["userID", "channelID", "start", "end"],
     where: {
@@ -427,30 +441,36 @@ export async function getVoiceStatsOverview(
       dayCursor = new Date(bucketEnd);
     }
 
-    let hourCursor = new Date(Math.max(session.start, startDate));
-    hourCursor.setMinutes(0, 0, 0);
+    if (includeHourly || includeHourTimeline) {
+      let hourCursor = new Date(Math.max(session.start, startDate));
+      hourCursor.setMinutes(0, 0, 0);
 
-    while (hourCursor.getTime() <= Math.min(session.end, endDate)) {
-      const bucketStart = hourCursor.getTime();
-      const bucketEnd = bucketStart + 3600000;
-      const secs = clamp(session, bucketStart, bucketEnd) / 1000;
-      if (secs > 0) {
-        const hour = hourCursor.getHours();
-        const timeline = hourTimelineKey(hourCursor);
+      while (hourCursor.getTime() <= Math.min(session.end, endDate)) {
+        const bucketStart = hourCursor.getTime();
+        const bucketEnd = bucketStart + 3600000;
+        const secs = clamp(session, bucketStart, bucketEnd) / 1000;
+        if (secs > 0) {
+          const hour = hourCursor.getHours();
+          const timeline = hourTimelineKey(hourCursor);
 
-        const hourBucket = byHour.get(hour) ?? createBucket();
-        hourBucket.total += secs;
-        hourBucket.uniqueUsers.add(userID);
-        hourBucket.uniqueChannels.add(channelID);
-        byHour.set(hour, hourBucket);
+          if (includeHourly) {
+            const hourBucket = byHour.get(hour) ?? createBucket();
+            hourBucket.total += secs;
+            hourBucket.uniqueUsers.add(userID);
+            hourBucket.uniqueChannels.add(channelID);
+            byHour.set(hour, hourBucket);
+          }
 
-        const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
-        timelineBucket.total += secs;
-        timelineBucket.uniqueUsers.add(userID);
-        timelineBucket.uniqueChannels.add(channelID);
-        byHourTimeline.set(timeline, timelineBucket);
+          if (includeHourTimeline) {
+            const timelineBucket = byHourTimeline.get(timeline) ?? createBucket();
+            timelineBucket.total += secs;
+            timelineBucket.uniqueUsers.add(userID);
+            timelineBucket.uniqueChannels.add(channelID);
+            byHourTimeline.set(timeline, timelineBucket);
+          }
+        }
+        hourCursor = new Date(bucketEnd);
       }
-      hourCursor = new Date(bucketEnd);
     }
   }
 
@@ -461,7 +481,7 @@ export async function getVoiceStatsOverview(
       uniqueChannels: summaryChannels.size,
     },
     byDay: buildDaySeries(startDate, endDate, byDay),
-    byHour: buildHourSeries(byHour),
-    byHourTimeline: buildHourTimelineSeries(startDate, endDate, byHourTimeline),
+    byHour: includeHourly ? buildHourSeries(byHour) : [],
+    byHourTimeline: includeHourTimeline ? buildHourTimelineSeries(startDate, endDate, byHourTimeline) : [],
   };
 }

@@ -67,6 +67,8 @@
   --transition-fast: 140ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 220ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  --breakpoint-mobile: 900px;
+  --breakpoint-narrow: 760px;
 }
 
 *, *::before, *::after {
@@ -85,6 +87,31 @@ body {
   line-height: 1.5;
   -webkit-user-select: none;
   user-select: none;
+}
+
+html,
+body {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body[data-mobile-nav-open="true"] {
+  overflow: hidden;
+}
+
+#__next {
+  min-height: 100%;
+}
+
+main,
+section,
+article,
+aside,
+header,
+footer,
+div {
+  min-width: 0;
 }
 
 button,
@@ -160,5 +187,11 @@ option {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }

@@ -160,3 +160,46 @@
   border-color: var(--deleted-text);
   color: var(--deleted-text);
 }
+
+@media (max-width: 760px) {
+  .bar {
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .searchWrapper,
+  .dateRange,
+  .toggle,
+  .resetBtn {
+    width: 100%;
+  }
+
+  .dateRange {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dateLabel {
+    width: 100%;
+  }
+
+  .dateInput {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dateSep {
+    display: none;
+  }
+
+  .toggle {
+    justify-content: flex-start;
+  }
+
+  .resetBtn {
+    justify-content: center;
+    text-align: center;
+    padding: 8px 12px;
+  }
+}

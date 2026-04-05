@@ -8,6 +8,7 @@
 
 .main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -88,6 +89,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .refreshBtn {
@@ -130,4 +132,52 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .layout {
+    flex-direction: column;
+    padding-top: calc(60px + env(safe-area-inset-top));
+  }
+
+  .channelHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    height: auto;
+    min-height: 48px;
+    padding: 12px 14px;
+  }
+
+  .guildInfo {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .guildName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .headerActions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .refreshBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 760px) {
+  .channelHeader {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .guildName {
+    font-size: 13px;
+  }
 }
