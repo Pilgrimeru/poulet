@@ -398,6 +398,18 @@
   opacity: 0.7;
 }
 
+.detailCardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.detailCardTitleRow .detailCardTitle {
+  margin-bottom: 0;
+}
+
 .detailCardTitle {
   font-size: 12px;
   font-weight: 700;

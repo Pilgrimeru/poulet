@@ -31,9 +31,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
     const badFaithSanction = body.badFaithSanction as CreateSanctionInput | undefined;
 
     if (reviewOutcome === "overturned") {
-      await updateSanction(guildId, linkedSanction.id, { state: "canceled" });
-      if (linkedSanction.type === "MUTE" || linkedSanction.type === "BAN_PENDING") {
-        await setMemberTimeout(guildId, linkedSanction.userID, null, resolutionReason).catch(() => false);
+      if (linkedSanction.state !== "canceled") {
+        await updateSanction(guildId, linkedSanction.id, { state: "canceled" });
+        if (linkedSanction.type === "MUTE" || linkedSanction.type === "BAN_PENDING") {
+          await setMemberTimeout(guildId, linkedSanction.userID, null, resolutionReason).catch(() => false);
+        }
       }
       await sendDirectMessage(
         linkedSanction.userID,

@@ -547,6 +547,11 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (sanction.state === "canceled") {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.sanctionAlreadyReviewed, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   const modal = new ModalBuilder()
     .setCustomId(`${APPEAL_MODAL_PREFIX}${guildID}:${sanctionID}`)
     .setTitle(MODERATION_MESSAGES.appealModal.title);

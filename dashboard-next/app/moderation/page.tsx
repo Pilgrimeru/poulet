@@ -359,7 +359,7 @@ function ModerationPageContent() {
 
         <main className={styles.main} role="tabpanel">
           {tab === "appeals" && !selectedAppeal && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>✅</div>Aucun appel en attente.</div>}
-          {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} />}
+          {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} onNavigateToSanction={handleNavigateToSanction} />}
 
           {tab === "sanctions" && !selectedSanction && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🛡️</div>Aucune sanction enregistrée.</div>}
           {tab === "sanctions" && selectedSanction && sanctionDraft && (

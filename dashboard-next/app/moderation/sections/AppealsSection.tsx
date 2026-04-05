@@ -29,12 +29,14 @@ export function AppealsSection({
   linkedSanction,
   sourceMeta,
   onDecision,
+  onNavigateToSanction,
 }: Readonly<{
   guildID: string;
   appeal: AppealItem;
   linkedSanction: SanctionItem | null;
   sourceMeta: SourceMeta;
   onDecision: (decision: AppealDecision) => Promise<void>;
+  onNavigateToSanction?: (sanctionID: string) => void;
 }>) {
   const [draft, setDraft] = useState<SanctionDraft | null>(
     linkedSanction ? toDraft(linkedSanction) : null,
@@ -224,7 +226,19 @@ export function AppealsSection({
 
         {linkedSanction && draft && (
           <div className={styles.detailCard}>
-            <h3 className={styles.detailCardTitle}>Sanction liée</h3>
+            <div className={styles.detailCardTitleRow}>
+              <h3 className={styles.detailCardTitle}>Sanction liée</h3>
+              {onNavigateToSanction && (
+                <button
+                  className={`${styles.btn} ${styles.btnGhost} ${styles.iconOnly}`}
+                  onClick={() => onNavigateToSanction(linkedSanction.id)}
+                  title="Voir la sanction"
+                  aria-label="Voir la sanction"
+                >
+                  <IconExternalLink />
+                </button>
+              )}
+            </div>
             <SanctionEditor
               draft={appeal.revisedSanction ?? draft}
               onChange={setDraft}

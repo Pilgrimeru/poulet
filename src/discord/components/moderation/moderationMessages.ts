@@ -108,6 +108,7 @@ export const MODERATION_MESSAGES = {
     sanctionUnavailable: "Cette sanction n'est plus accessible. Contactez un modérateur.",
     sanctionNotFound: "Sanction introuvable.",
     appealOwnerOnly: "Seul l'utilisateur sanctionné peut faire appel.",
+    sanctionAlreadyReviewed: "Cette décision a déjà été contestée et révisée par un modérateur. La sanction a été levée.",
     appealRecorded: "Appel enregistré. Vous serez probablement contacté prochainement par un modérateur.",
     ticketMetadataNotFound: "Métadonnées du ticket introuvables.",
     onlyReporterCanFinalize: "Seul le signaleur peut finaliser ce ticket.",
