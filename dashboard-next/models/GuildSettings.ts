@@ -11,6 +11,8 @@ class GuildSettings extends Model {
   declare emoteChannelID: string;
   declare inviteLogChannelID: string;
   declare sanctionDurationMs: number | null;
+  declare moderationNotifChannelID: string;
+  declare moderationModRoleID: string;
 }
 
 GuildSettings.init(
@@ -24,6 +26,8 @@ GuildSettings.init(
     emoteChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
     inviteLogChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
     sanctionDurationMs: { type: DataTypes.BIGINT, allowNull: true, defaultValue: null },
+    moderationNotifChannelID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
+    moderationModRoleID: { type: DataTypes.STRING, allowNull: false, defaultValue: "" },
   },
   { sequelize, modelName: "GuildSettings", timestamps: false },
 );

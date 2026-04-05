@@ -15,6 +15,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Moderation.module.css";
 
 const PAGE_SIZE = 50;
+const MOBILE_BREAKPOINT = 760;
 
 export default function ModerationPage() {
   return (
@@ -45,6 +46,8 @@ function ModerationPageContent() {
   const [isEditingSanction, setIsEditingSanction] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [appealFilter, setAppealFilter] = useState<"pending_review" | "all">("pending_review");
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [limits, setLimits] = useState<Record<Tab, number>>({
     appeals: PAGE_SIZE,
     sanctions: PAGE_SIZE,
@@ -108,6 +111,25 @@ function ModerationPageContent() {
   }, [appealFilter, guildID, initialAppealId, initialReportId, limits]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const sync = () => setIsMobile(media.matches);
+    sync();
+
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileView("detail");
+      return;
+    }
+    setMobileView("list");
+  }, [isMobile, tab]);
+
+  useEffect(() => {
     refreshData(false).catch(() => {
       setAppeals([]);
       setSanctions([]);
@@ -155,6 +177,18 @@ function ModerationPageContent() {
   const selectedSanction = useMemo(() => sanctions?.find((item) => item.id === selectedSanctionId) ?? sanctions?.[0] ?? null, [sanctions, selectedSanctionId]);
   const selectedReport = useMemo(() => reports?.find((item) => item.id === selectedReportId) ?? reports?.[0] ?? null, [reports, selectedReportId]);
   const selectedFlag = useMemo(() => flags?.find((item) => item.id === selectedFlagId) ?? flags?.[0] ?? null, [flags, selectedFlagId]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const hasSelection = (
+      (tab === "appeals" && selectedAppeal) ||
+      (tab === "sanctions" && selectedSanction) ||
+      (tab === "reports" && selectedReport) ||
+      (tab === "flags" && selectedFlag)
+    );
+
+    if (!hasSelection) setMobileView("list");
+  }, [isMobile, selectedAppeal, selectedFlag, selectedReport, selectedSanction, tab]);
 
   const linkedSanction = useMemo(() => selectedAppeal ? sanctionsById.get(selectedAppeal.sanctionID) ?? null : null, [sanctionsById, selectedAppeal]);
   const linkedSanctionForReport = useMemo(() => selectedReport?.sanctionID ? sanctionsById.get(selectedReport.sanctionID) ?? null : null, [sanctionsById, selectedReport]);
@@ -284,16 +318,43 @@ function ModerationPageContent() {
   const handleNavigateToSanction = useCallback((sanctionID: string) => {
     setSelectedSanctionId(sanctionID);
     setTab("sanctions");
-  }, []);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
 
   const handleNavigateToReport = useCallback((reportID: string) => {
     setSelectedReportId(reportID);
     setTab("reports");
-  }, []);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
 
   const handleNavigateToFlag = useCallback((flagID: string) => {
     setSelectedFlagId(flagID);
     setTab("flags");
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
+
+  const handleSelectAppeal = useCallback((appealID: string) => {
+    setSelectedAppealId(appealID);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
+
+  const handleSelectSanction = useCallback((sanctionID: string) => {
+    setSelectedSanctionId(sanctionID);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
+
+  const handleSelectReport = useCallback((reportID: string) => {
+    setSelectedReportId(reportID);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
+
+  const handleSelectFlag = useCallback((flagID: string) => {
+    setSelectedFlagId(flagID);
+    if (isMobile) setMobileView("detail");
+  }, [isMobile]);
+
+  const handleBackToList = useCallback(() => {
+    setMobileView("list");
   }, []);
 
   const handleLoadMore = useCallback(() => {
@@ -317,12 +378,13 @@ function ModerationPageContent() {
   const sidebarTitle = tab === "appeals" ? (appealFilter === "all" ? "Tous" : "En attente") : tab === "sanctions" ? "Toutes" : tab === "reports" ? "Signalements" : "Messages signalés";
   const sidebarCount = totals[tab];
   const showLoadMore = hasMore[tab];
-
+  const showMobileList = !isMobile || mobileView === "list";
+  const showMobileDetail = !isMobile || mobileView === "detail";
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
+      <header className={`${styles.header} ${isMobile ? styles.headerMobile : ""}`}>
         <h1 className={styles.title}>Modération</h1>
-        <div className={styles.tabs} role="tablist">
+        <div className={`${styles.tabs} ${isMobile ? styles.tabsMobile : ""}`} role="tablist">
           <button role="tab" aria-selected={tab === "appeals"} className={`${styles.tab} ${tab === "appeals" ? styles.tabActive : ""}`} onClick={() => setTab("appeals")}>
             Appels
             {actionableAppeals > 0 && <span className={styles.tabBadge} aria-label={`${actionableAppeals} en attente`}>{actionableAppeals}</span>}
@@ -333,126 +395,137 @@ function ModerationPageContent() {
         </div>
       </header>
 
-      <div className={styles.layout}>
-        <aside className={styles.sidebar} aria-label={tab === "appeals" ? "Liste des appels" : tab === "sanctions" ? "Liste des sanctions" : tab === "reports" ? "Liste des signalements" : "Liste des messages signalés"}>
-          <div className={styles.sidebarMeta}>
-            <span className={styles.sidebarTitle}>{sidebarTitle}</span>
-            <span className={styles.sidebarCount}>{sidebarCount}</span>
-          </div>
+      <div className={`${styles.layout} ${isMobile ? styles.layoutMobile : ""}`}>
+        {showMobileList && (
+          <aside className={`${styles.sidebar} ${isMobile ? styles.sidebarMobile : ""}`} aria-label={tab === "appeals" ? "Liste des appels" : tab === "sanctions" ? "Liste des sanctions" : tab === "reports" ? "Liste des signalements" : "Liste des messages signalés"}>
+            <div className={`${styles.sidebarMeta} ${isMobile ? styles.sidebarMetaMobile : ""}`}>
+              <span className={styles.sidebarTitle}>{sidebarTitle}</span>
+              <span className={styles.sidebarCount}>{sidebarCount}</span>
+            </div>
 
-          {tab === "appeals" && (
-            <div className={styles.filterRow}>
-              <button className={`${styles.filterPill} ${appealFilter === "pending_review" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("pending_review")}>En attente</button>
-              <button className={`${styles.filterPill} ${appealFilter === "all" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("all")}>Tous</button>
+            {tab === "appeals" && (
+              <div className={`${styles.filterRow} ${isMobile ? styles.filterRowMobile : ""}`}>
+                <button className={`${styles.filterPill} ${appealFilter === "pending_review" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("pending_review")}>En attente</button>
+                <button className={`${styles.filterPill} ${appealFilter === "all" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("all")}>Tous</button>
+              </div>
+            )}
+
+            <div className={styles.list}>
+              {tab === "appeals" && visibleAppeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
+              {tab === "appeals" && visibleAppeals.map((appeal) => {
+                const sanction = sanctionsById.get(appeal.sanctionID);
+                return (
+                  <SidebarCard
+                    key={appeal.id}
+                    guildID={guildID}
+                    title={sanction ? TYPE_LABELS[sanction.type] : "Appel"}
+                    userID={sanction?.userID ?? ""}
+                    body={appeal.text}
+                  active={!isMobile && selectedAppeal?.id === appeal.id}
+                    onClick={() => handleSelectAppeal(appeal.id)}
+                    severity={sanction?.severity}
+                    date={new Date(appeal.createdAt).toLocaleDateString("fr-FR")}
+                  />
+                );
+              })}
+
+              {tab === "sanctions" && sanctions.length === 0 && <div className={styles.listEmpty}>Aucune sanction</div>}
+              {tab === "sanctions" && sanctions.map((sanction) => (
+                <SidebarCard
+                  key={sanction.id}
+                  guildID={guildID}
+                  title={TYPE_LABELS[sanction.type]}
+                  userID={sanction.userID}
+                  body={sanction.reason}
+                  active={!isMobile && selectedSanction?.id === sanction.id}
+                  onClick={() => handleSelectSanction(sanction.id)}
+                  severity={sanction.severity}
+                  state={sanction.state}
+                  date={new Date(sanction.createdAt).toLocaleDateString("fr-FR")}
+                />
+              ))}
+
+              {tab === "reports" && reports.length === 0 && <div className={styles.listEmpty}>Aucun signalement</div>}
+              {tab === "reports" && reports.map((report) => (
+                <SidebarCard
+                  key={report.id}
+                  guildID={guildID}
+                  title={REPORT_STATUS_LABELS[report.status]}
+                  userID={report.targetUserID}
+                  body={report.reporterSummary}
+                  active={!isMobile && selectedReport?.id === report.id}
+                  onClick={() => handleSelectReport(report.id)}
+                  severity={report.context?.aiSummary?.severity}
+                  date={new Date(report.createdAt).toLocaleDateString("fr-FR")}
+                />
+              ))}
+
+              {tab === "flags" && flags.length === 0 && <div className={styles.listEmpty}>Aucun message signalé</div>}
+              {tab === "flags" && flags.map((flag) => {
+                const flaggedMessage = flag.context?.find((message) => message.id === flag.messageID) ?? null;
+                return (
+                  <SidebarCard
+                    key={flag.id}
+                    guildID={guildID}
+                    title={FLAG_STATUS_LABELS[flag.status]}
+                    userID={flag.targetUserID}
+                    body={flaggedMessage?.content ?? "Message introuvable"}
+                    active={!isMobile && selectedFlag?.id === flag.id}
+                    onClick={() => handleSelectFlag(flag.id)}
+                    severity={flag.aiAnalysis?.severity}
+                    date={new Date(flag.createdAt).toLocaleDateString("fr-FR")}
+                  />
+                );
+              })}
+
+              {showLoadMore && (
+                <button className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`} onClick={handleLoadMore}>
+                  Charger plus
+                </button>
+              )}
+            </div>
+          </aside>
+        )}
+
+        {showMobileDetail && (
+        <main className={`${styles.main} ${isMobile ? styles.mainMobile : ""}`} role="tabpanel">
+          {isMobile && (
+            <div className={styles.mobileDetailTopbar}>
+              <button className={`${styles.btn} ${styles.btnGhost} ${styles.mobileBackBtn}`} onClick={handleBackToList}>
+                ← Retour
+              </button>
             </div>
           )}
+            {tab === "appeals" && !selectedAppeal && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>✅</div>Aucun appel en attente.</div>}
+            {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} onNavigateToSanction={handleNavigateToSanction} />}
 
-          <div className={styles.list}>
-            {tab === "appeals" && visibleAppeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
-            {tab === "appeals" && visibleAppeals.map((appeal) => {
-              const sanction = sanctionsById.get(appeal.sanctionID);
-              return (
-                <SidebarCard
-                  key={appeal.id}
-                  guildID={guildID}
-                  title={sanction ? TYPE_LABELS[sanction.type] : "Appel"}
-                  userID={sanction?.userID ?? ""}
-                  body={appeal.text}
-                  active={selectedAppeal?.id === appeal.id}
-                  onClick={() => setSelectedAppealId(appeal.id)}
-                  severity={sanction?.severity}
-                  date={new Date(appeal.createdAt).toLocaleDateString("fr-FR")}
-                />
-              );
-            })}
-
-            {tab === "sanctions" && sanctions.length === 0 && <div className={styles.listEmpty}>Aucune sanction</div>}
-            {tab === "sanctions" && sanctions.map((sanction) => (
-              <SidebarCard
-                key={sanction.id}
+            {tab === "sanctions" && !selectedSanction && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🛡️</div>Aucune sanction enregistrée.</div>}
+            {tab === "sanctions" && selectedSanction && sanctionDraft && (
+              <SanctionsSection
                 guildID={guildID}
-                title={TYPE_LABELS[sanction.type]}
-                userID={sanction.userID}
-                body={sanction.reason}
-                active={selectedSanction?.id === sanction.id}
-                onClick={() => setSelectedSanctionId(sanction.id)}
-                severity={sanction.severity}
-                state={sanction.state}
-                date={new Date(sanction.createdAt).toLocaleDateString("fr-FR")}
+                selectedSanction={selectedSanction}
+                sanctionDraft={sanctionDraft}
+                isEditingSanction={isEditingSanction}
+                confirmRevoke={confirmRevoke}
+                selectedSanctionSourceMeta={selectedSanctionSourceMeta}
+                setSanctionDraft={setSanctionDraft}
+                setIsEditingSanction={setIsEditingSanction}
+                setConfirmRevoke={setConfirmRevoke}
+                onSave={handleSanctionSave}
+                onRevoke={handleSanctionRevoke}
+                onReopen={handleSanctionReopen}
+                onNavigateToReport={handleNavigateToReport}
+                onNavigateToFlag={handleNavigateToFlag}
               />
-            ))}
-
-            {tab === "reports" && reports.length === 0 && <div className={styles.listEmpty}>Aucun signalement</div>}
-            {tab === "reports" && reports.map((report) => (
-              <SidebarCard
-                key={report.id}
-                guildID={guildID}
-                title={REPORT_STATUS_LABELS[report.status]}
-                userID={report.targetUserID}
-                body={report.reporterSummary}
-                active={selectedReport?.id === report.id}
-                onClick={() => setSelectedReportId(report.id)}
-                severity={report.context?.aiSummary?.severity}
-                date={new Date(report.createdAt).toLocaleDateString("fr-FR")}
-              />
-            ))}
-
-            {tab === "flags" && flags.length === 0 && <div className={styles.listEmpty}>Aucun message signalé</div>}
-            {tab === "flags" && flags.map((flag) => {
-              const flaggedMessage = flag.context?.find((message) => message.id === flag.messageID) ?? null;
-              return (
-                <SidebarCard
-                  key={flag.id}
-                  guildID={guildID}
-                  title={FLAG_STATUS_LABELS[flag.status]}
-                  userID={flag.targetUserID}
-                  body={flaggedMessage?.content ?? "Message introuvable"}
-                  active={selectedFlag?.id === flag.id}
-                  onClick={() => setSelectedFlagId(flag.id)}
-                  severity={flag.aiAnalysis?.severity}
-                  date={new Date(flag.createdAt).toLocaleDateString("fr-FR")}
-                />
-              );
-            })}
-
-            {showLoadMore && (
-              <button className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`} onClick={handleLoadMore}>
-                Charger plus
-              </button>
             )}
-          </div>
-        </aside>
 
-        <main className={styles.main} role="tabpanel">
-          {tab === "appeals" && !selectedAppeal && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>✅</div>Aucun appel en attente.</div>}
-          {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} onNavigateToSanction={handleNavigateToSanction} />}
+            {tab === "reports" && !selectedReport && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>📝</div>Aucun signalement disponible.</div>}
+            {tab === "reports" && selectedReport && <ReportsSection guildID={guildID} report={selectedReport} linkedSanction={linkedSanctionForReport} onNavigateToSanction={handleNavigateToSanction} />}
 
-          {tab === "sanctions" && !selectedSanction && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🛡️</div>Aucune sanction enregistrée.</div>}
-          {tab === "sanctions" && selectedSanction && sanctionDraft && (
-            <SanctionsSection
-              guildID={guildID}
-              selectedSanction={selectedSanction}
-              sanctionDraft={sanctionDraft}
-              isEditingSanction={isEditingSanction}
-              confirmRevoke={confirmRevoke}
-              selectedSanctionSourceMeta={selectedSanctionSourceMeta}
-              setSanctionDraft={setSanctionDraft}
-              setIsEditingSanction={setIsEditingSanction}
-              setConfirmRevoke={setConfirmRevoke}
-              onSave={handleSanctionSave}
-              onRevoke={handleSanctionRevoke}
-              onReopen={handleSanctionReopen}
-              onNavigateToReport={handleNavigateToReport}
-              onNavigateToFlag={handleNavigateToFlag}
-            />
-          )}
-
-          {tab === "reports" && !selectedReport && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>📝</div>Aucun signalement disponible.</div>}
-          {tab === "reports" && selectedReport && <ReportsSection guildID={guildID} report={selectedReport} linkedSanction={linkedSanctionForReport} onNavigateToSanction={handleNavigateToSanction} />}
-
-          {tab === "flags" && !selectedFlag && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🚩</div>Aucun message signalé disponible.</div>}
-          {tab === "flags" && selectedFlag && <FlagsSection guildID={guildID} flag={selectedFlag} linkedSanction={linkedSanctionForFlag} allSanctions={sanctions} onNavigateToSanction={handleNavigateToSanction} />}
+            {tab === "flags" && !selectedFlag && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🚩</div>Aucun message signalé disponible.</div>}
+            {tab === "flags" && selectedFlag && <FlagsSection guildID={guildID} flag={selectedFlag} linkedSanction={linkedSanctionForFlag} allSanctions={sanctions} onNavigateToSanction={handleNavigateToSanction} />}
         </main>
+        )}
       </div>
     </div>
   );
