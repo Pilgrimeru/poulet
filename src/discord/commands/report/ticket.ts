@@ -1,11 +1,7 @@
-import { config } from "@/app";
+import { buildTicketWelcomeActions, buildTicketWelcomeEmbed } from "@/discord/components/moderation/moderationMessages";
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   CategoryChannel,
   ChannelType,
-  EmbedBuilder,
   Guild,
   OverwriteType,
   PermissionFlagsBits,
@@ -63,35 +59,10 @@ async function getNextTicketNumber(guild: Guild, targetName: string): Promise<nu
 }
 
 async function sendWelcomeEmbed(channel: TextChannel, reporter: User, target: User): Promise<void> {
-  const embed = new EmbedBuilder()
-    .setColor(config.COLORS.MAIN)
-    .setTitle("📋 Signalement")
-    .setDescription(
-      [
-        `Bonjour ${reporter}, ton signalement concernant **${target.username}** va etre analyse automatiquement.`,
-        "",
-        "Explique clairement les faits reproches, avec des preuves ou des liens quand c'est possible.",
-        "Quand tout est prêt, clique sur **Déposer le signalement**.",
-      ].join("\n"),
-    )
-    .setThumbnail(target.displayAvatarURL())
-    .setFooter({ text: `Signalement a l'encontre de ${target.username} (${target.id})` })
-    .setTimestamp();
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`report:submit:${channel.id}`)
-      .setLabel("Déposer le signalement")
-      .setStyle(ButtonStyle.Success)
-      .setEmoji("📨"),
-    new ButtonBuilder()
-      .setCustomId(`report:cancel:${channel.id}`)
-      .setLabel("Annuler")
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji("🗑️"),
-  );
-
-  const welcome = await channel.send({ embeds: [embed], components: [row] });
+  const welcome = await channel.send({
+    embeds: [buildTicketWelcomeEmbed(reporter, target)],
+    components: [buildTicketWelcomeActions(channel.id)],
+  });
   await welcome.pin().catch(() => undefined);
 }
 

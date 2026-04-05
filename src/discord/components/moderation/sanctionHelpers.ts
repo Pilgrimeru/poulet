@@ -2,6 +2,7 @@ import { computeSanction } from "@/ai";
 import { flaggedMessageApiService, guildSettingsService, moderationReportApiService, sanctionApiService } from "@/api";
 import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
 import { config } from "@/app";
+import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -67,12 +68,12 @@ export function buildSanctionEmbed(opts: {
       name: `${sev.emoji} Gravité : ${sev.label}`,
       iconURL: opts.target.displayAvatarURL(),
     })
-    .setTitle(`Sanction : ${opts.target.username}`)
-    .setDescription(`Motif : ${opts.reason.trim() || "*[Non communiqué]*"}`)
+    .setTitle(MODERATION_MESSAGES.sanctionEmbedTitle(opts.target.username))
+    .setDescription(MODERATION_MESSAGES.sanctionEmbedDescription(opts.reason))
     .addFields(
-      { name: "👤 Utilisateur", value: `${opts.target}`, inline: true },
-      { name: "🛡️ Modérateur", value: `${opts.moderator}`, inline: true },
-      { name: "⚖️ Décision", value: sanctionLabel, inline: false },
+      { name: MODERATION_MESSAGES.sanctionEmbedFields.user, value: `${opts.target}`, inline: true },
+      { name: MODERATION_MESSAGES.sanctionEmbedFields.moderator, value: `${opts.moderator}`, inline: true },
+      { name: MODERATION_MESSAGES.sanctionEmbedFields.decision, value: sanctionLabel, inline: false },
     )
     .setThumbnail(opts.target.displayAvatarURL())
     .setTimestamp();
@@ -82,7 +83,7 @@ export function buildSanctionEmbed(opts: {
     const preview = opts.originalMessage.content.length > 100
       ? `${opts.originalMessage.content.slice(0, 100)}…`
       : opts.originalMessage.content || "*[Pas de texte]*";
-    embed.addFields({ name: "💬 Message d'origine", value: `[Voir le message](${url})\n> ${preview}` });
+    embed.addFields({ name: MODERATION_MESSAGES.sanctionEmbedFields.originalMessage, value: `[Voir le message](${url})\n> ${preview}` });
   }
 
   return embed;
@@ -109,7 +110,7 @@ export async function sendAppealDM(target: User, guildID: string, sanctionID: st
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`appeal:sanction:${guildID}:${sanctionID}`)
-      .setLabel("Faire appel")
+      .setLabel(MODERATION_MESSAGES.appealButton)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -117,8 +118,8 @@ export async function sendAppealDM(target: User, guildID: string, sanctionID: st
     embeds: [
       new EmbedBuilder()
         .setColor(config.COLORS.MAIN)
-        .setTitle("Moderation")
-        .setDescription(`Une sanction automatique a été prise à ton encontre.\nMotif : ${reason}`),
+        .setTitle(MODERATION_MESSAGES.sanctionDmTitle)
+        .setDescription(MODERATION_MESSAGES.sanctionDmDescription(reason)),
     ],
     components: [row],
   }).catch(() => undefined);
@@ -208,8 +209,8 @@ export async function applyAutomaticSanction(args: {
         embeds: [
           new EmbedBuilder()
             .setColor(0xe03030)
-            .setTitle("Confirmation de bannissement requise")
-            .setDescription(`L'utilisateur ${args.target} est exclu temporairement pendant 7 jours en attente d'une validation humaine pour un éventuel bannissement.\nMotif : ${args.reason}`),
+            .setTitle(MODERATION_MESSAGES.banPendingTitle)
+            .setDescription(MODERATION_MESSAGES.banPendingDescription(args.target, args.reason)),
         ],
       }).catch(() => undefined);
     }

@@ -2,6 +2,13 @@ import type { SummaryResult } from "@/ai";
 import { analyzeFlag, summarizeReport } from "@/ai";
 import { appealApiService, flaggedMessageApiService, moderationReportApiService, sanctionApiService } from "@/api";
 import { config } from "@/app";
+import {
+  buildFollowUpAction,
+  buildReportSummaryActions,
+  buildReportSummaryEmbed,
+  buildReviseAction,
+  MODERATION_MESSAGES,
+} from "@/discord/components/moderation/moderationMessages";
 import { getAlreadySanctionedMessageIDs, processTicketAnalysis } from "@/discord/components/moderation/reportService";
 import { applyAutomaticSanction } from "@/discord/components/moderation/sanctionHelpers";
 import { collectContextMessages, collectTicketMessages, ticketMessagesToTranscript } from "@/discord/components/moderation/ticketTranscript";
@@ -9,12 +16,9 @@ import { componentRouter } from "@/discord/interactions";
 import { safeParseJSON } from "@/discord/utils/json";
 import {
   ActionRowBuilder,
-  ButtonBuilder,
   ButtonInteraction,
-  ButtonStyle,
   ChannelType,
   ChatInputCommandInteraction,
-  EmbedBuilder,
   MessageContextMenuCommandInteraction,
   MessageFlags,
   ModalBuilder,
@@ -46,17 +50,6 @@ async function hasReporterTextMessageSince(
   );
 }
 
-function buildSummaryDescription(summary: SummaryResult): string {
-  return [
-    `Violation: **${summary.isViolation ? "Oui" : "Non"}**`,
-    `Gravite: **${summary.severity}**`,
-    `Nature: **${summary.nature}**`,
-    `Motif: ${summary.reason}`,
-    "",
-    summary.summary,
-  ].join("\n");
-}
-
 export async function sendAnalysisResult(
   channel: TextChannel,
   reportId: string,
@@ -65,37 +58,15 @@ export async function sendAnalysisResult(
 ): Promise<{ kind: "follow_up" | "ready" }> {
   if (summary.needsFollowUp) {
     await channel.send({
-      content: summary.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join("\n"),
-      components: [
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`report:followup:${reportId}`)
-            .setLabel("J'ai répondu")
-            .setStyle(ButtonStyle.Secondary),
-        ),
-      ],
+      content: MODERATION_MESSAGES.followUpContent(summary.questions),
+      components: [buildFollowUpAction(reportId)],
     });
     return { kind: "follow_up" };
   }
 
-  const buttons = [
-    new ButtonBuilder().setCustomId(`report:confirm:${reportId}`).setLabel("Confirmer").setStyle(ButtonStyle.Success),
-  ];
-  if (allowModify) {
-    buttons.push(new ButtonBuilder().setCustomId(`report:modify:${reportId}`).setLabel("Modifier").setStyle(ButtonStyle.Secondary));
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(config.COLORS.MAIN)
-    .setTitle(allowModify ? "Synthese IA du dossier" : "Synthese IA — version finale")
-    .setDescription(buildSummaryDescription(summary));
-  if (!allowModify) {
-    embed.setFooter({ text: "Dernière révision effectuée. Aucune modification supplémentaire possible." });
-  }
-
   await channel.send({
-    embeds: [embed],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons)],
+    embeds: [buildReportSummaryEmbed(summary, allowModify)],
+    components: [buildReportSummaryActions(reportId, allowModify)],
   });
   return { kind: "ready" };
 }
@@ -118,7 +89,7 @@ export async function executeOpenTicket(
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const channel = await openTicket(interaction.guild, interaction.user, target, interaction.channelId);
-  await interaction.editReply({ content: `Ton ticket a été créé : ${channel}` });
+  await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.ticketCreated(`${channel}`) });
 }
 
 export async function handleFlaggedMessage(interaction: MessageContextMenuCommandInteraction): Promise<void> {
@@ -130,7 +101,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
   const contextMessages = await collectContextMessages(targetMessage);
   const alreadySanctionedMessageIDs = await getAlreadySanctionedMessageIDs(guild.id, target.id);
   if (!config.ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS && alreadySanctionedMessageIDs.has(targetMessage.id)) {
-    await interaction.editReply({ content: "Ce message a déjà été pris en compte dans une sanction existante. Il ne peut pas être sanctionné une seconde fois." });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.duplicateFlag });
     return;
   }
 
@@ -192,27 +163,27 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
 
   if (!analysis.isViolation) {
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "dismissed" });
-    await interaction.editReply({ content: "Aucune violation suffisamment claire n'a été détectée pour une sanction automatique." });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.noAutomaticViolation });
     return;
   }
 
   if (analysis.isTargeted && !resolvedVictimUserID) {
     const channel = await openTicket(guild, interaction.user, target, targetMessage.channelId);
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "escalated" });
-    await interaction.editReply({ content: `La victime n'est pas identifiable avec assez de certitude. Un ticket a été créé : ${channel}` });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.unidentifiedVictim(`${channel}`) });
     return;
   }
 
   if (analysis.isTargeted && resolvedVictimUserID && resolvedVictimUserID !== interaction.user.id) {
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "needs_certification" });
-    await interaction.editReply({ content: "Cette insulte ciblée ne peut être signalée que par la personne visée. Utilise le flux de ticket si tu es la victime." });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.targetedVictimOnly });
     return;
   }
 
   if (analysis.needsMoreContext) {
     const channel = await openTicket(guild, interaction.user, target, targetMessage.channelId);
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "escalated" });
-    await interaction.editReply({ content: `Le message demande plus de contexte. Un ticket a été créé : ${channel}` });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.moreContextNeeded(`${channel}`) });
     return;
   }
 
@@ -227,7 +198,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     source: { kind: "flag", id: flagged.id, message: targetMessage },
   });
 
-  await interaction.editReply({ content: "Signalement traite automatiquement." });
+  await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.automaticallyProcessed });
 }
 
 async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void> {
@@ -238,11 +209,11 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
 
   const meta = decodeTicketMeta(channel.topic);
   if (!meta) {
-    await interaction.reply({ content: "Métadonnées du ticket introuvables.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketMetadataNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
   if (interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut finaliser ce ticket.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanFinalize, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -253,7 +224,7 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
     (m) => !m.author.bot && m.author.id === meta.reporterID && m.content.trim() !== "",
   );
   if (!hasUserContent) {
-    await interaction.editReply({ content: "Décris d'abord le comportement reproché avant de déposer le signalement." });
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.missingTicketContent });
     return;
   }
 
@@ -261,8 +232,8 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
 
   if (summary.isTargeted && summary.victimUserID && summary.victimUserID !== meta.reporterID) {
     await moderationReportApiService.update(interaction.guild.id, reportId, { status: "dismissed" });
-    await interaction.editReply({ content: "Ce signalement concerne une insulte ciblée : seule la personne visée peut le déposer." });
-    await channel.send("Signalement rejeté : seule la victime identifiée peut soumettre ce dossier. Ce salon sera supprimé dans 30 secondes.");
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.targetedTicketRejected });
+    await channel.send(MODERATION_MESSAGES.channelPosts.ticketRejected);
     setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
     return;
   }
@@ -270,8 +241,8 @@ async function handleTicketSubmit(interaction: ButtonInteraction): Promise<void>
   const result = await sendAnalysisResult(channel, reportId, summary, true);
   await interaction.editReply({
     content: result.kind === "follow_up"
-      ? "Des informations supplémentaires sont nécessaires. Réponds dans le ticket puis clique sur `J'ai répondu`."
-      : "La synthèse IA est prête. Confirme ou demande une unique modification dans le ticket.",
+      ? MODERATION_MESSAGES.interactionReplies.followUpNeeded
+      : MODERATION_MESSAGES.interactionReplies.summaryReady,
   });
 }
 
@@ -289,14 +260,14 @@ async function handleTicketCancel(interaction: ButtonInteraction): Promise<void>
 
   if (!meta || !canModerateTicket) {
     await interaction.reply({
-      content: "Seul le signaleur, le propriétaire du serveur ou un membre pouvant supprimer des messages peut annuler ce ticket.",
+      content: MODERATION_MESSAGES.interactionReplies.ticketCancelDenied,
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   await interaction.update({ components: [] });
-  await channel.send({ content: "Ticket annulé. Ce salon sera supprimé dans 5 secondes." });
+  await channel.send({ content: MODERATION_MESSAGES.channelPosts.ticketCancelled });
   setTimeout(() => void channel.delete().catch(() => undefined), 5000);
 }
 
@@ -305,25 +276,25 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
   if (!interaction.guild) return;
   const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
   if (!report) {
-    await interaction.reply({ content: "Signalement introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.reportNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const analysis = safeParseJSON<StoredReportAnalysis>(report.context?.aiSummary);
   if (!analysis) {
-    await interaction.reply({ content: "Analyse IA introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.analysisNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
   if (channel?.type !== ChannelType.GuildText) {
-    await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketChannelNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const meta = decodeTicketMeta(channel.topic);
   if (meta && interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut confirmer ce dossier.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanConfirm, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -336,7 +307,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
       status: "dismissed",
       context: { messages: report.context?.messages ?? [], aiSummary: analysis },
     });
-    await channel.send("Le dossier a ete confirme sans sanction: aucune infraction n'a ete etablie. Ce salon sera supprime dans 30 secondes.");
+    await channel.send(MODERATION_MESSAGES.channelPosts.reportConfirmedNoSanction);
     setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
     return;
   }
@@ -352,7 +323,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     source: { kind: "report", id: report.id, channel, reporterID: meta?.reporterID, originChannelID: meta?.originChannelID ?? interaction.guild.systemChannelId ?? null },
   });
 
-  await channel.send("Signalement confirme et sanction appliquee. Ce salon sera supprime dans 30 secondes.");
+  await channel.send(MODERATION_MESSAGES.channelPosts.reportConfirmedWithSanction);
   setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
 }
 
@@ -361,23 +332,23 @@ async function handleReportModify(interaction: ButtonInteraction): Promise<void>
   if (!interaction.guild) return;
   const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
   if (!report) {
-    await interaction.reply({ content: "Signalement introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.reportNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
   if (channel?.type !== ChannelType.GuildText) {
-    await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketChannelNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const meta = decodeTicketMeta(channel.topic);
   if (meta && interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut demander une modification.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanModify, flags: MessageFlags.Ephemeral });
     return;
   }
   if (report.confirmationCount >= 1) {
-    await interaction.reply({ content: "Une seule modification est autorisee pour ce ticket.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.singleModifyOnly, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -387,16 +358,8 @@ async function handleReportModify(interaction: ButtonInteraction): Promise<void>
   });
 
   await channel.send({
-    content: "Ajoute tes précisions dans le ticket. Une fois terminé, clique sur le bouton ci-dessous pour relancer l'analyse.",
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`report:revise:${reportId}`)
-          .setLabel("J'ai ajouté mes précisions")
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji("✏️"),
-      ),
-    ],
+    content: MODERATION_MESSAGES.channelPosts.modifyPrompt,
+    components: [buildReviseAction(reportId)],
   });
   await interaction.update({ components: [] });
 }
@@ -406,31 +369,31 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   if (!interaction.guild) return;
   const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
   if (!report) {
-    await interaction.reply({ content: "Signalement introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.reportNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
   if (channel?.type !== ChannelType.GuildText) {
-    await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketChannelNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const meta = decodeTicketMeta(channel.topic);
   if (meta && interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut soumettre ce dossier.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanSubmit, flags: MessageFlags.Ephemeral });
     return;
   }
   if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
     await interaction.reply({
-      content: "Ajoute d'abord tes précisions dans le ticket avant de relancer l'analyse.",
+      content: MODERATION_MESSAGES.interactionReplies.addDetailsBeforeRevise,
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
   await interaction.update({ components: [] });
-  await interaction.followUp({ content: "Analyse en cours...", flags: MessageFlags.Ephemeral });
+  await interaction.followUp({ content: MODERATION_MESSAGES.interactionReplies.analysisInProgress, flags: MessageFlags.Ephemeral });
 
   const ticketMessages = await collectTicketMessages(channel);
   const transcript = await ticketMessagesToTranscript(interaction.guild, ticketMessages);
@@ -456,24 +419,24 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   if (!interaction.guild) return;
   const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
   if (!report) {
-    await interaction.reply({ content: "Signalement introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.reportNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
   if (channel?.type !== ChannelType.GuildText) {
-    await interaction.reply({ content: "Salon du ticket introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketChannelNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const meta = decodeTicketMeta(channel.topic);
   if (meta && interaction.user.id !== meta.reporterID) {
-    await interaction.reply({ content: "Seul le signaleur peut relancer l'analyse.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanFollowUp, flags: MessageFlags.Ephemeral });
     return;
   }
   if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
     await interaction.reply({
-      content: "Réponds d'abord dans le ticket avant de cliquer sur `J'ai répondu`.",
+      content: MODERATION_MESSAGES.interactionReplies.replyBeforeFollowUp,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -484,8 +447,8 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   const result = await sendAnalysisResult(channel, id, summary, true);
   await interaction.editReply({
     content: result.kind === "follow_up"
-      ? "De nouvelles informations sont encore nécessaires."
-      : "La synthèse IA a été régénérée.",
+      ? MODERATION_MESSAGES.interactionReplies.followUpStillNeeded
+      : MODERATION_MESSAGES.interactionReplies.summaryRegenerated,
   });
 }
 
@@ -493,7 +456,7 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   const parts = interaction.customId.split(":");
   // Format: appeal:sanction:<guildID>:<sanctionID>
   if (parts[1] !== "sanction" || parts.length < 4) {
-    await interaction.reply({ content: "Cette sanction n'est plus accessible. Contactez un modérateur.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.sanctionUnavailable, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -502,23 +465,23 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   const sanctionList = await sanctionApiService.list(guildID, {}).catch(() => []);
   const sanction = sanctionList.find((s) => s.id === sanctionID);
   if (!sanction) {
-    await interaction.reply({ content: "Sanction introuvable.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.sanctionNotFound, flags: MessageFlags.Ephemeral });
     return;
   }
   if (interaction.user.id !== sanction.userID) {
-    await interaction.reply({ content: "Seul l'utilisateur sanctionné peut faire appel.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.appealOwnerOnly, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const modal = new ModalBuilder()
     .setCustomId(`${APPEAL_MODAL_PREFIX}${guildID}:${sanctionID}`)
-    .setTitle("Faire appel");
+    .setTitle(MODERATION_MESSAGES.appealModal.title);
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(
       new TextInputBuilder()
         .setCustomId("appeal_text")
-        .setLabel("Pourquoi revoir cette sanction ?")
+        .setLabel(MODERATION_MESSAGES.appealModal.fieldLabel)
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true)
         .setMaxLength(1000),
@@ -534,7 +497,7 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   if (!submitted) return;
 
   await appealApiService.create(guildID, sanctionID, submitted.fields.getTextInputValue("appeal_text").trim());
-  await submitted.reply({ content: "Appel enregistré.", flags: MessageFlags.Ephemeral });
+  await submitted.reply({ content: MODERATION_MESSAGES.interactionReplies.appealRecorded, flags: MessageFlags.Ephemeral });
 }
 
 // Registers all component interaction handlers (idempotent, safe for hot-reload)

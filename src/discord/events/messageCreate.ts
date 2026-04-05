@@ -7,6 +7,7 @@ import {
 } from "@/api";
 import { ChannelRuleDTO } from "@/api/channelRuleService";
 import { resolveSpamCheckers } from "@/discord/components";
+import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import { Event } from "@/discord/types";
 import { ChannelType, Message } from "discord.js";
 
@@ -102,7 +103,7 @@ async function applyOneMessageLimit(message: Message, guildID: string, rule: Cha
   await message.delete().catch(() => undefined);
 
   const notice = await channel.send({
-    content: `${message.author} Tu ne peux envoyer qu'un seul message dans ce salon. Supprime ton message precedent pour en envoyer un nouveau.`,
+    content: MODERATION_MESSAGES.singleMessageLimitNotice(message.author),
   }).catch(() => null);
   if (notice) setTimeout(() => notice.delete().catch(() => undefined), 5000);
 

@@ -1,4 +1,5 @@
 import { Command } from "@/discord/types";
+import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import { buildSanctionEmbed } from "@/discord/components/moderation/sanctionHelpers";
 import {
   ApplicationCommandOptionType,
@@ -94,7 +95,7 @@ export default class WarnCommand extends Command {
     });
 
     await interaction.reply({
-      content: "Signalement envoyé.",
+      content: MODERATION_MESSAGES.warnSent,
       flags: MessageFlags.Ephemeral,
     });
   }
