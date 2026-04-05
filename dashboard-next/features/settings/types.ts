@@ -7,6 +7,8 @@ export type GuildSettingsDTO = {
   statsReportChannelID: string;
   inviteLogChannelID: string;
   sanctionDurationMs: number | null;
+  moderationNotifChannelID: string;
+  moderationModRoleID: string;
 };
 
 export type SpamFilterMode = "whitelist" | "blacklist";
@@ -24,4 +26,4 @@ export type SpamRuleDTO = {
   enabled: boolean;
 };
 
-export type SettingsSection = "stats" | "spam" | "invite-log";
+export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation";

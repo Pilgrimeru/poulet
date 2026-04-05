@@ -1,6 +1,7 @@
 import { Command } from "@/discord/types";
 import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import { buildSanctionEmbed } from "@/discord/components/moderation/sanctionHelpers";
+import { sanctionApiService } from "@/api";
 import {
   ApplicationCommandOptionType,
   ChatInputCommandInteraction,
@@ -82,6 +83,18 @@ export default class WarnCommand extends Command {
       });
       return;
     }
+
+    await sanctionApiService.create({
+      guildID: interaction.guild.id,
+      userID: target.id,
+      moderatorID: interaction.user.id,
+      type: "WARN",
+      severity,
+      nature: "Other",
+      reason: message,
+      state: "created",
+      durationMs: null,
+    });
 
     await channel.send({
       content: `${target}`,

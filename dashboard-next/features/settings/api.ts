@@ -1,4 +1,5 @@
 import type { ChannelEntry } from "@/types";
+import type { RoleEntry } from "@/services/discordMetaService";
 import type { GuildSettingsDTO, SpamRuleDTO } from "./types";
 
 export async function fetchSettings(guildID: string): Promise<GuildSettingsDTO> {
@@ -20,6 +21,12 @@ export async function patchSettings(guildID: string, patch: Partial<GuildSetting
 export async function fetchAllChannels(guildID: string): Promise<ChannelEntry[]> {
   const response = await fetch(`/api/guilds/${guildID}/all-channels`);
   if (!response.ok) throw new Error("Failed to fetch channels");
+  return response.json();
+}
+
+export async function fetchRoles(guildID: string): Promise<RoleEntry[]> {
+  const response = await fetch(`/api/guilds/${guildID}/discord-roles`);
+  if (!response.ok) throw new Error("Failed to fetch roles");
   return response.json();
 }
 

@@ -3,9 +3,11 @@
 import { EmptyState, LoadingState, NumberField, SelectField, StatusBadge, ToggleField } from "@/components/ui";
 import type { ChannelEntry } from "@/types";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import styles from "@/app/settings/Settings.module.css";
 import { useGuildSettings, useSpamRules } from "./hooks";
+import { fetchRoles } from "./api";
+import type { RoleEntry } from "@/services/discordMetaService";
 import type { GuildSettingsDTO, SettingsSection, SpamRuleDTO } from "./types";
 
 function ChannelSelect({
@@ -158,22 +160,6 @@ function StatsSection({
           <ChannelSelect channels={channels} value={settings.statsReportChannelID} onChange={(value) => onPatch({ statsReportChannelID: value })} placeholder="Aucun salon" />
         </SettingRow>
       </SettingsGroup>
-      <SettingsGroup title="Modération">
-        <SettingRow name="Durée de validité des sanctions" hint="Durée pendant laquelle une sanction reste prise en compte pour la récidive. Laissez vide pour ne jamais expirer.">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <NumberField
-              value={settings.sanctionDurationMs === null ? "" : Math.round(settings.sanctionDurationMs / 86_400_000)}
-              min={0}
-              placeholder="∞"
-              onChange={(value) => {
-                const raw = value.trim();
-                onPatch({ sanctionDurationMs: raw === "" || Number(raw) <= 0 ? null : Math.round(Number(raw)) * 86_400_000 });
-              }}
-            />
-            <StatusBadge tone="success">{formatSanctionDurationLabel(settings.sanctionDurationMs)}</StatusBadge>
-          </div>
-        </SettingRow>
-      </SettingsGroup>
       <SettingsGroup title="Exclusions">
         <SettingRow name="Salons exclus" hint={`${settings.statsBlacklistChannelIDs.length} salon(s) exclu(s) des statistiques`}>
           <ChannelTokenList
@@ -266,6 +252,101 @@ function SpamSection({ guildID, channels }: Readonly<{ guildID: string; channels
   );
 }
 
+function RoleSelect({
+  roles,
+  value,
+  onChange,
+  placeholder = "Non défini",
+}: Readonly<{
+  roles: RoleEntry[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}>) {
+  return (
+    <SelectField className={styles.channelSelect} value={value} onChange={onChange}>
+      <option value="">{placeholder}</option>
+      {roles.map((role) => (
+        <option key={role.roleID} value={role.roleID}>
+          @{role.roleName}
+        </option>
+      ))}
+    </SelectField>
+  );
+}
+
+function ModerationSection({
+  settings,
+  channels,
+  onPatch,
+}: Readonly<{
+  settings: GuildSettingsDTO;
+  channels: ChannelEntry[];
+  onPatch: (patch: Partial<GuildSettingsDTO>) => void;
+}>) {
+  const [roles, setRoles] = useState<RoleEntry[]>([]);
+  const guildID = settings.guildID;
+
+  useEffect(() => {
+    if (!guildID) return;
+    fetchRoles(guildID).then(setRoles).catch(() => setRoles([]));
+  }, [guildID]);
+
+  return (
+    <>
+      <SectionHeader
+        title="Modération"
+        description="Configurez le salon de notifications et le rôle à mentionner pour les opérations nécessitant une intervention humaine (appels, contestations)."
+      />
+      <SettingsGroup title="Sanctions">
+        <SettingRow name="Durée de validité des sanctions" hint="Durée pendant laquelle une sanction reste prise en compte pour la récidive. Laissez vide pour ne jamais expirer.">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <NumberField
+              value={settings.sanctionDurationMs === null ? "" : Math.round(settings.sanctionDurationMs / 86_400_000)}
+              min={0}
+              placeholder="∞"
+              onChange={(value) => {
+                const raw = value.trim();
+                onPatch({ sanctionDurationMs: raw === "" || Number(raw) <= 0 ? null : Math.round(Number(raw)) * 86_400_000 });
+              }}
+            />
+            <StatusBadge tone="success">{formatSanctionDurationLabel(settings.sanctionDurationMs)}</StatusBadge>
+          </div>
+        </SettingRow>
+      </SettingsGroup>
+      <SettingsGroup title="Notifications">
+        <SettingRow
+          name="Salon de notifications"
+          hint="Les alertes d'appels et de contestations sont envoyées dans ce salon"
+        >
+          <ChannelSelect
+            channels={channels}
+            value={settings.moderationNotifChannelID}
+            onChange={(value) => onPatch({ moderationNotifChannelID: value })}
+            placeholder="Désactivé"
+          />
+        </SettingRow>
+        <SettingRow
+          name="Rôle à mentionner"
+          hint="Ce rôle sera mentionné dans les notifications pour alerter les modérateurs"
+        >
+          <RoleSelect
+            roles={roles}
+            value={settings.moderationModRoleID}
+            onChange={(value) => onPatch({ moderationModRoleID: value })}
+            placeholder="Aucune mention"
+          />
+        </SettingRow>
+      </SettingsGroup>
+      {settings.moderationNotifChannelID ? (
+        <SettingsGroup title="Statut">
+          <SettingRow name="Notifications actives"><StatusBadge tone="success">Activé</StatusBadge></SettingRow>
+        </SettingsGroup>
+      ) : null}
+    </>
+  );
+}
+
 function InviteLogSection({
   settings,
   channels,
@@ -305,6 +386,7 @@ function SettingsInner() {
     { id: "stats", label: "Statistiques", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg> },
     { id: "spam", label: "Anti-Spam", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" /></svg> },
     { id: "invite-log", label: "Invite Log", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg> },
+    { id: "moderation", label: "Modération", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
   ];
 
   return (
@@ -322,6 +404,7 @@ function SettingsInner() {
         {section === "stats" ? <StatsSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "spam" ? <SpamSection guildID={guildID} channels={channels} /> : null}
         {section === "invite-log" ? <InviteLogSection settings={settings} channels={channels} onPatch={patch} /> : null}
+        {section === "moderation" ? <ModerationSection settings={settings} channels={channels} onPatch={patch} /> : null}
       </main>
       {status !== "idle" ? <div className={styles.saveBar}><span className={styles.saveBarText}>{status === "saving" ? "Sauvegarde en cours…" : status === "saved" ? "✓ Paramètres sauvegardés" : "Erreur de sauvegarde"}</span></div> : null}
     </div>

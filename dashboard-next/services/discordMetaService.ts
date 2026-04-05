@@ -27,6 +27,21 @@ type DiscordChannel = {
   type: number;
 };
 
+type DiscordRole = {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+  managed: boolean;
+};
+
+export type RoleEntry = {
+  roleID: string;
+  roleName: string;
+  color: number;
+  position: number;
+};
+
 export type LiveChannelEntry = {
   channelID: string;
   channelName: string;
@@ -190,6 +205,25 @@ export async function listGuildChannelsFromDiscord(guildID: string): Promise<Liv
   });
 
   return results;
+}
+
+async function fetchGuildRoles(guildID: string): Promise<DiscordRole[] | null> {
+  return discordGet<DiscordRole[]>(`/guilds/${guildID}/roles`, `roles:${guildID}`);
+}
+
+export async function listGuildRolesFromDiscord(guildID: string): Promise<RoleEntry[]> {
+  const roles = await fetchGuildRoles(guildID);
+  if (!roles) return [];
+
+  return roles
+    .filter((role) => !role.managed && role.name !== "@everyone")
+    .sort((a, b) => b.position - a.position)
+    .map((role) => ({
+      roleID: role.id,
+      roleName: role.name,
+      color: role.color,
+      position: role.position,
+    }));
 }
 
 async function fetchGuildMember(guildID: string, userID: string): Promise<DiscordGuildMember | null> {
