@@ -1,11 +1,16 @@
 import { Command } from "@/discord/types";
-import { sendWarn, WarnSeverity } from "@/services/warnService";
+import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
+import { buildSanctionEmbed } from "@/discord/components/moderation/sanctionHelpers";
+import { sanctionApiService } from "@/api";
 import {
   ApplicationCommandOptionType,
   ChatInputCommandInteraction,
   MessageFlags,
   PermissionFlagsBits,
+  TextChannel,
 } from "discord.js";
+
+type WarnSeverity = "LOW" | "MEDIUM" | "HIGH";
 
 export default class WarnCommand extends Command {
   constructor() {
@@ -62,11 +67,43 @@ export default class WarnCommand extends Command {
       return;
     }
 
-    await sendWarn(interaction, {
+    const embed = buildSanctionEmbed({
       target,
-      severity,
-      message,
       moderator: interaction.user,
+      type: "WARN",
+      severity,
+      reason: message,
+    });
+
+    const channel = interaction.channel as TextChannel | null;
+    if (!channel) {
+      await interaction.reply({
+        content: "Salon introuvable.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await sanctionApiService.create({
+      guildID: interaction.guild.id,
+      userID: target.id,
+      moderatorID: interaction.user.id,
+      type: "WARN",
+      severity,
+      nature: "Other",
+      reason: message,
+      state: "created",
+      durationMs: null,
+    });
+
+    await channel.send({
+      content: `${target}`,
+      embeds: [embed],
+    });
+
+    await interaction.reply({
+      content: MODERATION_MESSAGES.warnSent,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }

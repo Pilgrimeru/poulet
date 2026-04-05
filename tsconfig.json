@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "dist",
-    "module": "Preserve",
+    "module": "preserve",
     "target": "ESNext",
     "lib": ["ESNext"],
     "resolveJsonModule": true,
@@ -14,16 +15,12 @@
     "sourceMap": true,
     "strictPropertyInitialization": false,
     "moduleResolution": "bundler",
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
-    // Best practices
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
-
-    // Some stricter flags
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true

@@ -14,15 +14,67 @@ interface Props {
   channelID: string | null;
   loadedChannelID: string | null;
   updateMode: MessageUpdateMode;
+  scrollToMessageID: string | null;
 }
 
-export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID, loadedChannelID, updateMode }: Readonly<Props>) {
+export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID, loadedChannelID, updateMode, scrollToMessageID }: Readonly<Props>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const distanceFromBottomRef = useRef(0);
   const previousLoadedChannelIDRef = useRef<string | null>(null);
   const [highlightedID, setHighlightedID] = useState<string | null>(null);
+  const attemptedScrollRef = useRef<string | null>(null);
+  const maxSearchDepth = 10; // max pages to load when searching for a message
+  const pagesLoadedRef = useRef(0);
 
+  // Auto-load older messages until target message is found
   useLayoutEffect(() => {
+    if (!scrollToMessageID || attemptedScrollRef.current === scrollToMessageID) return;
+
+    const found = messages.some((m) => m.messageID === scrollToMessageID);
+    if (found) {
+      pagesLoadedRef.current = 0;
+      return;
+    }
+
+    // Reset search state when channel changes
+    if (loadedChannelID !== channelID) {
+      pagesLoadedRef.current = 0;
+      return;
+    }
+
+    // Give up after max pages to avoid infinite loading
+    if (pagesLoadedRef.current >= maxSearchDepth) {
+      attemptedScrollRef.current = scrollToMessageID;
+      pagesLoadedRef.current = 0;
+      return;
+    }
+
+    // Target not in current batch, load more older messages
+    if (hasMore && !loading) {
+      pagesLoadedRef.current += 1;
+      onLoadMore();
+    }
+  }, [messages, scrollToMessageID, hasMore, loading, onLoadMore, loadedChannelID, channelID]);
+
+  // Scroll to target message when it appears in the DOM
+  useLayoutEffect(() => {
+    if (!scrollToMessageID || scrollToMessageID === attemptedScrollRef.current) return;
+
+    const el = containerRef.current?.querySelector(`[data-message-id="${scrollToMessageID}"]`);
+    if (!el) return;
+
+    // Message found, scroll to it
+    attemptedScrollRef.current = scrollToMessageID;
+    pagesLoadedRef.current = 0;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedID(scrollToMessageID);
+    setTimeout(() => setHighlightedID(null), 2500);
+  }, [messages, scrollToMessageID]);
+
+  // Auto-scroll to bottom on channel change or initial load (but NOT when targeting a specific message)
+  useLayoutEffect(() => {
+    if (scrollToMessageID) return; // Skip auto-scroll when targeting a message
+
     const el = containerRef.current;
     if (!el || loadedChannelID !== channelID) return;
 

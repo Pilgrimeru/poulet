@@ -16,6 +16,7 @@ export async function renderHome(ids: ScopedSettingsIds) {
       { label: "Stats", description: "Configurer exclusions et vocal casque coupe", value: "stats" },
       { label: "Regles par salon", description: "Reactions, threads auto, limite de messages", value: "channel_rules" },
       { label: "Invite Log", description: "Salon de log des arrivees et departs", value: "invite_log" },
+      { label: "Moderation", description: "Salon de notif et role moderateur pour les appels/contestations", value: "moderation" },
     ]);
 
   return {

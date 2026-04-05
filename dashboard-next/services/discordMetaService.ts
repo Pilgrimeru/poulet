@@ -3,6 +3,7 @@ import { config as dotenvConfig } from "dotenv";
 import { Op } from "sequelize";
 import type { ChannelEntry, GuildEntry, MessageSnapshotDTO } from "@/types";
 import { ChannelMeta } from "@/models/ChannelMeta";
+import { ensureChannelMetaSchema } from "@/services/channelMetaService";
 import type { UserMeta } from "@/services/statsService";
 
 const DISCORD_API_BASE = "https://discord.com/api/v10";
@@ -24,6 +25,29 @@ type DiscordChannel = {
   name: string;
   parent_id: string | null;
   type: number;
+};
+
+type DiscordRole = {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+  managed: boolean;
+};
+
+export type RoleEntry = {
+  roleID: string;
+  roleName: string;
+  color: number;
+  position: number;
+};
+
+export type LiveChannelEntry = {
+  channelID: string;
+  channelName: string;
+  parentID: string | null;
+  parentName: string | null;
+  channelType: number | null;
 };
 
 type DiscordUser = {
@@ -109,6 +133,30 @@ async function discordGet<T>(pathname: string, cacheKey: string): Promise<T | nu
   return setCached(cacheKey, await response.json() as T);
 }
 
+async function discordWrite<T>(pathname: string, init: RequestInit): Promise<T | null> {
+  const token = getToken();
+  if (!token) return null;
+
+  const response = await fetch(`${DISCORD_API_BASE}${pathname}`, {
+    ...init,
+    headers: {
+      Authorization: `Bot ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Discord API ${response.status} on ${pathname}`);
+  }
+  if (response.status === 204) return null;
+  return response.json() as Promise<T>;
+}
+
 function imageExtension(hash: string): string {
   return hash.startsWith("a_") ? "gif" : "png";
 }
@@ -134,6 +182,48 @@ async function fetchGuild(guildID: string): Promise<DiscordGuild | null> {
 
 async function fetchGuildChannels(guildID: string): Promise<DiscordChannel[] | null> {
   return discordGet<DiscordChannel[]>(`/guilds/${guildID}/channels`, `channels:${guildID}`);
+}
+
+export async function listGuildChannelsFromDiscord(guildID: string): Promise<LiveChannelEntry[]> {
+  const channels = await fetchGuildChannels(guildID);
+  if (!channels) return [];
+
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const results: LiveChannelEntry[] = channels.map((channel) => ({
+    channelID: channel.id,
+    channelName: channel.name,
+    parentID: channel.parent_id ?? null,
+    parentName: channel.parent_id ? channelMap.get(channel.parent_id)?.name ?? null : null,
+    channelType: channel.type ?? null,
+  }));
+
+  results.sort((a, b) => {
+    const aParent = a.parentName ?? "";
+    const bParent = b.parentName ?? "";
+    if (aParent !== bParent) return aParent.localeCompare(bParent);
+    return a.channelName.localeCompare(b.channelName);
+  });
+
+  return results;
+}
+
+async function fetchGuildRoles(guildID: string): Promise<DiscordRole[] | null> {
+  return discordGet<DiscordRole[]>(`/guilds/${guildID}/roles`, `roles:${guildID}`);
+}
+
+export async function listGuildRolesFromDiscord(guildID: string): Promise<RoleEntry[]> {
+  const roles = await fetchGuildRoles(guildID);
+  if (!roles) return [];
+
+  return roles
+    .filter((role) => !role.managed && role.name !== "@everyone")
+    .sort((a, b) => b.position - a.position)
+    .map((role) => ({
+      roleID: role.id,
+      roleName: role.name,
+      color: role.color,
+      position: role.position,
+    }));
 }
 
 async function fetchGuildMember(guildID: string, userID: string): Promise<DiscordGuildMember | null> {
@@ -220,6 +310,7 @@ export async function hydrateChannelValues<T extends { channelID: string }>(
   if (rows.length === 0) return [];
 
   const channelIDs = [...new Set(rows.map((row) => row.channelID))];
+  await ensureChannelMetaSchema();
   const fallbackMetas = await ChannelMeta.findAll({
     attributes: ["channelID", "name", "parentID", "parentName", "channelType"],
     where: {
@@ -291,6 +382,42 @@ export async function getCurrentUserMeta(guildID: string, userID: string): Promi
   } catch {
     return null;
   }
+}
+
+export async function sendDirectMessage(userID: string, content: string): Promise<boolean> {
+  const dm = await discordWrite<{ id: string }>("/users/@me/channels", {
+    method: "POST",
+    body: JSON.stringify({ recipient_id: userID }),
+  });
+  if (!dm?.id) return false;
+  await discordWrite(`/channels/${dm.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
+  });
+  return true;
+}
+
+export async function setMemberTimeout(
+  guildID: string,
+  userID: string,
+  durationMs: number | null,
+  reason: string,
+): Promise<boolean> {
+  const communicationDisabledUntil = durationMs === null
+    ? null
+    : new Date(Date.now() + durationMs).toISOString();
+
+  const result = await discordWrite(`/guilds/${guildID}/members/${userID}`, {
+    method: "PATCH",
+    headers: {
+      "X-Audit-Log-Reason": encodeURIComponent(reason.slice(0, 512)),
+    },
+    body: JSON.stringify({
+      communication_disabled_until: communicationDisabledUntil,
+    }),
+  });
+
+  return result !== undefined;
 }
 
 export async function hydrateUserMetas(

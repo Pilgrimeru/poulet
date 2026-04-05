@@ -1,21 +1,26 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Op } from "sequelize";
 import { ChannelMeta } from "../models/ChannelMeta";
 import { sequelize } from "../lib/db";
 
 let schemaReady = false;
+
+export async function ensureChannelMetaSchema(): Promise<void> {
+  return ensureColumns();
+}
 
 async function ensureColumns(): Promise<void> {
   if (schemaReady) return;
   const qi = sequelize.getQueryInterface();
   const table = await qi.describeTable("ChannelMeta");
   const cols = [
-    { name: "parentID", type: DataTypes.STRING, defaultValue: null },
-    { name: "parentName", type: DataTypes.STRING, defaultValue: null },
-    { name: "channelType", type: DataTypes.INTEGER, defaultValue: null },
+    { name: "parentID", type: DataTypes.STRING, defaultValue: null, allowNull: true },
+    { name: "parentName", type: DataTypes.STRING, defaultValue: null, allowNull: true },
+    { name: "channelType", type: DataTypes.INTEGER, defaultValue: null, allowNull: true },
+    { name: "isDeleted", type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
   ];
   for (const col of cols) {
     if (!table[col.name]) {
-      await qi.addColumn("ChannelMeta", col.name, { type: col.type, allowNull: true, defaultValue: col.defaultValue });
+      await qi.addColumn("ChannelMeta", col.name, { type: col.type, allowNull: col.allowNull, defaultValue: col.defaultValue });
     }
   }
   schemaReady = true;
@@ -30,7 +35,7 @@ export async function upsertChannelMeta(
   channelType?: number | null,
 ): Promise<void> {
   await ensureColumns();
-  await ChannelMeta.upsert({ channelID, guildID, name, parentID: parentID ?? null, parentName: parentName ?? null, channelType: channelType ?? null });
+  await ChannelMeta.upsert({ channelID, guildID, name, parentID: parentID ?? null, parentName: parentName ?? null, channelType: channelType ?? null, isDeleted: false });
 }
 
 export async function upsertChannelMetas(rows: Array<{
@@ -51,9 +56,23 @@ export async function upsertChannelMetas(rows: Array<{
       parentID: row.parentID ?? null,
       parentName: row.parentName ?? null,
       channelType: row.channelType ?? null,
+      isDeleted: false,
     })),
     {
-      updateOnDuplicate: ["guildID", "name", "parentID", "parentName", "channelType"],
+      updateOnDuplicate: ["guildID", "name", "parentID", "parentName", "channelType", "isDeleted"],
     },
+  );
+}
+
+export async function markChannelDeleted(channelID: string): Promise<void> {
+  await ensureColumns();
+  await ChannelMeta.update({ isDeleted: true }, { where: { channelID } });
+}
+
+export async function markChannelsDeletedExcept(guildID: string, activeChannelIDs: string[]): Promise<void> {
+  await ensureColumns();
+  await ChannelMeta.update(
+    { isDeleted: true },
+    { where: { guildID, channelID: { [Op.notIn]: activeChannelIDs }, isDeleted: false } },
   );
 }

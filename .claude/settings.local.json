@@ -3,18 +3,20 @@
     "allow": [
       "Bash(bun run:*)",
       "Bash(bun install:*)",
-      "Bash(python3 \"C:/Users/Elliott/.claude/plugins/marketplaces/ui-ux-pro-max-skill/cli/assets/scripts/search.py\" \"discord message history viewer dark mode refined\" --design-system -p \"Poulet Dashboard\" -f markdown)",
+      "Bash(python3 *)",
       "Bash(bun add:*)",
       "Bash(bun remove:*)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet -not -path */node_modules* -not -path */.git* -type f)",
       "Bash(npx tsc:*)",
       "Bash(xargs grep:*)",
       "Bash(node -e \":*)",
       "Bash(bun -e \":*)",
-      "Bash(grep -r 'from \"\"\\\\.\\\\./sequelize\"\"' /c/Users/Elliott/Documents/Github/poulet/dashboard-next/models/)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next/app/api/guilds/[guildId]/stats -type f -name \"route.ts\")",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next -type f -name *history*)",
-      "Bash(find /c/Users/Elliott/Documents/Github/poulet/dashboard-next/hooks -type f -name *.ts)"
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(find *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(xargs cat:*)"
     ]
   }
 }

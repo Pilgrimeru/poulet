@@ -11,6 +11,9 @@ export type GuildSettingsDTO = {
   statsReportChannelID: string;
   emoteChannelID: string;
   inviteLogChannelID: string;
+  sanctionDurationMs: number | null;
+  moderationNotifChannelID: string;
+  moderationModRoleID: string;
 };
 
 const cache = new Map<string, GuildSettingsDTO>();
@@ -37,10 +40,17 @@ async function ensureColumns(): Promise<void> {
     { name: "statsReportChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "emoteChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "inviteLogChannelID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "sanctionDurationMs", type: DataTypes.BIGINT, defaultValue: null, allowNull: true },
+    { name: "moderationNotifChannelID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "moderationModRoleID", type: DataTypes.STRING, defaultValue: "" },
   ];
   for (const col of cols) {
     if (!table[col.name]) {
-      await qi.addColumn("GuildSettings", col.name, { type: col.type, allowNull: false, defaultValue: col.defaultValue });
+      await qi.addColumn("GuildSettings", col.name, {
+        type: col.type,
+        allowNull: "allowNull" in col ? col.allowNull : false,
+        defaultValue: col.defaultValue,
+      });
     }
   }
   schemaReady = true;
@@ -62,6 +72,9 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
       statsReportChannelID: "",
       emoteChannelID: "",
       inviteLogChannelID: "",
+      sanctionDurationMs: null,
+      moderationNotifChannelID: "",
+      moderationModRoleID: "",
     } as any);
   }
 
@@ -80,6 +93,9 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
     statsReportChannelID: row.statsReportChannelID,
     emoteChannelID: row.emoteChannelID,
     inviteLogChannelID: row.inviteLogChannelID,
+    sanctionDurationMs: row.sanctionDurationMs === null || row.sanctionDurationMs === undefined ? null : Number(row.sanctionDurationMs),
+    moderationNotifChannelID: row.moderationNotifChannelID ?? "",
+    moderationModRoleID: row.moderationModRoleID ?? "",
   };
 
   cache.set(guildID, dto);
@@ -104,6 +120,9 @@ export async function updateByGuildID(
     statsReportChannelID: patch.statsReportChannelID ?? current.statsReportChannelID,
     emoteChannelID: patch.emoteChannelID ?? current.emoteChannelID,
     inviteLogChannelID: patch.inviteLogChannelID ?? current.inviteLogChannelID,
+    sanctionDurationMs: patch.sanctionDurationMs ?? current.sanctionDurationMs,
+    moderationNotifChannelID: patch.moderationNotifChannelID ?? current.moderationNotifChannelID,
+    moderationModRoleID: patch.moderationModRoleID ?? current.moderationModRoleID,
   };
 
   await GuildSettings.upsert({
@@ -115,6 +134,9 @@ export async function updateByGuildID(
     statsReportChannelID: next.statsReportChannelID,
     emoteChannelID: next.emoteChannelID,
     inviteLogChannelID: next.inviteLogChannelID,
+    sanctionDurationMs: next.sanctionDurationMs,
+    moderationNotifChannelID: next.moderationNotifChannelID,
+    moderationModRoleID: next.moderationModRoleID,
   } as any);
 
   cache.set(guildID, next);

@@ -1,5 +1,6 @@
 import { Message, Snowflake } from "discord.js";
 
+import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import { autoDelete } from "@/discord/utils";
 
 export type SpamCheckerOption = {
@@ -42,7 +43,7 @@ export class SpamChecker {
         message.member
           ?.timeout(this.punishmentDurationInSec * 1000)
           .catch(console.error);
-        message.reply("Tu spam, tu es relou.").then(autoDelete);
+        message.reply(MODERATION_MESSAGES.spamTimeoutReply).then(autoDelete);
         return false;
       }
     } else {

@@ -3,7 +3,7 @@ import { bot } from "@/app/runtime";
 import { componentRouter } from "@/discord/interactions";
 import { Event } from "@/discord/types";
 import { autoDelete } from "@/discord/utils";
-import { ChatInputCommandInteraction, MessageContextMenuCommandInteraction, PermissionsBitField, UserContextMenuCommandInteraction } from "discord.js";
+import { ChatInputCommandInteraction, MessageContextMenuCommandInteraction, MessageFlags, PermissionsBitField, UserContextMenuCommandInteraction } from "discord.js";
 
 export default new Event("interactionCreate", async (interaction) => {
   if (interaction.isChatInputCommand()) {
@@ -22,8 +22,8 @@ async function processContextMenu(interaction: UserContextMenuCommandInteraction
   try {
     await command.execute(interaction);
   } catch (error) {
-    interaction.reply(i18n.__("errors.command")).then(autoDelete);
     console.error(error);
+    await replyWithCommandError(interaction);
   }
 }
 
@@ -44,7 +44,27 @@ async function processChatInput(interaction: ChatInputCommandInteraction): Promi
   try {
     await command.execute(interaction);
   } catch (error) {
-    interaction.reply(i18n.__("errors.command")).then(autoDelete);
     console.error(error);
+    await replyWithCommandError(interaction);
+  }
+}
+
+async function replyWithCommandError(
+  interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction | MessageContextMenuCommandInteraction,
+): Promise<void> {
+  const content = i18n.__("errors.command");
+
+  try {
+    if (interaction.deferred) {
+      await interaction.editReply({ content });
+      return;
+    }
+    if (interaction.replied) {
+      await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+      return;
+    }
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral }).then(autoDelete);
+  } catch (replyError) {
+    console.error("[interactionCreate] Failed to send command error response", replyError);
   }
 }

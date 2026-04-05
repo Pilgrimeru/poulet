@@ -1,60 +1,13 @@
 "use client";
 
-import { fetchGuilds } from "@/lib/api-client";
-import type { GuildEntry } from "@/types";
+import { useDashboardNavigation } from "@/features/navigation";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import styles from "./Navbar.module.css";
 
-type SessionPayload = {
-  user: {
-    id: string;
-    username: string;
-    globalName: string | null;
-    avatar: string;
-  };
-};
-
 export function Navbar() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [guilds, setGuilds] = useState<GuildEntry[]>([]);
-  const [session, setSession] = useState<SessionPayload | null>(null);
-  const hidden = pathname === "/login";
-
-  useEffect(() => {
-    if (hidden) return;
-    fetchGuilds().then(setGuilds).catch(() => setGuilds([]));
-  }, [hidden]);
-
-  useEffect(() => {
-    if (hidden) return;
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unauthorized");
-        return response.json() as Promise<SessionPayload>;
-      })
-      .then(setSession)
-      .catch(() => setSession(null));
-  }, [hidden]);
-
-  const selectedGuildID = searchParams.get("guild") ?? guilds[0]?.guildID ?? "";
-  const selectedGuild = useMemo(
-    () => guilds.find((guild) => guild.guildID === selectedGuildID) ?? guilds[0] ?? null,
-    [guilds, selectedGuildID],
-  );
-
-  function withGuild(path: string) {
-    return selectedGuildID ? `${path}?guild=${encodeURIComponent(selectedGuildID)}` : path;
-  }
-
-  function onGuildChange(guildID: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("guild", guildID);
-    router.push(`${pathname}?${params.toString()}`);
-  }
+  const { hidden, guilds, selectedGuild, session, onGuildChange, items } = useDashboardNavigation();
+  const mainItems = items.filter((item) => item.group !== "bottom");
+  const bottomItems = items.filter((item) => item.group === "bottom");
 
   if (hidden) {
     return null;
@@ -94,55 +47,31 @@ export function Navbar() {
       </div>
 
       <div className={styles.navItems}>
-        <Link
-          href={withGuild("/")}
-          className={`${styles.navItem} ${pathname === "/" ? styles.active : ""}`}
-          title="Accueil"
-        >
-          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span className={styles.navLabel}>Accueil</span>
-        </Link>
-
-        <Link
-          href={withGuild("/history")}
-          className={`${styles.navItem} ${pathname === "/history" ? styles.active : ""}`}
-          title="Historique des messages"
-        >
-          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          <span className={styles.navLabel}>Chat</span>
-        </Link>
-
-        <Link
-          href={withGuild("/stats")}
-          className={`${styles.navItem} ${pathname === "/stats" ? styles.active : ""}`}
-          title="Activité du serveur"
-        >
-          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          <span className={styles.navLabel}>Activité</span>
-        </Link>
+        {mainItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`${styles.navItem} ${item.active ? styles.active : ""}`}
+            title={item.title}
+          >
+            <span className={styles.icon}>{item.icon}</span>
+            <span className={styles.navLabel}>{item.label}</span>
+          </Link>
+        ))}
       </div>
 
       <div className={styles.bottomItems}>
-        <Link
-          href={withGuild("/settings")}
-          className={`${styles.navItem} ${pathname === "/settings" ? styles.active : ""}`}
-          title="Paramètres du bot"
-        >
-          <svg className={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-          <span className={styles.navLabel}>Réglages</span>
-        </Link>
+        {bottomItems.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`${styles.navItem} ${item.active ? styles.active : ""}`}
+            title={item.title}
+          >
+            <span className={styles.icon}>{item.icon}</span>
+            <span className={styles.navLabel}>{item.label}</span>
+          </Link>
+        ))}
         {session && (
           <div className={styles.profileCard}>
             {session.user.avatar ? (

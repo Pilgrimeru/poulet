@@ -2,6 +2,7 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
+  logging: false,
   output: "standalone",
   outputFileTracingRoot: path.resolve(__dirname, ".."),
   turbopack: {

@@ -1,5 +1,7 @@
 import { config } from "@/app";
 import { pollService } from "@/api";
+import { sequelize } from "@/database/db";
+import "@/database/models/MessageHistory"; // Initialize model
 import {
   deafSessionManager,
   pollManager,
@@ -44,6 +46,9 @@ export class Bot extends Client {
   }
 
   private async initialize(): Promise<void> {
+    await sequelize.authenticate();
+    await sequelize.sync({ force: false });
+    console.log("[bot] Database connection established.");
     await Promise.all([this.loadEvents(), this.loadCommands()]);
     await this.login(config.TOKEN);
   }
@@ -61,7 +66,8 @@ export class Bot extends Client {
         allCommands.push(instance.toCommandDataResolvable());
       }
 
-      const contextMenuClasses = mod.contextMenus ?? (mod.contextMenu ? [mod.contextMenu] : []);
+      const contextMenuClasses =
+        mod.contextMenus ?? (mod.contextMenu ? [mod.contextMenu] : []);
       for (const cls of contextMenuClasses) {
         const instance = new cls() as ContextMenuCommand;
         this.contextMenuCommands.set(instance.name, instance);
@@ -74,9 +80,20 @@ export class Bot extends Client {
       this.application?.commands.set([]).catch(() => undefined);
 
       for (const guild of this.guilds.cache.values()) {
-        guild.commands.set(allCommands).then((cmds) => {
-          console.log(`[bot] ${cmds.size} commande(s) enregistrée(s) sur ${guild.name} :`, cmds.map((c) => `${c.name} (${c.type})`).join(", "));
-        }).catch((err) => console.error(`[bot] Erreur enregistrement commandes sur ${guild.name}:`, err));
+        guild.commands
+          .set(allCommands)
+          .then((cmds) => {
+            console.log(
+              `[bot] ${cmds.size} commande(s) enregistrée(s) sur ${guild.name} :`,
+              cmds.map((c) => `${c.name} (${c.type})`).join(", "),
+            );
+          })
+          .catch((err) =>
+            console.error(
+              `[bot] Erreur enregistrement commandes sur ${guild.name}:`,
+              err,
+            ),
+          );
       }
     });
   }

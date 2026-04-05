@@ -328,6 +328,99 @@ export async function getChannelMessages(
   return Promise.all(latest.map(toDTO));
 }
 
+export interface UserMessageFilter {
+  startDate?: number;
+  endDate?: number;
+  onlyDeleted?: boolean;
+  channelID?: string;
+  search?: string;
+  searchTerms?: string[];
+  searchMode?: "any" | "all";
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function tokenizeSearchText(value: string): string[] {
+  return normalizeSearchText(value)
+    .split(/[^a-z0-9]+/i)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2);
+}
+
+function buildSearchNeedles(search?: string, searchTerms?: string[]): string[] {
+  const explicitTerms = Array.isArray(searchTerms)
+    ? searchTerms.flatMap((term) => tokenizeSearchText(term))
+    : [];
+  const freeTextTerms = search ? tokenizeSearchText(search) : [];
+  const allTerms = [...explicitTerms, ...freeTextTerms];
+  return [...new Set(allTerms)];
+}
+
+export async function getUserMessages(
+  guildID: string,
+  userID: string,
+  limit = 50,
+  filter: UserMessageFilter = {},
+): Promise<MessageSnapshotDTO[]> {
+  const { startDate, endDate, onlyDeleted, channelID, search, searchTerms, searchMode } = filter;
+
+  const conditions: string[] = ["guildID = :guildID", "authorID = :authorID"];
+  const replacements: Record<string, unknown> = { guildID, authorID: userID };
+
+  if (startDate) { conditions.push("createdAt >= :startDate"); replacements["startDate"] = startDate; }
+  if (endDate)   { conditions.push("createdAt <= :endDate");   replacements["endDate"]   = endDate; }
+  if (channelID) { conditions.push("channelID = :channelID"); replacements["channelID"] = channelID; }
+  if (onlyDeleted) { conditions.push("isDeleted = 1"); }
+
+  const where = conditions.join(" AND ");
+  const fetch = limit * 5;
+  const rows = await MessageSnapshot.sequelize!.query<MessageSnapshot>(
+    `SELECT * FROM MessageSnapshots
+     WHERE ${where}
+     ORDER BY snapshotAt DESC
+     LIMIT :fetch`,
+    { replacements: { ...replacements, fetch }, type: "SELECT", model: MessageSnapshot, mapToModel: true },
+  );
+
+  const seen = new Set<string>();
+  const latestMap = new Map<string, MessageSnapshot>();
+  for (const s of rows) {
+    if (!seen.has(s.messageID)) {
+      seen.add(s.messageID);
+      latestMap.set(s.messageID, s);
+      if (latestMap.size >= limit) break;
+    }
+  }
+
+  const latest = [...latestMap.values()].sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+  const dtos = await Promise.all(latest.map(toDTO));
+
+  const needles = buildSearchNeedles(search, searchTerms);
+  if (needles.length === 0) return dtos;
+
+  const effectiveMode = searchMode === "all" ? "all" : "any";
+  return dtos.filter((message) => {
+    const haystack = normalizeSearchText([
+      message.content,
+      message.authorUsername,
+      message.authorDisplayName,
+      message.referencedMessageContent ?? "",
+      message.referencedMessageAuthor ?? "",
+    ].join("\n"));
+
+    if (effectiveMode === "all") {
+      return needles.every((needle) => haystack.includes(needle));
+    }
+
+    return needles.some((needle) => haystack.includes(needle));
+  });
+}
+
 export async function getMessageHistory(messageID: string): Promise<MessageSnapshotDTO[]> {
   const snapshots = await MessageSnapshot.findAll({
     where: { messageID },

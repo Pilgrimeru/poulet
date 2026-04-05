@@ -1,13 +1,32 @@
-import "./Poll";
-import "./PollParticipation";
-import "./GuildMeta";
+import { Appeal } from "./Appeal";
 import "./ChannelMeta";
+import "./ChannelRule";
+import "./DeafSession";
+import "./FlaggedMessage";
+import "./GuildMeta";
 import "./GuildSettings";
-import "./MessageSnapshot";
+import "./MemberEvent";
+import "./MemberInvite";
 import "./MessageAttachment";
 import "./MessageHistory";
-import "./VoiceSession";
-import "./DeafSession";
+import "./MessageSnapshot";
+import "./ModerationReport";
+import "./Poll";
+import "./PollParticipation";
+import { Sanction } from "./Sanction";
 import "./SpamFilterRule";
-import "./ChannelRule";
 import "./StatsReportMessageState";
+import "./VoiceSession";
+
+
+
+
+Sanction.hasMany(Appeal, {
+  foreignKey: "sanctionID",
+  sourceKey: "id",
+});
+
+Appeal.belongsTo(Sanction, {
+  foreignKey: "sanctionID",
+  targetKey: "id",
+});

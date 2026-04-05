@@ -1,15 +1,16 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
 import { FilterBar } from "@/components/FilterBar/FilterBar";
 import { HistoryModal } from "@/components/HistoryModal/HistoryModal";
 import { MessageList } from "@/components/MessageList/MessageList";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
+import { EmptyState } from "@/components/ui";
 import { useChannels } from "@/hooks/useChannels";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { MessageFilters } from "@/hooks/useMessages";
 import { DEFAULT_FILTERS, useMessages } from "@/hooks/useMessages";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import styles from "./MessageHistory.module.css";
 
 function HistoryPageContent() {
@@ -23,6 +24,8 @@ function HistoryPageContent() {
   const { channels, refresh: refreshChannels } = useChannels(selectedGuildID);
   const { messages, hasMore, loading, loadMore, refresh: refreshMessages, loadedChannelID, updateMode } = useMessages(selectedGuildID, selectedChannelID, filters);
   const guildFromQuery = searchParams.get("guild");
+  const channelFromQuery = searchParams.get("channel");
+  const messageFromQuery = searchParams.get("message");
 
   useEffect(() => {
     if (guildFromQuery && selectedGuildID !== guildFromQuery) {
@@ -36,6 +39,17 @@ function HistoryPageContent() {
     }
   }, [guildFromQuery, guilds, selectedGuildID]);
 
+  useEffect(() => {
+    if (!channelFromQuery) return;
+    if (selectedChannelID === channelFromQuery) return;
+    setSelectedChannelID(channelFromQuery);
+  }, [channelFromQuery, selectedChannelID]);
+
+  useEffect(() => {
+    if (!messageFromQuery) return;
+    setHistoryMessageID(messageFromQuery);
+  }, [messageFromQuery]);
+
   function handleSelectChannel(id: string) {
     setSelectedChannelID(id);
     setFilters(DEFAULT_FILTERS);
@@ -47,7 +61,7 @@ function HistoryPageContent() {
         channels={channels}
         selectedChannelID={selectedChannelID}
         onSelectChannel={handleSelectChannel}
-      />
+      /> 
 
       <main className={styles.main}>
         {selectedChannelID && (() => {
@@ -87,6 +101,7 @@ function HistoryPageContent() {
             </div>
           );
         })()}
+        {!selectedChannelID ? <EmptyState title="Sélectionnez un salon" description="Choisissez un salon dans la colonne de gauche pour parcourir son historique." /> : null}
         {selectedChannelID && (
           <FilterBar filters={filters} onChange={setFilters} />
         )}
@@ -99,6 +114,7 @@ function HistoryPageContent() {
           channelID={selectedChannelID}
           loadedChannelID={loadedChannelID}
           updateMode={updateMode}
+          scrollToMessageID={historyMessageID}
         />
       </main>
 

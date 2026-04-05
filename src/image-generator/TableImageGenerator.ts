@@ -34,7 +34,7 @@ export class TableImageGenerator extends ImageGenerator<TopTableData> {
         <div style="display: flex; width: 80px; justify-content: center; font-weight: 800; color: ${rankColor}; font-size: ${rankSize};">
           ${row.rank}
         </div>
-        <div style="display: flex; width: 350px; padding-left: 20px; font-weight: 600; align-items: center; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">
+        <div style="display: flex; width: 350px; padding-left: 20px; font-weight: 600; align-items: center; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; color: white;">
           ${escapeHtml(row.pseudo)}
         </div>
         <div style="display: flex; width: 180px; justify-content: flex-end; color: #23a559; font-weight: 600;">
