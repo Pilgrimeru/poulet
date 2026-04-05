@@ -3,7 +3,7 @@
 import { useDashboardNavigation } from "@/features/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./Navbar.module.css";
 
 export function Navbar() {
@@ -12,6 +12,7 @@ export function Navbar() {
   const mainItems = items.filter((item) => item.group !== "bottom");
   const bottomItems = items.filter((item) => item.group === "bottom");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -61,6 +62,13 @@ export function Navbar() {
         id="dashboard-mobile-drawer"
         className={`${styles.navbar} ${mobileOpen ? styles.mobileDrawerOpen : ""}`}
         aria-label="Navigation principale"
+        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          if (touchStartX.current === null) return;
+          const delta = e.changedTouches[0].clientX - touchStartX.current;
+          touchStartX.current = null;
+          if (delta < -50) setMobileOpen(false);
+        }}
       >
         <button type="button" className={styles.mobileDrawerHeader} onClick={() => setMobileOpen(false)} aria-label="Fermer le menu">
           <span>Navigation</span>
