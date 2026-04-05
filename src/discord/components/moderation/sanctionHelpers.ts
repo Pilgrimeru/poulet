@@ -38,6 +38,30 @@ export function formatDuration(durationMs: number): string {
   return `${Math.ceil(durationMs / 86_400_000)}j`;
 }
 
+function formatSeverityLabel(severity: SanctionSeverity): string {
+  return SEVERITY_EMBED_CONFIG[severity].label;
+}
+
+function formatNatureLabel(nature: SanctionNature): string {
+  const map: Record<SanctionNature, string> = {
+    Extremism: "Extrémisme",
+    Violence: "Violence",
+    Hate: "Haine",
+    Harassment: "Harcèlement",
+    Spam: "Spam",
+    Manipulation: "Manipulation",
+    Recidivism: "Récidive",
+    Other: "Autre",
+  };
+  return map[nature];
+}
+
+function formatSanctionDecision(type: string, severity: SanctionSeverity, durationMs?: number | null): string {
+  if (type.startsWith("WARN")) return `Warn formel (${formatSeverityLabel(severity)})`;
+  if (type === "MUTE") return `Exclusion${durationMs ? ` (${formatDuration(durationMs)})` : ""}`;
+  return `En attente de bannissement${durationMs ? ` (${formatDuration(durationMs)})` : ""}`;
+}
+
 export const SEVERITY_EMBED_CONFIG: Record<SanctionSeverity, { color: number; label: string; emoji: string }> = {
   NONE: { color: 0x6b7280, label: "Aucune", emoji: "⚪" },
   LOW: { color: 0xf0c040, label: "Faible", emoji: "🟡" },
@@ -106,20 +130,45 @@ export async function getSimilarityInputs(guildID: string, userID: string, refer
   return { multiplier, sanctions };
 }
 
-export async function sendAppealDM(target: User, guildID: string, sanctionID: string, reason: string): Promise<void> {
+export async function sendAppealDM(args: {
+  target: User;
+  guildID: string;
+  sanctionID: string;
+  reason: string;
+  severity: SanctionSeverity;
+  nature: SanctionNature;
+  sanctionType: string;
+  durationMs?: number | null;
+  summary?: string | null;
+}): Promise<void> {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`appeal:sanction:${guildID}:${sanctionID}`)
+      .setCustomId(`appeal:sanction:${args.guildID}:${args.sanctionID}`)
       .setLabel(MODERATION_MESSAGES.appealButton)
       .setStyle(ButtonStyle.Secondary),
   );
 
-  await target.send({
+  const lines = [
+    "Une sanction automatique a été prise à ton encontre.",
+    "",
+    `Décision : **${formatSanctionDecision(args.sanctionType, args.severity, args.durationMs)}**`,
+    `Gravité retenue : **${formatSeverityLabel(args.severity)}**`,
+    `Catégorie retenue : **${formatNatureLabel(args.nature)}**`,
+    `Motif de la sanction : ${args.reason.trim() || "*[Non communiqué]*"}`,
+  ];
+
+  if (args.summary?.trim()) {
+    lines.push("", `Synthèse IA : ${args.summary.trim()}`);
+  }
+
+  lines.push("", MODERATION_MESSAGES.sanctionDmHumanReviewNotice);
+
+  await args.target.send({
     embeds: [
       new EmbedBuilder()
         .setColor(config.COLORS.MAIN)
         .setTitle(MODERATION_MESSAGES.sanctionDmTitle)
-        .setDescription(MODERATION_MESSAGES.sanctionDmDescription(reason)),
+        .setDescription(lines.join("\n")),
     ],
     components: [row],
   }).catch(() => undefined);
@@ -133,6 +182,7 @@ export async function applyAutomaticSanction(args: {
   severity: SanctionSeverity;
   sanctionKind: "WARN" | "MUTE" | "BAN_PENDING";
   nature: SanctionNature;
+  aiSummary?: string | null;
   source:
     | { kind: "flag"; id: string; message?: Message }
     | { kind: "report"; id: string; channel: TextChannel; reporterID?: string | null; originChannelID?: string | null };
@@ -200,7 +250,17 @@ export async function applyAutomaticSanction(args: {
     }
   }
 
-  await sendAppealDM(args.target, args.guild.id, sanction.id, args.reason);
+  await sendAppealDM({
+    target: args.target,
+    guildID: args.guild.id,
+    sanctionID: sanction.id,
+    reason: args.reason,
+    severity: computed.severity,
+    nature: args.nature,
+    sanctionType: computed.sanctionType,
+    durationMs: computed.sanctionType === "MUTE" || computed.sanctionType === "BAN_PENDING" ? computed.durationMs : null,
+    summary: args.aiSummary ?? null,
+  });
 
   if (computed.sanctionType === "BAN_PENDING") {
     const channel = args.source.kind === "flag" ? args.source.message?.channel : args.source.channel;

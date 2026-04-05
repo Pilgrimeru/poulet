@@ -97,8 +97,6 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       victimUserID: null,
       isTargeted: false,
       needsMoreContext: true,
-      searchQuery: null,
-      historyQuery: null,
     };
   }
 }
@@ -153,8 +151,6 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
     similarSanctionIDs: [],
     victimUserID: null,
     isTargeted: false,
-    searchQuery: null,
-    historyQuery: null,
     summary: "Analyse indisponible. Le dossier doit être examiné manuellement par un modérateur.",
   };
 }

@@ -65,14 +65,6 @@ function normalizeStructuredPayload(value: unknown): unknown {
   if ("severity" in payload) payload["severity"] = normalizeSeverity(payload["severity"]);
   if ("nature" in payload) payload["nature"] = normalizeNature(payload["nature"]);
 
-  if ("searchQuery" in payload && payload["searchQuery"] !== null && typeof payload["searchQuery"] !== "string") {
-    payload["searchQuery"] = null;
-  }
-
-  if ("historyQuery" in payload && payload["historyQuery"] !== null && typeof payload["historyQuery"] !== "object") {
-    payload["historyQuery"] = null;
-  }
-
   if (
     "sanctionKind" in payload &&
     payload["sanctionKind"] !== "WARN" &&
@@ -99,10 +91,7 @@ function logMessages(label: string, messages: BaseMessage[]): void {
 }
 
 function finalizeSchemaOutput<T extends Record<string, unknown>>(value: T): T {
-  const output = { ...value } as Record<string, unknown>;
-  if ("historyQuery" in output) output["historyQuery"] = null;
-  if ("searchQuery" in output) output["searchQuery"] = null;
-  return output as T;
+  return { ...value };
 }
 
 function extractTextContent(content: AIMessage["content"]): string {

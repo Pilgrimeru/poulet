@@ -195,6 +195,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     severity: analysis.severity,
     sanctionKind: analysis.sanctionKind,
     nature: analysis.nature,
+    aiSummary: null,
     source: { kind: "flag", id: flagged.id, message: targetMessage },
   });
 
@@ -320,6 +321,7 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     severity: analysis.severity,
     sanctionKind: analysis.sanctionKind,
     nature: analysis.nature,
+    aiSummary: analysis.summary,
     source: { kind: "report", id: report.id, channel, reporterID: meta?.reporterID, originChannelID: meta?.originChannelID ?? interaction.guild.systemChannelId ?? null },
   });
 

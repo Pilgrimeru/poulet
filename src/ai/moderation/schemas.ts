@@ -36,8 +36,6 @@ export const FlagAnalysisSchema = z.object({
   victimUserID: z.string().nullable().describe("Discord victim user ID, or null if none is identifiable"),
   isTargeted: z.boolean().describe("True only for a violation aimed at a specific identifiable person. False for general content, group hate, or spam."),
   needsMoreContext: z.boolean().describe("True if the available context is still ambiguous or insufficient"),
-  searchQuery: z.string().nullable().describe("Compatibility field; keep null"),
-  historyQuery: HistoryQueryToolSchema.nullable().describe("Compatibility field; keep null"),
 }).describe("Analysis of a reported message and its immediate context");
 
 export const SummarySchema = z.object({
@@ -51,7 +49,5 @@ export const SummarySchema = z.object({
   similarSanctionIDs: z.array(z.string()).describe("IDs of similar past sanctions"),
   victimUserID: z.string().nullable().describe("Discord victim user ID, or null if none is identifiable"),
   isTargeted: z.boolean().describe("True only for a violation aimed at a specific identifiable person. False for general content, group hate, or spam."),
-  searchQuery: z.string().nullable().describe("Compatibility field; keep null"),
-  historyQuery: HistoryQueryToolSchema.nullable().describe("Compatibility field; keep null"),
   summary: z.string().describe("Factual French summary grounded in collected evidence"),
 }).describe("Final decision for a report, or a minimal request for missing information");
