@@ -48,7 +48,7 @@ export function StatsScreen() {
 
           <SectionTitle>Membres</SectionTitle>
           <div className={styles.row}>
-            <Card wide>
+            <Card wide className={styles.chartCard}>
               <div className={styles.cardHeader}>
                 <span className={styles.cardTitle}>Évolution détaillée</span>
                 <PrecisionToggle value={dashboard.memberPrecision} onChange={dashboard.setMemberPrecision} disableHourTimeline={dashboard.disableHourTimeline} />
@@ -59,7 +59,7 @@ export function StatsScreen() {
 
           <SectionTitle>Messages</SectionTitle>
           <div className={styles.row}>
-            <Card wide>
+            <Card wide className={styles.chartCard}>
               <div className={styles.cardHeader}>
                 <span className={styles.cardTitle}>Évolution détaillée</span>
                 <PrecisionToggle value={dashboard.msgPrecision} onChange={dashboard.setMsgPrecision} disableHourTimeline={dashboard.disableHourTimeline} />
@@ -80,7 +80,7 @@ export function StatsScreen() {
 
           <SectionTitle>Vocal</SectionTitle>
           <div className={styles.row}>
-            <Card wide>
+            <Card wide className={styles.chartCard}>
               <div className={styles.cardHeader}>
                 <span className={styles.cardTitle}>Évolution détaillée</span>
                 <PrecisionToggle value={dashboard.voicePrecision} onChange={dashboard.setVoicePrecision} disableHourTimeline={dashboard.disableHourTimeline} />

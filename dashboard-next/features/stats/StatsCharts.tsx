@@ -60,9 +60,10 @@ export function SectionTitle({
 export function Card({
   children,
   wide,
-}: Readonly<{ children: React.ReactNode; wide?: boolean }>) {
+  className,
+}: Readonly<{ children: React.ReactNode; wide?: boolean; className?: string }>) {
   return (
-    <div className={`${styles.card} ${wide ? styles.cardWide : ""}`}>
+    <div className={`${styles.card} ${wide ? styles.cardWide : ""} ${className ?? ""}`}>
       {children}
     </div>
   );
@@ -320,10 +321,11 @@ export function ActivityChart({
         />
       </div>
       {precision === "hour" ? (
+        <div className={styles.chartViewport}>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart
             data={data}
-            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            margin={{ top: 8, right: 0, left: -12, bottom: 0 }}
             barGap={6}
             barCategoryGap="18%"
           >
@@ -342,7 +344,7 @@ export function ActivityChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={totalFormatter}
-                width={56}
+                width={38}
               />
             ) : null}
             {showCountAxis ? (
@@ -352,7 +354,7 @@ export function ActivityChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={42}
+                width={30}
               />
             ) : null}
             <Tooltip
@@ -406,11 +408,13 @@ export function ActivityChart({
             ) : null}
           </BarChart>
         </ResponsiveContainer>
+        </div>
       ) : (
+        <div className={styles.chartViewport}>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart
             data={data}
-            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            margin={{ top: 8, right: 0, left: -12, bottom: 0 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -431,7 +435,7 @@ export function ActivityChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={totalFormatter}
-                width={56}
+                width={38}
               />
             ) : null}
             {showCountAxis ? (
@@ -441,7 +445,7 @@ export function ActivityChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={42}
+                width={30}
               />
             ) : null}
             <Tooltip
@@ -503,6 +507,7 @@ export function ActivityChart({
             ) : null}
           </LineChart>
         </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
@@ -637,10 +642,11 @@ export function MemberChart({
         />
       </div>
       {precision === "hour" ? (
+        <div className={styles.chartViewport}>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart
             data={data}
-            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            margin={{ top: 8, right: 0, left: -12, bottom: 0 }}
             barGap={6}
             barCategoryGap="18%"
           >
@@ -659,7 +665,7 @@ export function MemberChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={56}
+                width={38}
               />
             ) : null}
             {showJoined || showLeft ? (
@@ -669,7 +675,7 @@ export function MemberChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={42}
+                width={30}
               />
             ) : null}
             <Tooltip
@@ -722,11 +728,13 @@ export function MemberChart({
             ) : null}
           </BarChart>
         </ResponsiveContainer>
+        </div>
       ) : (
+        <div className={styles.chartViewport}>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart
             data={data}
-            margin={{ top: 8, right: 18, left: 4, bottom: 0 }}
+            margin={{ top: 8, right: 0, left: -12, bottom: 0 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -747,7 +755,7 @@ export function MemberChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={56}
+                width={38}
               />
             ) : null}
             {showJoined || showLeft ? (
@@ -757,7 +765,7 @@ export function MemberChart({
                 tick={{ fill: "#80848e", fontSize: 11 }}
                 allowDecimals={false}
                 tickFormatter={fmtCompactCount}
-                width={42}
+                width={30}
               />
             ) : null}
             <Tooltip
@@ -817,6 +825,7 @@ export function MemberChart({
             ) : null}
           </LineChart>
         </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
