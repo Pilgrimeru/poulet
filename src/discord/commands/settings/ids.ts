@@ -31,6 +31,9 @@ export interface ScopedSettingsIds {
   CR_FILTER_PREFIX: string;
   IL_CHANNEL_SELECT: string;
   IL_ACTIONS: string;
+  MOD_ACTIONS: string;
+  MOD_CHANNEL_SELECT: string;
+  MOD_ROLE_SELECT: string;
 }
 
 export function scopeIds(userId: string): ScopedSettingsIds {
@@ -51,5 +54,8 @@ export function scopeIds(userId: string): ScopedSettingsIds {
     CR_FILTER_PREFIX: `${p}:cr:filter:`,
     IL_CHANNEL_SELECT: `${p}:il:channel_select`,
     IL_ACTIONS: `${p}:il:actions`,
+    MOD_ACTIONS: `${p}:mod:actions`,
+    MOD_CHANNEL_SELECT: `${p}:mod:channel_select`,
+    MOD_ROLE_SELECT: `${p}:mod:role_select`,
   };
 }

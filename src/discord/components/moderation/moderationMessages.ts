@@ -61,6 +61,22 @@ export const MODERATION_MESSAGES = {
   summaryButtons: {
     confirm: "Confirmer",
     modify: "Modifier",
+    dispute: "Je conteste le résultat",
+  },
+  disputeAcknowledged: "Un modérateur humain va prendre en charge ce ticket. Ce salon sera fermé prochainement.",
+  disputeNotifContent: (roleID: string | null) => roleID ? `<@&${roleID}> Un signalement requiert une révision humaine.` : "Un signalement requiert une révision humaine.",
+  disputeNotifEmbed: {
+    title: "Contestation de résultat IA",
+    reporterField: "Signaleur",
+    targetField: "Utilisateur signalé",
+    linkLabel: "Voir dans le dashboard",
+  },
+  appealNotifContent: (roleID: string | null) => roleID ? `<@&${roleID}> Un appel a été soumis et attend une révision.` : "Un appel a été soumis et attend une révision.",
+  appealNotifEmbed: {
+    title: "Nouvel appel",
+    userField: "Appelant",
+    sanctionField: "Sanction",
+    linkLabel: "Voir dans le dashboard",
   },
   interactionReplies: {
     ticketCreated: (channelRef: string) => `Ton ticket a été créé : ${channelRef}`,
@@ -92,7 +108,7 @@ export const MODERATION_MESSAGES = {
     sanctionUnavailable: "Cette sanction n'est plus accessible. Contactez un modérateur.",
     sanctionNotFound: "Sanction introuvable.",
     appealOwnerOnly: "Seul l'utilisateur sanctionné peut faire appel.",
-    appealRecorded: "Appel enregistré. Il sera étudié par un modérateur humain.",
+    appealRecorded: "Appel enregistré. Vous serez probablement contacté prochainement par un modérateur.",
     ticketMetadataNotFound: "Métadonnées du ticket introuvables.",
     onlyReporterCanFinalize: "Seul le signaleur peut finaliser ce ticket.",
   },
@@ -164,6 +180,13 @@ export function buildReportSummaryActions(reportId: string, allowModify: boolean
         .setCustomId(`report:modify:${reportId}`)
         .setLabel(MODERATION_MESSAGES.summaryButtons.modify)
         .setStyle(ButtonStyle.Secondary),
+    );
+  } else {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`report:dispute:${reportId}`)
+        .setLabel(MODERATION_MESSAGES.summaryButtons.dispute)
+        .setStyle(ButtonStyle.Danger),
     );
   }
 

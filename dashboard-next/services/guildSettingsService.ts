@@ -12,6 +12,8 @@ export type GuildSettingsDTO = {
   emoteChannelID: string;
   inviteLogChannelID: string;
   sanctionDurationMs: number | null;
+  moderationNotifChannelID: string;
+  moderationModRoleID: string;
 };
 
 const cache = new Map<string, GuildSettingsDTO>();
@@ -39,6 +41,8 @@ async function ensureColumns(): Promise<void> {
     { name: "emoteChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "inviteLogChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "sanctionDurationMs", type: DataTypes.BIGINT, defaultValue: null, allowNull: true },
+    { name: "moderationNotifChannelID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "moderationModRoleID", type: DataTypes.STRING, defaultValue: "" },
   ];
   for (const col of cols) {
     if (!table[col.name]) {
@@ -69,6 +73,8 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
       emoteChannelID: "",
       inviteLogChannelID: "",
       sanctionDurationMs: null,
+      moderationNotifChannelID: "",
+      moderationModRoleID: "",
     } as any);
   }
 
@@ -88,6 +94,8 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
     emoteChannelID: row.emoteChannelID,
     inviteLogChannelID: row.inviteLogChannelID,
     sanctionDurationMs: row.sanctionDurationMs === null || row.sanctionDurationMs === undefined ? null : Number(row.sanctionDurationMs),
+    moderationNotifChannelID: row.moderationNotifChannelID ?? "",
+    moderationModRoleID: row.moderationModRoleID ?? "",
   };
 
   cache.set(guildID, dto);
@@ -113,6 +121,8 @@ export async function updateByGuildID(
     emoteChannelID: patch.emoteChannelID ?? current.emoteChannelID,
     inviteLogChannelID: patch.inviteLogChannelID ?? current.inviteLogChannelID,
     sanctionDurationMs: patch.sanctionDurationMs ?? current.sanctionDurationMs,
+    moderationNotifChannelID: patch.moderationNotifChannelID ?? current.moderationNotifChannelID,
+    moderationModRoleID: patch.moderationModRoleID ?? current.moderationModRoleID,
   };
 
   await GuildSettings.upsert({
@@ -125,6 +135,8 @@ export async function updateByGuildID(
     emoteChannelID: next.emoteChannelID,
     inviteLogChannelID: next.inviteLogChannelID,
     sanctionDurationMs: next.sanctionDurationMs,
+    moderationNotifChannelID: next.moderationNotifChannelID,
+    moderationModRoleID: next.moderationModRoleID,
   } as any);
 
   cache.set(guildID, next);

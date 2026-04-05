@@ -293,6 +293,11 @@ export async function onMainMenuSelection(
     await interaction.update(await renderInviteLog(guildID, ids));
     return;
   }
+  if (value === "moderation") {
+    const { renderModerationSettings } = await import("@/discord/commands/settings/moderationSettings");
+    await interaction.update(await renderModerationSettings(guildID, ids));
+    return;
+  }
   // Channel rules navigation (delegated from main menu)
   const { onChannelRulesMenuSelection } = await import("@/discord/commands/settings/channelRules");
   await onChannelRulesMenuSelection(interaction, guildID, ids);

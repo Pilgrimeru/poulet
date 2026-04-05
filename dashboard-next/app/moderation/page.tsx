@@ -26,7 +26,11 @@ function ModerationPageContent() {
   const searchParams = useSearchParams();
   const guildID = searchParams.get("guild") ?? "";
 
-  const [tab, setTab] = useState<Tab>("appeals");
+  const initialTab = (searchParams.get("tab") as Tab | null) ?? "appeals";
+  const initialAppealId = searchParams.get("appealId");
+  const initialReportId = searchParams.get("reportId");
+
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [appeals, setAppeals] = useState<AppealItem[] | null>(null);
   const [sanctions, setSanctions] = useState<SanctionItem[] | null>(null);
   const [reports, setReports] = useState<ModerationReportItem[] | null>(null);
@@ -54,9 +58,17 @@ function ModerationPageContent() {
     setSanctions(nextSanctions);
     setReports(nextReports);
     setFlags(nextFlags);
-    setSelectedAppealId((current) => preserveSelection && current && nextAppeals.some((item) => item.id === current) ? current : (nextAppeals[0]?.id ?? null));
+    setSelectedAppealId((current) => {
+      if (preserveSelection && current && nextAppeals.some((item) => item.id === current)) return current;
+      if (!preserveSelection && initialAppealId && nextAppeals.some((item) => item.id === initialAppealId)) return initialAppealId;
+      return nextAppeals[0]?.id ?? null;
+    });
     setSelectedSanctionId((current) => preserveSelection && current && nextSanctions.some((item) => item.id === current) ? current : (nextSanctions[0]?.id ?? null));
-    setSelectedReportId((current) => preserveSelection && current && nextReports.some((item) => item.id === current) ? current : (nextReports[0]?.id ?? null));
+    setSelectedReportId((current) => {
+      if (preserveSelection && current && nextReports.some((item) => item.id === current)) return current;
+      if (!preserveSelection && initialReportId && nextReports.some((item) => item.id === initialReportId)) return initialReportId;
+      return nextReports[0]?.id ?? null;
+    });
     setSelectedFlagId((current) => preserveSelection && current && nextFlags.some((item) => item.id === current) ? current : (nextFlags[0]?.id ?? null));
   }, [appealFilter, guildID]);
 

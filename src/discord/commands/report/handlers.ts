@@ -1,6 +1,6 @@
 import type { SummaryResult } from "@/ai";
 import { analyzeFlag, summarizeReport } from "@/ai";
-import { appealApiService, flaggedMessageApiService, moderationReportApiService, sanctionApiService } from "@/api";
+import { appealApiService, flaggedMessageApiService, guildSettingsService, moderationReportApiService, sanctionApiService } from "@/api";
 import { config } from "@/app";
 import {
   buildFollowUpAction,
@@ -19,6 +19,7 @@ import {
   ButtonInteraction,
   ChannelType,
   ChatInputCommandInteraction,
+  EmbedBuilder,
   MessageContextMenuCommandInteraction,
   MessageFlags,
   ModalBuilder,
@@ -454,6 +455,77 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   });
 }
 
+async function sendModerationNotif(
+  guild: NonNullable<ButtonInteraction["guild"]>,
+  content: string,
+  embed: EmbedBuilder,
+): Promise<void> {
+  const settings = await guildSettingsService.getByGuildID(guild.id).catch(() => null);
+  if (!settings?.moderationNotifChannelID) return;
+
+  const channel = await guild.channels.fetch(settings.moderationNotifChannelID).catch(() => null);
+  if (channel?.type !== ChannelType.GuildText) return;
+
+  await channel.send({ content, embeds: [embed] }).catch(() => undefined);
+}
+
+async function handleReportDispute(interaction: ButtonInteraction): Promise<void> {
+  const reportId = interaction.customId.slice("report:dispute:".length);
+  if (!interaction.guild) return;
+
+  const report = await moderationReportApiService.get(interaction.guild.id, reportId).catch(() => null);
+  if (!report) {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.reportNotFound, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const channel = await interaction.guild.channels.fetch(report.ticketChannelID).catch(() => null);
+  if (channel?.type !== ChannelType.GuildText) {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketChannelNotFound, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const meta = decodeTicketMeta(channel.topic);
+  if (meta && interaction.user.id !== meta.reporterID) {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanConfirm, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  await moderationReportApiService.update(interaction.guild.id, reportId, { status: "human_review_requested" });
+  await interaction.update({ components: [] });
+  await channel.send(MODERATION_MESSAGES.disputeAcknowledged);
+  setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
+
+  const settings = await guildSettingsService.getByGuildID(interaction.guild.id).catch(() => null);
+  const roleID = settings?.moderationModRoleID || null;
+  const dashboardURL = config.DASHBOARD_URL;
+  const deepLink = dashboardURL
+    ? `${dashboardURL}/moderation?guild=${interaction.guild.id}&tab=reports&reportId=${reportId}`
+    : null;
+
+  const reporter = await interaction.client.users.fetch(report.reporterID).catch(() => null);
+  const target = await interaction.client.users.fetch(report.targetUserID).catch(() => null);
+
+  const embed = new EmbedBuilder()
+    .setColor(config.COLORS.MAIN)
+    .setTitle(MODERATION_MESSAGES.disputeNotifEmbed.title)
+    .addFields(
+      { name: MODERATION_MESSAGES.disputeNotifEmbed.reporterField, value: reporter ? `${reporter} (${reporter.username})` : report.reporterID, inline: true },
+      { name: MODERATION_MESSAGES.disputeNotifEmbed.targetField, value: target ? `${target} (${target.username})` : report.targetUserID, inline: true },
+    )
+    .setTimestamp();
+
+  if (deepLink) {
+    embed.setDescription(`[${MODERATION_MESSAGES.disputeNotifEmbed.linkLabel}](${deepLink})`);
+  }
+
+  await sendModerationNotif(
+    interaction.guild,
+    MODERATION_MESSAGES.disputeNotifContent(roleID),
+    embed,
+  );
+}
+
 async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
   const parts = interaction.customId.split(":");
   // Format: appeal:sanction:<guildID>:<sanctionID>
@@ -498,8 +570,37 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
 
   if (!submitted) return;
 
-  await appealApiService.create(guildID, sanctionID, submitted.fields.getTextInputValue("appeal_text").trim());
+  const appeal = await appealApiService.create(guildID, sanctionID, submitted.fields.getTextInputValue("appeal_text").trim());
   await submitted.reply({ content: MODERATION_MESSAGES.interactionReplies.appealRecorded, flags: MessageFlags.Ephemeral });
+
+  const guild = interaction.client.guilds.cache.get(guildID) ?? await interaction.client.guilds.fetch(guildID).catch(() => null);
+  if (!guild) return;
+
+  const settings = await guildSettingsService.getByGuildID(guildID).catch(() => null);
+  const roleID = settings?.moderationModRoleID || null;
+  const dashboardURL = config.DASHBOARD_URL;
+  const deepLink = dashboardURL
+    ? `${dashboardURL}/moderation?guild=${guildID}&tab=appeals&appealId=${appeal.id}`
+    : null;
+
+  let sanctionTypeLabel: string;
+  if (sanction.type === "WARN") sanctionTypeLabel = "Avertissement";
+  else if (sanction.type === "MUTE") sanctionTypeLabel = "Exclusion temporaire";
+  else sanctionTypeLabel = "Bannissement";
+  const embed = new EmbedBuilder()
+    .setColor(config.COLORS.MAIN)
+    .setTitle(MODERATION_MESSAGES.appealNotifEmbed.title)
+    .addFields(
+      { name: MODERATION_MESSAGES.appealNotifEmbed.userField, value: `<@${interaction.user.id}> (${interaction.user.username})`, inline: true },
+      { name: MODERATION_MESSAGES.appealNotifEmbed.sanctionField, value: sanctionTypeLabel, inline: true },
+    )
+    .setTimestamp();
+
+  if (deepLink) {
+    embed.setDescription(`[${MODERATION_MESSAGES.appealNotifEmbed.linkLabel}](${deepLink})`);
+  }
+
+  await sendModerationNotif(guild, MODERATION_MESSAGES.appealNotifContent(roleID), embed);
 }
 
 // Registers all component interaction handlers (idempotent, safe for hot-reload)
@@ -513,5 +614,6 @@ if (!globalState.__pouletModerationHandlersRegistered) {
   componentRouter.registerPrefix("report:followup:", async (i) => { if (i.isButton()) await handleReportFollowUp(i); });
   componentRouter.registerPrefix("report:modify:", async (i) => { if (i.isButton()) await handleReportModify(i); });
   componentRouter.registerPrefix("report:revise:", async (i) => { if (i.isButton()) await handleReportRevise(i); });
+  componentRouter.registerPrefix("report:dispute:", async (i) => { if (i.isButton()) await handleReportDispute(i); });
   componentRouter.registerPrefix("appeal:", async (i) => { if (i.isButton()) await handleAppeal(i); });
 }

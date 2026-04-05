@@ -11,6 +11,8 @@ export type GuildSettingsDTO = {
   emoteChannelID: string;
   inviteLogChannelID: string;
   sanctionDurationMs: number | null;
+  moderationNotifChannelID: string;
+  moderationModRoleID: string;
 };
 
 const settingsCache = createTimedCache<string, GuildSettingsDTO>(30_000);
