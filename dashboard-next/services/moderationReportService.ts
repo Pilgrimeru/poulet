@@ -123,14 +123,22 @@ export async function updateReport(
 
 export async function listReports(
   guildID: string,
-  options?: { status?: string },
-): Promise<ModerationReportDTO[]> {
-  const rows = await ModerationReport.findAll({
+  options?: { status?: string; limit?: number; offset?: number },
+): Promise<{ items: ModerationReportDTO[]; total: number; hasMore: boolean }> {
+  const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
+  const offset = Math.max(0, options?.offset ?? 0);
+  const { rows, count } = await ModerationReport.findAndCountAll({
     where: {
       guildID,
       ...(options?.status ? { status: options.status } : {}),
     },
     order: [["createdAt", "DESC"]],
+    limit,
+    offset,
   });
-  return rows.map(toDTO);
+  return {
+    items: rows.map(toDTO),
+    total: count,
+    hasMore: offset + rows.length < count,
+  };
 }

@@ -1,30 +1,43 @@
 "use client";
 
-import type { AppealItem, AppealStatus, FlaggedMessageItem, ModerationReportItem, SanctionDraft, SanctionItem, SanctionState } from "./types";
+import type { AppealItem, AppealStatus, FlaggedMessageItem, ModerationReportItem, PaginatedResult, SanctionDraft, SanctionItem, SanctionState } from "./types";
 
-export async function fetchAppeals(guildID: string, status?: AppealStatus): Promise<AppealItem[]> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+function buildListQuery(params: Record<string, string | number | undefined>) {
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue;
+    searchParams.set(key, String(value));
+  }
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function fetchAppeals(guildID: string, options?: { status?: AppealStatus; limit?: number; offset?: number }): Promise<PaginatedResult<AppealItem>> {
+  const query = buildListQuery(options ?? {});
   const response = await fetch(`/api/guilds/${guildID}/appeals${query}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Failed to fetch appeals");
-  return ((await response.json()) as AppealItem[]).sort((a, b) => b.createdAt - a.createdAt);
+  return await response.json() as PaginatedResult<AppealItem>;
 }
 
-export async function fetchSanctions(guildID: string): Promise<SanctionItem[]> {
-  const response = await fetch(`/api/guilds/${guildID}/sanctions`, { cache: "no-store" });
+export async function fetchSanctions(guildID: string, options?: { state?: SanctionState; userId?: string; limit?: number; offset?: number }): Promise<PaginatedResult<SanctionItem>> {
+  const query = buildListQuery(options ?? {});
+  const response = await fetch(`/api/guilds/${guildID}/sanctions${query}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Failed to fetch sanctions");
-  return ((await response.json()) as SanctionItem[]).sort((a, b) => b.createdAt - a.createdAt);
+  return await response.json() as PaginatedResult<SanctionItem>;
 }
 
-export async function fetchReports(guildID: string): Promise<ModerationReportItem[]> {
-  const response = await fetch(`/api/guilds/${guildID}/moderation-reports`, { cache: "no-store" });
+export async function fetchReports(guildID: string, options?: { status?: string; limit?: number; offset?: number }): Promise<PaginatedResult<ModerationReportItem>> {
+  const query = buildListQuery(options ?? {});
+  const response = await fetch(`/api/guilds/${guildID}/moderation-reports${query}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Failed to fetch reports");
-  return ((await response.json()) as ModerationReportItem[]).sort((a, b) => b.createdAt - a.createdAt);
+  return await response.json() as PaginatedResult<ModerationReportItem>;
 }
 
-export async function fetchFlags(guildID: string): Promise<FlaggedMessageItem[]> {
-  const response = await fetch(`/api/guilds/${guildID}/flagged-messages`, { cache: "no-store" });
+export async function fetchFlags(guildID: string, options?: { status?: string; targetUserId?: string; limit?: number; offset?: number }): Promise<PaginatedResult<FlaggedMessageItem>> {
+  const query = buildListQuery(options ?? {});
+  const response = await fetch(`/api/guilds/${guildID}/flagged-messages${query}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Failed to fetch flags");
-  return ((await response.json()) as FlaggedMessageItem[]).sort((a, b) => b.createdAt - a.createdAt);
+  return await response.json() as PaginatedResult<FlaggedMessageItem>;
 }
 
 export async function patchAppeal(

@@ -11,6 +11,8 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
       await listAppeals(guildId, {
         sanctionID: searchParams.get("sanctionId") ?? undefined,
         status: (searchParams.get("status") ?? undefined) as AppealStatus | undefined,
+        limit: Number(searchParams.get("limit") ?? 50),
+        offset: Number(searchParams.get("offset") ?? 0),
       }),
     );
   } catch (error) {

@@ -14,6 +14,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Moderation.module.css";
 
+const PAGE_SIZE = 50;
+
 export default function ModerationPage() {
   return (
     <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-muted)" }}>Chargement…</div>}>
@@ -43,34 +45,67 @@ function ModerationPageContent() {
   const [isEditingSanction, setIsEditingSanction] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [appealFilter, setAppealFilter] = useState<"pending_review" | "all">("pending_review");
+  const [limits, setLimits] = useState<Record<Tab, number>>({
+    appeals: PAGE_SIZE,
+    sanctions: PAGE_SIZE,
+    reports: PAGE_SIZE,
+    flags: PAGE_SIZE,
+  });
+  const [totals, setTotals] = useState<Record<Tab, number>>({
+    appeals: 0,
+    sanctions: 0,
+    reports: 0,
+    flags: 0,
+  });
+  const [hasMore, setHasMore] = useState<Record<Tab, boolean>>({
+    appeals: false,
+    sanctions: false,
+    reports: false,
+    flags: false,
+  });
 
   const refreshData = useCallback(async (preserveSelection = true) => {
     if (!guildID) return;
 
     const [nextAppeals, nextSanctions, nextReports, nextFlags] = await Promise.all([
-      fetchAppeals(guildID, appealFilter === "all" ? undefined : "pending_review"),
-      fetchSanctions(guildID),
-      fetchReports(guildID),
-      fetchFlags(guildID),
+      fetchAppeals(guildID, {
+        status: appealFilter === "all" ? undefined : "pending_review",
+        limit: limits.appeals,
+      }),
+      fetchSanctions(guildID, { limit: limits.sanctions }),
+      fetchReports(guildID, { limit: limits.reports }),
+      fetchFlags(guildID, { limit: limits.flags }),
     ]);
 
-    setAppeals(nextAppeals);
-    setSanctions(nextSanctions);
-    setReports(nextReports);
-    setFlags(nextFlags);
+    setAppeals(nextAppeals.items);
+    setSanctions(nextSanctions.items);
+    setReports(nextReports.items);
+    setFlags(nextFlags.items);
+    setTotals({
+      appeals: nextAppeals.total,
+      sanctions: nextSanctions.total,
+      reports: nextReports.total,
+      flags: nextFlags.total,
+    });
+    setHasMore({
+      appeals: nextAppeals.hasMore,
+      sanctions: nextSanctions.hasMore,
+      reports: nextReports.hasMore,
+      flags: nextFlags.hasMore,
+    });
     setSelectedAppealId((current) => {
-      if (preserveSelection && current && nextAppeals.some((item) => item.id === current)) return current;
-      if (!preserveSelection && initialAppealId && nextAppeals.some((item) => item.id === initialAppealId)) return initialAppealId;
-      return nextAppeals[0]?.id ?? null;
+      if (preserveSelection && current && nextAppeals.items.some((item) => item.id === current)) return current;
+      if (!preserveSelection && initialAppealId && nextAppeals.items.some((item) => item.id === initialAppealId)) return initialAppealId;
+      return nextAppeals.items[0]?.id ?? null;
     });
-    setSelectedSanctionId((current) => preserveSelection && current && nextSanctions.some((item) => item.id === current) ? current : (nextSanctions[0]?.id ?? null));
+    setSelectedSanctionId((current) => preserveSelection && current && nextSanctions.items.some((item) => item.id === current) ? current : (nextSanctions.items[0]?.id ?? null));
     setSelectedReportId((current) => {
-      if (preserveSelection && current && nextReports.some((item) => item.id === current)) return current;
-      if (!preserveSelection && initialReportId && nextReports.some((item) => item.id === initialReportId)) return initialReportId;
-      return nextReports[0]?.id ?? null;
+      if (preserveSelection && current && nextReports.items.some((item) => item.id === current)) return current;
+      if (!preserveSelection && initialReportId && nextReports.items.some((item) => item.id === initialReportId)) return initialReportId;
+      return nextReports.items[0]?.id ?? null;
     });
-    setSelectedFlagId((current) => preserveSelection && current && nextFlags.some((item) => item.id === current) ? current : (nextFlags[0]?.id ?? null));
-  }, [appealFilter, guildID]);
+    setSelectedFlagId((current) => preserveSelection && current && nextFlags.items.some((item) => item.id === current) ? current : (nextFlags.items[0]?.id ?? null));
+  }, [appealFilter, guildID, initialAppealId, initialReportId, limits]);
 
   useEffect(() => {
     refreshData(false).catch(() => {
@@ -104,31 +139,16 @@ function ModerationPageContent() {
     };
   }, [guildID, refreshData]);
 
-  const preloadUserIDs = useMemo(() => {
-    const ids = new Set<string>();
-    for (const sanction of sanctions ?? []) {
-      ids.add(sanction.userID);
-      ids.add(sanction.moderatorID);
-    }
-    for (const report of reports ?? []) {
-      ids.add(report.reporterID);
-      ids.add(report.targetUserID);
-    }
-    for (const flag of flags ?? []) {
-      ids.add(flag.reporterID);
-      ids.add(flag.targetUserID);
-    }
-    return [...ids];
-  }, [flags, reports, sanctions]);
-
-  usePreloadUserMetas(guildID, preloadUserIDs);
+  const sanctionsById = useMemo(() => new Map((sanctions ?? []).map((item) => [item.id, item])), [sanctions]);
+  const reportsBySanctionId = useMemo(() => new Map((reports ?? []).filter((item) => item.sanctionID).map((item) => [item.sanctionID as string, item])), [reports]);
+  const flagsBySanctionId = useMemo(() => new Map((flags ?? []).filter((item) => item.sanctionID).map((item) => [item.sanctionID as string, item])), [flags]);
 
   const visibleAppeals = useMemo(
     () => (appeals ?? []).filter((item) => {
-      const linked = sanctions?.find((s) => s.id === item.sanctionID);
+      const linked = sanctionsById.get(item.sanctionID);
       return !linked || linked.state !== "canceled";
     }),
-    [appeals, sanctions],
+    [appeals, sanctionsById],
   );
 
   const selectedAppeal = useMemo(() => visibleAppeals.find((item) => item.id === selectedAppealId) ?? visibleAppeals[0] ?? null, [visibleAppeals, selectedAppealId]);
@@ -136,25 +156,60 @@ function ModerationPageContent() {
   const selectedReport = useMemo(() => reports?.find((item) => item.id === selectedReportId) ?? reports?.[0] ?? null, [reports, selectedReportId]);
   const selectedFlag = useMemo(() => flags?.find((item) => item.id === selectedFlagId) ?? flags?.[0] ?? null, [flags, selectedFlagId]);
 
-  const linkedSanction = useMemo(() => sanctions?.find((item) => item.id === selectedAppeal?.sanctionID) ?? null, [sanctions, selectedAppeal]);
-  const linkedSanctionForReport = useMemo(() => sanctions?.find((item) => item.id === selectedReport?.sanctionID) ?? null, [sanctions, selectedReport]);
-  const linkedSanctionForFlag = useMemo(() => sanctions?.find((item) => item.id === selectedFlag?.sanctionID) ?? null, [sanctions, selectedFlag]);
+  const linkedSanction = useMemo(() => selectedAppeal ? sanctionsById.get(selectedAppeal.sanctionID) ?? null : null, [sanctionsById, selectedAppeal]);
+  const linkedSanctionForReport = useMemo(() => selectedReport?.sanctionID ? sanctionsById.get(selectedReport.sanctionID) ?? null : null, [sanctionsById, selectedReport]);
+  const linkedSanctionForFlag = useMemo(() => selectedFlag?.sanctionID ? sanctionsById.get(selectedFlag.sanctionID) ?? null : null, [sanctionsById, selectedFlag]);
 
   const appealSourceMeta = useMemo(() => {
     if (!linkedSanction) return null;
-    const flag = flags?.find((item) => item.sanctionID === linkedSanction.id);
+    const flag = flagsBySanctionId.get(linkedSanction.id);
     if (flag) return { kind: "flag" as const, data: flag };
-    const report = reports?.find((item) => item.sanctionID === linkedSanction.id);
+    const report = reportsBySanctionId.get(linkedSanction.id);
     return report ? { kind: "report" as const, data: report } : null;
-  }, [flags, linkedSanction, reports]);
+  }, [flagsBySanctionId, linkedSanction, reportsBySanctionId]);
 
   const selectedSanctionSourceMeta = useMemo(() => {
     if (!selectedSanction) return null;
-    const flag = flags?.find((item) => item.sanctionID === selectedSanction.id);
+    const flag = flagsBySanctionId.get(selectedSanction.id);
     if (flag) return { kind: "flag" as const, data: flag };
-    const report = reports?.find((item) => item.sanctionID === selectedSanction.id);
+    const report = reportsBySanctionId.get(selectedSanction.id);
     return report ? { kind: "report" as const, data: report } : null;
-  }, [flags, reports, selectedSanction]);
+  }, [flagsBySanctionId, reportsBySanctionId, selectedSanction]);
+
+  const preloadUserIDs = useMemo(() => {
+    const ids = new Set<string>();
+    const activeList = tab === "appeals" ? visibleAppeals : tab === "sanctions" ? (sanctions ?? []) : tab === "reports" ? (reports ?? []) : (flags ?? []);
+
+    for (const item of activeList.slice(0, 20)) {
+      if ("userID" in item) ids.add(item.userID);
+      if ("moderatorID" in item && item.moderatorID) ids.add(item.moderatorID);
+      if ("reporterID" in item) ids.add(item.reporterID);
+      if ("targetUserID" in item) ids.add(item.targetUserID);
+    }
+
+    if (selectedAppeal) {
+      const linked = sanctionsById.get(selectedAppeal.sanctionID);
+      if (linked) {
+        ids.add(linked.userID);
+        ids.add(linked.moderatorID);
+      }
+    }
+    if (selectedSanction) {
+      ids.add(selectedSanction.userID);
+      ids.add(selectedSanction.moderatorID);
+    }
+    if (selectedReport) {
+      ids.add(selectedReport.reporterID);
+      ids.add(selectedReport.targetUserID);
+    }
+    if (selectedFlag) {
+      ids.add(selectedFlag.reporterID);
+      ids.add(selectedFlag.targetUserID);
+    }
+    return [...ids];
+  }, [flags, reports, sanctions, sanctionsById, selectedAppeal, selectedFlag, selectedReport, selectedSanction, tab]);
+
+  usePreloadUserMetas(guildID, preloadUserIDs);
 
   useEffect(() => {
     if (!selectedSanction) return;
@@ -241,6 +296,10 @@ function ModerationPageContent() {
     setTab("flags");
   }, []);
 
+  const handleLoadMore = useCallback(() => {
+    setLimits((current) => ({ ...current, [tab]: current[tab] + PAGE_SIZE }));
+  }, [tab]);
+
   if (!guildID) {
     return (
       <div className={styles.emptyState}>
@@ -256,7 +315,8 @@ function ModerationPageContent() {
 
   const actionableAppeals = visibleAppeals.filter((item) => item.status === "pending_review").length;
   const sidebarTitle = tab === "appeals" ? (appealFilter === "all" ? "Tous" : "En attente") : tab === "sanctions" ? "Toutes" : tab === "reports" ? "Signalements" : "Messages signalés";
-  const sidebarCount = tab === "appeals" ? visibleAppeals.length : tab === "sanctions" ? sanctions.length : tab === "reports" ? reports.length : flags.length;
+  const sidebarCount = totals[tab];
+  const showLoadMore = hasMore[tab];
 
   return (
     <div className={styles.page}>
@@ -290,7 +350,7 @@ function ModerationPageContent() {
           <div className={styles.list}>
             {tab === "appeals" && visibleAppeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
             {tab === "appeals" && visibleAppeals.map((appeal) => {
-              const sanction = sanctions.find((item) => item.id === appeal.sanctionID);
+              const sanction = sanctionsById.get(appeal.sanctionID);
               return (
                 <SidebarCard
                   key={appeal.id}
@@ -354,6 +414,12 @@ function ModerationPageContent() {
                 />
               );
             })}
+
+            {showLoadMore && (
+              <button className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`} onClick={handleLoadMore}>
+                Charger plus
+              </button>
+            )}
           </div>
         </aside>
 

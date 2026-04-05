@@ -74,17 +74,25 @@ export async function createSanction(input: CreateSanctionInput): Promise<Sancti
 export async function listSanctions(
   guildID: string,
   userID?: string,
-  options?: { state?: SanctionState },
-): Promise<SanctionDTO[]> {
-  const rows = await Sanction.findAll({
+  options?: { state?: SanctionState; limit?: number; offset?: number },
+): Promise<{ items: SanctionDTO[]; total: number; hasMore: boolean }> {
+  const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
+  const offset = Math.max(0, options?.offset ?? 0);
+  const { rows, count } = await Sanction.findAndCountAll({
     where: {
       guildID,
       ...(userID ? { userID } : {}),
       ...(options?.state ? { state: options.state } : {}),
     },
     order: [["createdAt", "DESC"]],
+    limit,
+    offset,
   });
-  return rows.map(toDTO);
+  return {
+    items: rows.map(toDTO),
+    total: count,
+    hasMore: offset + rows.length < count,
+  };
 }
 
 export async function getSanction(guildID: string, sanctionID: string): Promise<SanctionDTO | null> {

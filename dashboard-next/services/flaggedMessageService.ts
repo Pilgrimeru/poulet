@@ -97,17 +97,25 @@ export async function createFlaggedMessage(input: CreateFlaggedMessageInput): Pr
 
 export async function listFlaggedMessages(
   guildID: string,
-  options?: { targetUserID?: string; status?: string },
-): Promise<FlaggedMessageDTO[]> {
-  const rows = await FlaggedMessage.findAll({
+  options?: { targetUserID?: string; status?: string; limit?: number; offset?: number },
+): Promise<{ items: FlaggedMessageDTO[]; total: number; hasMore: boolean }> {
+  const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
+  const offset = Math.max(0, options?.offset ?? 0);
+  const { rows, count } = await FlaggedMessage.findAndCountAll({
     where: {
       guildID,
       ...(options?.targetUserID ? { targetUserID: options.targetUserID } : {}),
       ...(options?.status ? { status: options.status } : {}),
     },
     order: [["createdAt", "DESC"]],
+    limit,
+    offset,
   });
-  return rows.map(toDTO);
+  return {
+    items: rows.map(toDTO),
+    total: count,
+    hasMore: offset + rows.length < count,
+  };
 }
 
 export async function updateFlaggedMessage(

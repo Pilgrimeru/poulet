@@ -127,6 +127,12 @@
   gap: 6px;
 }
 
+.loadMoreBtn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
 .listEmpty {
   padding: 24px 12px;
   text-align: center;

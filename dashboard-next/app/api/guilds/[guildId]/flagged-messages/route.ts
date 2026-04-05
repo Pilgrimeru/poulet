@@ -9,6 +9,8 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
       await listFlaggedMessages(guildId, {
         targetUserID: searchParams.get("targetUserId") ?? undefined,
         status: searchParams.get("status") ?? undefined,
+        limit: Number(searchParams.get("limit") ?? 50),
+        offset: Number(searchParams.get("offset") ?? 0),
       }),
     );
   } catch (error) {

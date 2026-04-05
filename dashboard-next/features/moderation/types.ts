@@ -130,3 +130,9 @@ export type SourceMeta =
   | { kind: "flag"; data: FlaggedMessageItem }
   | { kind: "report"; data: ModerationReportItem }
   | null;
+
+export type PaginatedResult<T> = {
+  items: T[];
+  total: number;
+  hasMore: boolean;
+};

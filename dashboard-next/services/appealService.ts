@@ -60,15 +60,17 @@ export async function createAppeal(sanctionID: string, text: string): Promise<Ap
 
 export async function listAppeals(
   guildID: string,
-  options?: { sanctionID?: string; status?: AppealStatus },
-): Promise<AppealDTO[]> {
+  options?: { sanctionID?: string; status?: AppealStatus; limit?: number; offset?: number },
+): Promise<{ items: AppealDTO[]; total: number; hasMore: boolean }> {
   const sanctionWhere: Record<string, unknown> = { guildID };
   if (options?.sanctionID) sanctionWhere["id"] = options.sanctionID;
 
   const appealWhere: Record<string, unknown> = {};
   if (options?.status) appealWhere["status"] = options.status;
+  const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
+  const offset = Math.max(0, options?.offset ?? 0);
 
-  const rows = await Appeal.findAll({
+  const { rows, count } = await Appeal.findAndCountAll({
     where: appealWhere,
     include: [
       {
@@ -78,8 +80,15 @@ export async function listAppeals(
       },
     ],
     order: [["createdAt", "DESC"]],
+    limit,
+    offset,
+    distinct: true,
   });
-  return rows.map(toDTO);
+  return {
+    items: rows.map(toDTO),
+    total: count,
+    hasMore: offset + rows.length < count,
+  };
 }
 
 export async function getAppealForGuild(guildID: string, appealID: string): Promise<AppealDTO | null> {
