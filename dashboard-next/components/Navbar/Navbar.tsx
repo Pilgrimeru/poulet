@@ -62,15 +62,13 @@ export function Navbar() {
         className={`${styles.navbar} ${mobileOpen ? styles.mobileDrawerOpen : ""}`}
         aria-label="Navigation principale"
       >
-        <div className={styles.mobileDrawerHeader}>
+        <button type="button" className={styles.mobileDrawerHeader} onClick={() => setMobileOpen(false)} aria-label="Fermer le menu">
           <span>Navigation</span>
-          <button type="button" className={styles.mobileCloseButton} onClick={() => setMobileOpen(false)} aria-label="Fermer le menu">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="18" y1="6" x2="6" y2="18" />
-            </svg>
-          </button>
-        </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className={styles.mobileCloseIcon}>
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
 
         <div className={styles.logoContainer}>
           <div className={styles.guildPicker}>

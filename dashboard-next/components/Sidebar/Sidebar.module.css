@@ -280,17 +280,33 @@
   .sidebar {
     width: 100%;
     min-width: 0;
-    max-height: 42vh;
+    max-height: none;
     border-right: none;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: none;
+    background: var(--bg-primary);
   }
 
   .section {
-    padding: 6px 0 10px;
+    padding: 10px 0 14px;
   }
 
   .list {
-    max-height: 28vh;
+    max-height: none;
     padding: 0 10px;
+  }
+
+  .searchWrapper {
+    margin: 6px 10px 10px;
+  }
+
+  .searchInput {
+    min-height: 40px;
+    border-radius: 10px;
+  }
+
+  .item,
+  .groupHeader {
+    min-height: 42px;
+    border-radius: 10px;
   }
 }

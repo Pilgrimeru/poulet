@@ -15,6 +15,30 @@
   background: var(--bg-primary);
 }
 
+.mobileBackBar {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px 0;
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+
+.mobileBackBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .channelHeader {
   display: flex;
   align-items: center;
@@ -108,6 +132,42 @@
   transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.iconBtn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.iconBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.iconBtnActive {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .refreshBtn:hover {
   color: var(--text-primary);
   border-color: var(--border-strong);
@@ -140,6 +200,11 @@
     padding-top: calc(60px + env(safe-area-inset-top));
   }
 
+  .layoutMobile {
+    display: block;
+    overflow-x: hidden;
+  }
+
   .channelHeader {
     flex-wrap: wrap;
     align-items: flex-start;
@@ -147,6 +212,10 @@
     height: auto;
     min-height: 48px;
     padding: 12px 14px;
+  }
+
+  .mainMobile {
+    min-height: calc(100dvh - (60px + env(safe-area-inset-top)));
   }
 
   .guildInfo {
@@ -161,23 +230,37 @@
   }
 
   .headerActions {
-    margin-left: 0;
-    width: 100%;
+    margin-left: auto;
+    width: auto;
   }
 
   .refreshBtn {
-    width: 100%;
+    width: auto;
     justify-content: center;
   }
 }
 
 @media (max-width: 760px) {
+  .mainMobile {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary)) 0%, var(--bg-primary) 220px);
+  }
+
+  .mobileBackBar {
+    padding: 8px 12px 0;
+  }
+
   .channelHeader {
+    align-items: center;
     padding: 10px 12px;
     font-size: 14px;
   }
 
   .guildName {
     font-size: 13px;
+  }
+
+  .headerActions {
+    gap: 8px;
   }
 }

@@ -127,7 +127,7 @@ function ModerationPageContent() {
       return;
     }
     setMobileView("list");
-  }, [isMobile, tab]);
+  }, [isMobile]);
 
   useEffect(() => {
     refreshData(false).catch(() => {
@@ -385,13 +385,13 @@ function ModerationPageContent() {
       <header className={`${styles.header} ${isMobile ? styles.headerMobile : ""}`}>
         <h1 className={styles.title}>Modération</h1>
         <div className={`${styles.tabs} ${isMobile ? styles.tabsMobile : ""}`} role="tablist">
-          <button role="tab" aria-selected={tab === "appeals"} className={`${styles.tab} ${tab === "appeals" ? styles.tabActive : ""}`} onClick={() => setTab("appeals")}>
+          <button role="tab" aria-selected={tab === "appeals"} className={`${styles.tab} ${tab === "appeals" ? styles.tabActive : ""}`} onClick={() => { setTab("appeals"); if (isMobile) setMobileView("list"); }}>
             Appels
             {actionableAppeals > 0 && <span className={styles.tabBadge} aria-label={`${actionableAppeals} en attente`}>{actionableAppeals}</span>}
           </button>
-          <button role="tab" aria-selected={tab === "sanctions"} className={`${styles.tab} ${tab === "sanctions" ? styles.tabActive : ""}`} onClick={() => setTab("sanctions")}>Sanctions</button>
-          <button role="tab" aria-selected={tab === "reports"} className={`${styles.tab} ${tab === "reports" ? styles.tabActive : ""}`} onClick={() => setTab("reports")}>Signalements</button>
-          <button role="tab" aria-selected={tab === "flags"} className={`${styles.tab} ${tab === "flags" ? styles.tabActive : ""}`} onClick={() => setTab("flags")}>Messages signalés</button>
+          <button role="tab" aria-selected={tab === "sanctions"} className={`${styles.tab} ${tab === "sanctions" ? styles.tabActive : ""}`} onClick={() => { setTab("sanctions"); if (isMobile) setMobileView("list"); }}>Sanctions</button>
+          <button role="tab" aria-selected={tab === "reports"} className={`${styles.tab} ${tab === "reports" ? styles.tabActive : ""}`} onClick={() => { setTab("reports"); if (isMobile) setMobileView("list"); }}>Signalements</button>
+          <button role="tab" aria-selected={tab === "flags"} className={`${styles.tab} ${tab === "flags" ? styles.tabActive : ""}`} onClick={() => { setTab("flags"); if (isMobile) setMobileView("list"); }}>Messages signalés</button>
         </div>
       </header>
 

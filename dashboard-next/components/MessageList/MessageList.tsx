@@ -15,9 +15,10 @@ interface Props {
   loadedChannelID: string | null;
   updateMode: MessageUpdateMode;
   scrollToMessageID: string | null;
+  forceScrollToBottomToken?: number;
 }
 
-export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID, loadedChannelID, updateMode, scrollToMessageID }: Readonly<Props>) {
+export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHistory, channelID, loadedChannelID, updateMode, scrollToMessageID, forceScrollToBottomToken = 0 }: Readonly<Props>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const distanceFromBottomRef = useRef(0);
   const previousLoadedChannelIDRef = useRef<string | null>(null);
@@ -88,6 +89,14 @@ export function MessageList({ messages, hasMore, loading, onLoadMore, onShowHist
     distanceFromBottomRef.current = Math.max(0, el.scrollHeight - el.clientHeight - el.scrollTop);
     previousLoadedChannelIDRef.current = loadedChannelID;
   }, [messages, channelID, loadedChannelID, updateMode]);
+
+  useLayoutEffect(() => {
+    if (scrollToMessageID) return;
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    distanceFromBottomRef.current = 0;
+  }, [forceScrollToBottomToken, scrollToMessageID]);
 
   function handleScroll() {
     const el = containerRef.current;
