@@ -123,7 +123,15 @@ function ModerationPageContent() {
 
   usePreloadUserMetas(guildID, preloadUserIDs);
 
-  const selectedAppeal = useMemo(() => appeals?.find((item) => item.id === selectedAppealId) ?? appeals?.[0] ?? null, [appeals, selectedAppealId]);
+  const visibleAppeals = useMemo(
+    () => (appeals ?? []).filter((item) => {
+      const linked = sanctions?.find((s) => s.id === item.sanctionID);
+      return !linked || linked.state !== "canceled";
+    }),
+    [appeals, sanctions],
+  );
+
+  const selectedAppeal = useMemo(() => visibleAppeals.find((item) => item.id === selectedAppealId) ?? visibleAppeals[0] ?? null, [visibleAppeals, selectedAppealId]);
   const selectedSanction = useMemo(() => sanctions?.find((item) => item.id === selectedSanctionId) ?? sanctions?.[0] ?? null, [sanctions, selectedSanctionId]);
   const selectedReport = useMemo(() => reports?.find((item) => item.id === selectedReportId) ?? reports?.[0] ?? null, [reports, selectedReportId]);
   const selectedFlag = useMemo(() => flags?.find((item) => item.id === selectedFlagId) ?? flags?.[0] ?? null, [flags, selectedFlagId]);
@@ -189,10 +197,10 @@ function ModerationPageContent() {
       ]);
     }
 
-    const nextAppeals = (appeals ?? []).filter((item) => item.id !== selectedAppeal.id);
-    setAppeals(nextAppeals);
-    setSelectedAppealId(nextAppeals[0]?.id ?? null);
-  }, [appeals, guildID, linkedSanction, selectedAppeal]);
+    setAppeals((current) => (current ?? []).filter((item) => item.id !== selectedAppeal.id));
+    const nextVisible = visibleAppeals.find((item) => item.id !== selectedAppeal.id);
+    setSelectedAppealId(nextVisible?.id ?? null);
+  }, [appeals, guildID, linkedSanction, selectedAppeal, visibleAppeals]);
 
   const handleSanctionSave = useCallback(async () => {
     if (!selectedSanction || !sanctionDraft) return;
@@ -246,9 +254,9 @@ function ModerationPageContent() {
     return <div className={styles.emptyState}>Chargement…</div>;
   }
 
-  const actionableAppeals = appeals.filter((item) => item.status === "pending_review").length;
+  const actionableAppeals = visibleAppeals.filter((item) => item.status === "pending_review").length;
   const sidebarTitle = tab === "appeals" ? (appealFilter === "all" ? "Tous" : "En attente") : tab === "sanctions" ? "Toutes" : tab === "reports" ? "Signalements" : "Messages signalés";
-  const sidebarCount = tab === "appeals" ? appeals.length : tab === "sanctions" ? sanctions.length : tab === "reports" ? reports.length : flags.length;
+  const sidebarCount = tab === "appeals" ? visibleAppeals.length : tab === "sanctions" ? sanctions.length : tab === "reports" ? reports.length : flags.length;
 
   return (
     <div className={styles.page}>
@@ -280,8 +288,8 @@ function ModerationPageContent() {
           )}
 
           <div className={styles.list}>
-            {tab === "appeals" && appeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
-            {tab === "appeals" && appeals.map((appeal) => {
+            {tab === "appeals" && visibleAppeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
+            {tab === "appeals" && visibleAppeals.map((appeal) => {
               const sanction = sanctions.find((item) => item.id === appeal.sanctionID);
               return (
                 <SidebarCard
