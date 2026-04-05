@@ -1,6 +1,6 @@
 import type { ContextMessage } from "@/api";
 import { messageSnapshotService } from "@/api";
-import { formatTranscriptLine } from "./messageFormatting";
+import { formatAttachmentsSuffix, formatTranscriptLine } from "./messageFormatting";
 import type { Guild, Message, TextChannel } from "discord.js";
 
 const DISCORD_MESSAGE_LINK_RE = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
@@ -47,8 +47,7 @@ export async function collectContextMessages(targetMessage: Message): Promise<Co
         createdAt: targetMessage.createdTimestamp,
         ...referenced,
         attachments: [...targetMessage.attachments.values()]
-          .filter((a) => a.contentType?.startsWith("image/") ?? false)
-          .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
+          .map((a) => ({ url: a.url, contentType: a.contentType ?? "unknown", filename: a.name })),
       },
     ];
   }
@@ -65,8 +64,7 @@ export async function collectContextMessages(targetMessage: Message): Promise<Co
     createdAt: message.createdTimestamp,
     ...(await resolveReferencedContext(message, knownMessages)),
     attachments: [...message.attachments.values()]
-      .filter((a) => a.contentType?.startsWith("image/") ?? false)
-      .map((a) => ({ url: a.url, contentType: a.contentType ?? "image/unknown", filename: a.name })),
+      .map((a) => ({ url: a.url, contentType: a.contentType ?? "unknown", filename: a.name })),
   })));
 }
 
@@ -126,12 +124,12 @@ export async function enrichContent(guild: Guild, content: string): Promise<stri
     const latest = versions.at(-1)!;
     const date = new Date(latest.createdAt).toISOString();
     const editedFlag = versions.length > 1 ? " [EDITE]" : "";
-    let block = `[lien-message: @${latest.authorUsername} le ${date}${editedFlag}: "${latest.content}"`;
+    let block = `[lien-message: @${latest.authorUsername} le ${date}${editedFlag}: "${latest.content}"${formatAttachmentsSuffix(latest.attachments)}`;
 
     if (versions.length > 1) {
       const prevVersions = versions
         .slice(0, -1)
-        .map((v) => `  > v${v.version + 1}: "${v.content}"`)
+        .map((v) => `  > v${v.version + 1}: "${v.content}"${formatAttachmentsSuffix(v.attachments)}`)
         .join("\n");
       block += `\n${prevVersions}`;
     }
@@ -146,7 +144,7 @@ export async function enrichContent(guild: Guild, content: string): Promise<stri
 export async function ticketMessagesToTranscript(guild: Guild, messages: ContextMessage[]): Promise<string> {
   const lines = await Promise.all(
     messages
-      .filter((msg) => msg.content.trim() !== "")
+      .filter((msg) => msg.content.trim() !== "" || (msg.attachments?.length ?? 0) > 0)
       .map(async (msg) => {
         const enriched = await enrichContent(guild, msg.content);
         const referenced = msg.referencedMessageID
@@ -160,6 +158,7 @@ export async function ticketMessagesToTranscript(guild: Guild, messages: Context
           referencedAuthorID: msg.referencedAuthorID,
           referencedAuthorUsername: msg.referencedAuthorUsername,
           referencedContent: referenced,
+          attachments: msg.attachments,
         });
       }),
   );

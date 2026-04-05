@@ -28,7 +28,7 @@ RÈGLES :
 FORMAT DE SORTIE :
 - JSON structuré conforme.
 - Pour nommer un utilisateur, utiliser : <@ID>
-- Pour nommer un salon, utiliser : <#ID>
+- Pour nommer un salon, utiliser : <#ID>  
 - Pour nommer une date ou une heure précise, utiliser : [[ts:ISO-8601|S]]
 - Après avoir terminé les vérifications utiles, rends obligatoirement la décision finale via l'outil submitFinalAnswer, une seule fois, avec tous les champs du schéma.
 `;

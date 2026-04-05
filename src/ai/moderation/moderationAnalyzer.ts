@@ -1,3 +1,4 @@
+import { formatAttachmentsSuffix, formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
 import { SystemMessage } from "@langchain/core/messages";
 import { sanctionApiService, type SanctionSeverity } from "@/api/sanctionApiService";
 import { runWithTools } from "../core/runtime";
@@ -52,11 +53,14 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   const contextText = input.contextMessages
     .map((message) => {
       const base = `[${new Date(message.createdAt).toISOString()}] ${message.authorUsername} (${message.authorID}): ${message.content}`;
-      const reply = message.referencedMessageID
-        ? ` [reply to ${message.referencedAuthorUsername ?? "(unknown)"} (${message.referencedAuthorID ?? "unknown"}): ${message.referencedContent ?? "(no content)"}]`
-        : "";
-      const images = message.attachments?.map((attachment) => `[image: ${attachment.url}]`).join(" ") ?? "";
-      return images ? `${base}${reply} ${images}` : `${base}${reply}`;
+      const reply = formatReplySuffix({
+        referencedMessageID: message.referencedMessageID,
+        referencedAuthorID: message.referencedAuthorID,
+        referencedAuthorUsername: message.referencedAuthorUsername,
+        referencedContent: message.referencedContent,
+      });
+      const attachments = formatAttachmentsSuffix(message.attachments);
+      return `${base}${reply}${attachments}`;
     })
     .join("\n");
 

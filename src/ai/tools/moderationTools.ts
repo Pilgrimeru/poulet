@@ -2,7 +2,7 @@ import { channelMetaService } from "@/api/channelMetaService";
 import { guildSettingsService } from "@/api/guildSettingsService";
 import { messageSnapshotService } from "@/api/messageSnapshotService";
 import { sanctionApiService } from "@/api/sanctionApiService";
-import { formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
+import { formatAttachmentsSuffix, formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
 import { DuckDuckGoSearch } from "@langchain/community/tools/duckduckgo_search";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
@@ -130,14 +130,15 @@ export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): 
       referencedAuthorUsername: message.referencedMessageAuthor,
       referencedContent: message.referencedMessageContent,
     });
+    const attachmentsSuffix = formatAttachmentsSuffix(message.attachments);
     const line =
-      `[${new Date(message.createdAt).toISOString()}] ${renderedChannel} ${message.authorUsername}: ${message.content}${replySuffix}${suffix}`;
+      `[${new Date(message.createdAt).toISOString()}] ${renderedChannel} ${message.authorUsername}: ${message.content}${replySuffix}${attachmentsSuffix}${suffix}`;
     const versions = historiesById.get(message.messageID);
     if (!versions) return line;
 
     const previousVersions = versions
       .slice(0, -1)
-      .map((version) => `  > v${version.version + 1}: ${version.content}`)
+      .map((version) => `  > v${version.version + 1}: ${version.content}${formatAttachmentsSuffix(version.attachments)}`)
       .join("\n");
 
     return `${line}\n${previousVersions}`;
