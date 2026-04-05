@@ -24,9 +24,7 @@ export const NATURE_LABELS: Record<SanctionNature, string> = {
 };
 
 export const TYPE_LABELS: Record<SanctionType, string> = {
-  WARN_LOW: "Avertissement faible",
-  WARN_MEDIUM: "Avertissement moyen",
-  WARN_HIGH: "Avertissement élevé",
+  WARN: "Avertissement",
   MUTE: "Exclusion",
   BAN_PENDING: "Ban en attente",
 };

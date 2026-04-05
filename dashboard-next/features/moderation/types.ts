@@ -2,7 +2,7 @@
 
 export type Tab = "appeals" | "sanctions" | "reports" | "flags";
 export type Severity = "NONE" | "LOW" | "MEDIUM" | "HIGH" | "UNFORGIVABLE";
-export type SanctionType = "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" | "MUTE" | "BAN_PENDING";
+export type SanctionType = "WARN" | "MUTE" | "BAN_PENDING";
 export type SanctionNature = "Extremism" | "Violence" | "Hate" | "Harassment" | "Spam" | "Manipulation" | "Recidivism" | "Other";
 export type SanctionState = "created" | "canceled";
 export type AppealStatus = "pending_review" | "upheld" | "overturned";

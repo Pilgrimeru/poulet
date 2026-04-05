@@ -11,12 +11,6 @@ import {
 
 type WarnSeverity = "LOW" | "MEDIUM" | "HIGH";
 
-function warnSeverityToType(severity: WarnSeverity): "WARN_LOW" | "WARN_MEDIUM" | "WARN_HIGH" {
-  if (severity === "LOW") return "WARN_LOW";
-  if (severity === "MEDIUM") return "WARN_MEDIUM";
-  return "WARN_HIGH";
-}
-
 export default class WarnCommand extends Command {
   constructor() {
     super({
@@ -75,7 +69,7 @@ export default class WarnCommand extends Command {
     const embed = buildSanctionEmbed({
       target,
       moderator: interaction.user,
-      type: warnSeverityToType(severity),
+      type: "WARN",
       severity,
       reason: message,
     });

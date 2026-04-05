@@ -201,9 +201,7 @@ export function SanctionEditor({ draft, onChange, isEditing }: Readonly<{ draft:
           <label className={styles.label}>Type</label>
           {isEditing ? (
             <select className={styles.select} value={draft.type} onChange={(event) => onChange({ ...draft, type: event.target.value as SanctionDraft["type"] })}>
-              <option value="WARN_LOW">Avertissement faible</option>
-              <option value="WARN_MEDIUM">Avertissement moyen</option>
-              <option value="WARN_HIGH">Avertissement élevé</option>
+              <option value="WARN">Avertissement</option>
               <option value="MUTE">Exclusion</option>
               <option value="BAN_PENDING">Ban en attente</option>
             </select>

@@ -16,13 +16,6 @@ const BASE_DURATION_MS: Record<SanctionSeverity, number> = {
 
 const PENDING_BAN_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
-function severityToWarnType(severity: SanctionSeverity): SanctionType {
-  if (severity === "NONE") throw new Error("Cannot map NONE severity to a warning sanction");
-  if (severity === "LOW") return "WARN_LOW";
-  if (severity === "MEDIUM") return "WARN_MEDIUM";
-  return "WARN_HIGH";
-}
-
 /**
  * Compute a sanction from the IA decision.
  * The IA decides WARN vs MUTE vs BAN_PENDING.
@@ -51,7 +44,7 @@ export function computeSanction(
 
   return {
     durationMs: sanctionKind === "MUTE" ? durationMs : 0,
-    sanctionType: sanctionKind === "MUTE" ? "MUTE" : severityToWarnType(severity),
+    sanctionType: sanctionKind === "MUTE" ? "MUTE" : "WARN",
     severity,
   };
 }

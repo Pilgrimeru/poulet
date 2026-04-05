@@ -30,6 +30,7 @@ FORMAT DE SORTIE :
 - Pour nommer un utilisateur, utiliser : <@ID>
 - Pour nommer un salon, utiliser : <#ID>
 - Pour nommer une date ou une heure précise, utiliser : [[ts:ISO-8601|S]]
+- Ne mentionne jamais de noms techniques issus des outils ou du JSON dans reason.
 - Après avoir terminé les vérifications utiles, rends obligatoirement la décision finale via l'outil submitFinalAnswer, une seule fois, avec tous les champs du schéma.
 `;
 
@@ -87,6 +88,7 @@ FORMAT DE SORTIE :
 - Pour nommer un utilisateur, TOURJOURS utiliser : <@ID>
 - Pour nommer un salon, TOURJOURS utiliser : <#ID>
 - Pour nommer une date ou une heure précise, TOURJOURS utiliser : [[ts:ISO-8601|S]]
+- Ne mentionne jamais de noms techniques issus des outils ou du JSON dans reason et summary.
 - Après avoir terminé les vérifications utiles, rends obligatoirement la décision finale via l'outil submitFinalAnswer, une seule fois, avec tous les champs du schéma.
 `;
 
