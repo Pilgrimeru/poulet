@@ -59,7 +59,8 @@ export const sanctionApiService = {
     if (options?.userID) params.set("userId", options.userID);
     if (options?.state) params.set("state", options.state);
     const query = params.size > 0 ? `?${params.toString()}` : "";
-    return apiGet<SanctionDTO[]>(`/guilds/${guildID}/sanctions${query}`);
+    const result = await apiGet<{ items: SanctionDTO[] } | SanctionDTO[]>(`/guilds/${guildID}/sanctions${query}`);
+    return Array.isArray(result) ? result : result.items;
   },
 
   async get(guildID: string, sanctionID: string): Promise<SanctionDTO> {
