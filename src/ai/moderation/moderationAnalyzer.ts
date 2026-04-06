@@ -1,5 +1,5 @@
 import { sanctionApiService, type SanctionSeverity } from "@/api/sanctionApiService";
-import { formatAttachmentsSuffix, formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
+import { formatAttachmentsSuffix } from "@/discord/components/moderation/messageFormatting";
 import { SystemMessage } from "@langchain/core/messages";
 import { runWithTools } from "../core/runtime";
 import { flagChatPrompt, summaryChatPrompt } from "./prompts";
@@ -15,6 +15,43 @@ function severityIndex(s: SanctionSeverity): number {
 
 function nextSeverity(s: SanctionSeverity): SanctionSeverity {
   return SEVERITY_ORDER[Math.min(severityIndex(s) + 1, SEVERITY_ORDER.length - 1)];
+}
+
+function formatUserRef(userID?: string | null): string {
+  return userID ? `<@${userID}>` : "<@unknown>";
+}
+
+function escapeInlineValue(value: string | null | undefined): string {
+  return (value ?? "").replaceAll(/\s+/g, " ").trim();
+}
+
+function buildParticipantAliasesText(input: FlagAnalysisInput): string {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+
+  const pushAlias = (userID: string | null | undefined, ...aliases: Array<string | null | undefined>) => {
+    if (!userID || seen.has(userID)) return;
+    const cleaned = aliases.map(escapeInlineValue).filter(Boolean);
+    const uniqueAliases = [...new Set(cleaned)];
+    seen.add(userID);
+    lines.push(uniqueAliases.length > 0
+      ? `- <@${userID}> | alias=${uniqueAliases.join(" | ")}`
+      : `- <@${userID}>`);
+  };
+
+  pushAlias(input.reporterID, input.reporterUsername, input.reporterDisplayName);
+  pushAlias(input.targetUserID, input.targetUsername, input.targetDisplayName);
+
+  for (const mention of input.messageMentions ?? []) {
+    pushAlias(mention.id, mention.username, mention.displayName);
+  }
+
+  for (const message of input.contextMessages) {
+    pushAlias(message.authorID, message.authorUsername);
+    pushAlias(message.referencedAuthorID, message.referencedAuthorUsername);
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "Aucun alias utile.";
 }
 
 async function buildActiveSanctionsContext(
@@ -83,27 +120,24 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
         && message.id != null
         && (input.alreadySanctionedMessageIDs?.has(message.id) ?? false);
       const sanctionedSuffix = isSanctioned ? " [DÉJÀ SANCTIONNÉ]" : "";
-      const base = `[${new Date(message.createdAt).toISOString()}] ${message.authorUsername} (${message.authorID}): ${message.content}${sanctionedSuffix}`;
-      const reply = formatReplySuffix({
-        referencedMessageID: message.referencedMessageID,
-        referencedAuthorID: message.referencedAuthorID,
-        referencedAuthorUsername: message.referencedAuthorUsername,
-        referencedContent: message.referencedContent,
-      });
+      const authorAlias = escapeInlineValue(message.authorUsername);
+      const base = `[${new Date(message.createdAt).toISOString()}] ${formatUserRef(message.authorID)}${authorAlias ? ` alias=${authorAlias}` : ""}: ${message.content}${sanctionedSuffix}`;
+      const reply = message.referencedMessageID
+        ? ` [reply to ${formatUserRef(message.referencedAuthorID)}${escapeInlineValue(message.referencedAuthorUsername) ? ` alias=${escapeInlineValue(message.referencedAuthorUsername)}` : ""}: ${message.referencedContent || "(no content)"}]`
+        : "";
       const attachments = formatAttachmentsSuffix(message.attachments);
       return `${base}${reply}${attachments}`;
     })
     .join("\n");
   const activeSanctionsText = await buildActiveSanctionsContext(input.guildID, input.targetUserID, input.messageCreatedAt);
+  const participantAliasesText = buildParticipantAliasesText(input);
+  const mentionsText = JSON.stringify((input.messageMentions ?? []).map((mention) => `<@${mention.id}>`));
 
   const messages = await flagChatPrompt.formatMessages({
     reporterID: input.reporterID,
-    reporterUsername: input.reporterUsername ?? "(unknown)",
-    reporterDisplayName: input.reporterDisplayName ?? "(unknown)",
     targetUserID: input.targetUserID,
-    targetUsername: input.targetUsername ?? "(unknown)",
-    targetDisplayName: input.targetDisplayName ?? "(unknown)",
-    messageMentions: JSON.stringify(input.messageMentions ?? []),
+    participantAliasesText,
+    messageMentions: mentionsText,
     messageContent: input.messageContent,
     activeSanctionsText,
     contextText: contextText || "(vide)",

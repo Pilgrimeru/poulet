@@ -3,6 +3,7 @@ import { flaggedMessageApiService, guildSettingsService, moderationReportApiServ
 import type { SanctionNature, SanctionSeverity } from "@/api/sanctionApiService";
 import { config } from "@/app";
 import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
+import { getAlreadySanctionedMessageIDs } from "@/discord/components/moderation/reportService";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -196,6 +197,16 @@ export async function applyAutomaticSanction(args: {
   const computed = computeSanction(args.severity, args.sanctionKind, multiplier);
   const member = await args.guild.members.fetch(args.target.id).catch(() => null);
 
+  if (args.source.kind === "flag" && args.source.message) {
+    const alreadySanctionedMessageIDs = await getAlreadySanctionedMessageIDs(args.guild.id, args.target.id);
+    if (alreadySanctionedMessageIDs.has(args.source.message.id)) {
+      await flaggedMessageApiService.update(args.guild.id, args.source.id, {
+        status: "dismissed",
+      }).catch(() => undefined);
+      return { sanction: null, skippedDuplicate: true as const };
+    }
+  }
+
   const sanction = await sanctionApiService.create({
     guildID: args.guild.id,
     userID: args.target.id,
@@ -276,5 +287,5 @@ export async function applyAutomaticSanction(args: {
     }
   }
 
-  return { sanction };
+  return { sanction, skippedDuplicate: false as const };
 }

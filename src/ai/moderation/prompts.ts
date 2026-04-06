@@ -26,6 +26,7 @@ RÈGLES :
 - Choisis la nature la plus spécifique et la plus directement soutenue par les faits vérifiés
 - Quand le comportement principal observé relève d'une répétition, d'une diffusion massive ou d'une perturbation de conversation, privilégie "Spam" plutôt que "Harassment"
 - N'utilise "Harassment" que si les faits vérifiés montrent une cible identifiable et un comportement dirigé contre elle
+- Les alias, pseudos et noms d'affichage éventuellement fournis servent uniquement a comprendre le contexte. Dans la decision finale, ne cite jamais ces alias et utilise seulement <@ID> et <#ID>
 - Utiliser exclusivement les identifiants <@ID> et <#ID>, bannir les pseudonymes, les noms de salons en clair et les parenthèses de marquage
 FORMAT DE SORTIE :
 - JSON structuré conforme.
@@ -100,12 +101,10 @@ export const flagChatPrompt = ChatPromptTemplate.fromMessages([
   [
     "human",
     [
-      "Reporter ID: {reporterID}",
-      "Reporter username: {reporterUsername}",
-      "Reporter display name: {reporterDisplayName}",
-      "Reported message author ID: {targetUserID}",
-      "Reported message author username: {targetUsername}",
-      "Reported message author display name: {targetDisplayName}",
+      "Signaleur: <@{reporterID}>",
+      "Auteur du message signale: <@{targetUserID}>",
+      "Alias utiles pour comprendre le contexte:",
+      "{participantAliasesText}",
       "Mentions detectees: {messageMentions}",
       "Message cible: {messageContent}",
       "Sanctions actives pertinentes pour la recidive:",

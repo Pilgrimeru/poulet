@@ -190,7 +190,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     return;
   }
 
-  await applyAutomaticSanction({
+  const sanctionResult = await applyAutomaticSanction({
     guild,
     target,
     moderator: interaction.client.user,
@@ -201,6 +201,11 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     aiSummary: null,
     source: { kind: "flag", id: flagged.id, message: targetMessage },
   });
+
+  if (sanctionResult.skippedDuplicate) {
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.duplicateFlag });
+    return;
+  }
 
   await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.automaticallyProcessed });
 }
