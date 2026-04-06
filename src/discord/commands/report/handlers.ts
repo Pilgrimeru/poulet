@@ -136,6 +136,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     targetDisplayName: guild.members.cache.get(target.id)?.displayName ?? target.globalName ?? target.username,
     messageMentions,
     messageContent: targetMessage.content,
+    messageCreatedAt: targetMessage.createdTimestamp,
     contextMessages,
     alreadySanctionedMessageIDs,
   });

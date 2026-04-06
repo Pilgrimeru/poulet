@@ -12,6 +12,7 @@ export interface FlagAnalysisInput {
   targetDisplayName?: string | null;
   messageMentions?: Array<{ id: string; username?: string | null; displayName?: string | null }>;
   messageContent: string;
+  messageCreatedAt: number;
   contextMessages: ContextMessage[];
   alreadySanctionedMessageIDs?: Set<string>;
 }

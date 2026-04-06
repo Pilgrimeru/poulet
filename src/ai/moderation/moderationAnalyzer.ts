@@ -1,6 +1,6 @@
+import { sanctionApiService, type SanctionSeverity } from "@/api/sanctionApiService";
 import { formatAttachmentsSuffix, formatReplySuffix } from "@/discord/components/moderation/messageFormatting";
 import { SystemMessage } from "@langchain/core/messages";
-import { sanctionApiService, type SanctionSeverity } from "@/api/sanctionApiService";
 import { runWithTools } from "../core/runtime";
 import { flagChatPrompt, summaryChatPrompt } from "./prompts";
 import { buildSummaryInputContext, getSourceReportTimezone, postProcessSummaryResult } from "./reportContext";
@@ -15,6 +15,33 @@ function severityIndex(s: SanctionSeverity): number {
 
 function nextSeverity(s: SanctionSeverity): SanctionSeverity {
   return SEVERITY_ORDER[Math.min(severityIndex(s) + 1, SEVERITY_ORDER.length - 1)];
+}
+
+async function buildActiveSanctionsContext(
+  guildID: string,
+  targetUserID: string,
+  anchorTimestamp: number,
+): Promise<string> {
+  const allActive = await sanctionApiService.list(guildID, { userID: targetUserID, state: "created" }).catch(() => []);
+  const priorSanctions = allActive
+    .filter((sanction) => sanction.createdAt < anchorTimestamp)
+    .toSorted((a, b) => b.createdAt - a.createdAt);
+
+  if (priorSanctions.length === 0) {
+    return "Aucune sanction active anterieure pertinente.";
+  }
+
+  return priorSanctions.map((sanction) =>
+    [
+      `- id=${sanction.id}`,
+      `date=${new Date(sanction.createdAt).toISOString()}`,
+      `type=${sanction.type}`,
+      `severity=${sanction.severity}`,
+      `nature=${sanction.nature}`,
+      `reason=${sanction.reason}`,
+      `durationMs=${sanction.durationMs ?? "null"}`,
+    ].join(" | "),
+  ).join("\n");
 }
 
 async function applyRecidivismEscalation(
@@ -67,6 +94,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
       return `${base}${reply}${attachments}`;
     })
     .join("\n");
+  const activeSanctionsText = await buildActiveSanctionsContext(input.guildID, input.targetUserID, input.messageCreatedAt);
 
   const messages = await flagChatPrompt.formatMessages({
     reporterID: input.reporterID,
@@ -77,6 +105,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
     targetDisplayName: input.targetDisplayName ?? "(unknown)",
     messageMentions: JSON.stringify(input.messageMentions ?? []),
     messageContent: input.messageContent,
+    activeSanctionsText,
     contextText: contextText || "(vide)",
   });
   (messages[0] as SystemMessage).additional_kwargs = { cache_control: { type: "ephemeral" } };

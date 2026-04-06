@@ -22,6 +22,7 @@ RÈGLES :
 - Ne pas prendre en compte les accusations non fondées comme des preuves faibles
 - Quand un mot de jargon que tu ne connais manifestement pas est utilisé, utilise searchQuery
 - Les messages du contexte marqués [DÉJÀ SANCTIONNÉ] ont déjà fait l'objet d'une sanction. Ne les utilise pas comme base principale d'une nouvelle violation. Tu peux les mentionner uniquement comme contexte de récidive.
+- Les sanctions actives antérieures au message signalé sont fournies dans le contexte initial. Traite-les comme des éléments potentiels de récidive, seulement si elles sont réellement similaires aux faits vérifiés.
 - Choisis la nature la plus spécifique et la plus directement soutenue par les faits vérifiés
 - Quand le comportement principal observé relève d'une répétition, d'une diffusion massive ou d'une perturbation de conversation, privilégie "Spam" plutôt que "Harassment"
 - N'utilise "Harassment" que si les faits vérifiés montrent une cible identifiable et un comportement dirigé contre elle
@@ -107,6 +108,8 @@ export const flagChatPrompt = ChatPromptTemplate.fromMessages([
       "Reported message author display name: {targetDisplayName}",
       "Mentions detectees: {messageMentions}",
       "Message cible: {messageContent}",
+      "Sanctions actives pertinentes pour la recidive:",
+      "{activeSanctionsText}",
       "Contexte:",
       "{contextText}",
     ].join("\n"),
