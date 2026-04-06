@@ -176,8 +176,9 @@ export async function runWithTools<T extends Record<string, unknown>>(
   initialMessages: BaseMessage[],
   schema: StructuredSchema<T>,
   guildID: string,
+  sanctionedMessageIDs?: Set<string>,
 ): Promise<T> {
-  const tools = createModerationTools(guildID);
+  const tools = createModerationTools(guildID, sanctionedMessageIDs);
   const finalAnswerTool = createFinalAnswerTool(schema);
   const finalAnswerOnlyChain = getFinalAnswerOnlyChain(finalAnswerTool);
   const requiredChain = getBoundLLMWithFallback(tools, finalAnswerTool, "required");

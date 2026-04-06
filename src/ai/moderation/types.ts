@@ -13,6 +13,7 @@ export interface FlagAnalysisInput {
   messageMentions?: Array<{ id: string; username?: string | null; displayName?: string | null }>;
   messageContent: string;
   contextMessages: ContextMessage[];
+  alreadySanctionedMessageIDs?: Set<string>;
 }
 
 export interface ReportAnalysisInput {
@@ -22,6 +23,7 @@ export interface ReportAnalysisInput {
   transcript: string;
   /** Unix timestamp (ms) approximating when the violation occurred — used to exclude sanctions issued after the fact from recidivism escalation. Defaults to Date.now(). */
   anchorTimestamp?: number;
+  sanctionedMessageIDs?: Set<string>;
 }
 
 export type HistoryQuery = {

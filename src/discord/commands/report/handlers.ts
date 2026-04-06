@@ -137,6 +137,7 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
     messageMentions,
     messageContent: targetMessage.content,
     contextMessages,
+    alreadySanctionedMessageIDs,
   });
 
   const resolvedVictimUserID = analysis.victimUserID && analysis.victimUserID !== target.id
@@ -312,6 +313,16 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     await channel.send(MODERATION_MESSAGES.channelPosts.reportConfirmedNoSanction);
     setTimeout(() => void channel.delete().catch(() => undefined), 30_000);
     return;
+  }
+
+  // Guard: block if all target messages in context are already sanctioned
+  if (!config.ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS) {
+    const sanctionedIDs = await getAlreadySanctionedMessageIDs(interaction.guild.id, report.targetUserID);
+    const targetMessages = (report.context?.messages ?? []).filter((m): m is typeof m & { id: string } => m.authorID === report.targetUserID && m.id != null);
+    if (targetMessages.length > 0 && targetMessages.every((m) => sanctionedIDs.has(m.id))) {
+      await interaction.followUp({ content: MODERATION_MESSAGES.interactionReplies.duplicateFlag, flags: MessageFlags.Ephemeral });
+      return;
+    }
   }
 
   await applyAutomaticSanction({

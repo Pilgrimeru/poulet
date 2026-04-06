@@ -35,7 +35,10 @@ export async function processTicketAnalysis(
   channel: TextChannel,
   opts: { reporterID: string; targetUserID: string },
 ): Promise<{ reportId: string; summary: SummaryResult }> {
-  const ticketMessages = await collectTicketMessages(channel);
+  const [ticketMessages, sanctionedMessageIDs] = await Promise.all([
+    collectTicketMessages(channel),
+    getAlreadySanctionedMessageIDs(guild.id, opts.targetUserID),
+  ]);
   const transcript = await ticketMessagesToTranscript(guild, ticketMessages);
   const anchorTimestamp = ticketMessages[0]?.createdAt ?? Date.now();
 
@@ -62,6 +65,7 @@ export async function processTicketAnalysis(
     targetUserID: opts.targetUserID,
     transcript,
     anchorTimestamp,
+    sanctionedMessageIDs,
   });
 
   await moderationReportApiService.update(guild.id, report.id, {

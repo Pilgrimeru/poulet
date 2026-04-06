@@ -84,7 +84,7 @@ function resolveHistoryWindow(query: HistoryQuery): { startDate: number | null; 
   };
 }
 
-export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): Promise<string> {
+export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery, sanctionedMessageIDs?: Set<string>): Promise<string> {
   const normalizedQuery = normalizeHistoryQuery(q);
   const resolvedWindow = resolveHistoryWindow(normalizedQuery);
   const channels = await channelMetaService.listByGuild(guildID).catch(() => []);
@@ -117,6 +117,7 @@ export async function fetchHistoryToolResult(guildID: string, q: HistoryQuery): 
 
   const formatted = history.map((message) => {
     const flags: string[] = [];
+    if (sanctionedMessageIDs?.has(message.messageID)) flags.push("DÉJÀ SANCTIONNÉ");
     if (message.isDeleted) flags.push("SUPPRIME");
     else if (message.version > 1) flags.push("EDITE");
 
@@ -226,9 +227,9 @@ export async function executeModerationToolCall(
   return `Outil inconnu: ${name}`;
 }
 
-export function createModerationTools(guildID: string) {
+export function createModerationTools(guildID: string, sanctionedMessageIDs?: Set<string>) {
   const historyTool = tool(
-    (query: HistoryQuery) => fetchHistoryToolResult(guildID, query),
+    (query: HistoryQuery) => fetchHistoryToolResult(guildID, query, sanctionedMessageIDs),
     {
       name: "historyQuery",
       description: "Fetch a user's server message history. Prefer broad queries: spelling variants, word stems, multiple terms, and 'any' mode.",

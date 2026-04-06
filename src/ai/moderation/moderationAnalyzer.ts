@@ -52,7 +52,11 @@ async function applyRecidivismEscalation(
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
   const contextText = input.contextMessages
     .map((message) => {
-      const base = `[${new Date(message.createdAt).toISOString()}] ${message.authorUsername} (${message.authorID}): ${message.content}`;
+      const isSanctioned = message.authorID === input.targetUserID
+        && message.id != null
+        && (input.alreadySanctionedMessageIDs?.has(message.id) ?? false);
+      const sanctionedSuffix = isSanctioned ? " [DÉJÀ SANCTIONNÉ]" : "";
+      const base = `[${new Date(message.createdAt).toISOString()}] ${message.authorUsername} (${message.authorID}): ${message.content}${sanctionedSuffix}`;
       const reply = formatReplySuffix({
         referencedMessageID: message.referencedMessageID,
         referencedAuthorID: message.referencedAuthorID,
@@ -78,7 +82,7 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   (messages[0] as SystemMessage).additional_kwargs = { cache_control: { type: "ephemeral" } };
 
   try {
-    return await runWithTools(messages, FlagAnalysisSchema, input.guildID);
+    return await runWithTools(messages, FlagAnalysisSchema, input.guildID, input.alreadySanctionedMessageIDs);
   } catch (error) {
     console.error("[ai] analyzeFlag failed", {
       reporterID: input.reporterID,
@@ -124,7 +128,7 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_SUMMARY_ATTEMPTS; attempt++) {
     try {
-      const raw = postProcessSummaryResult(await runWithTools(messages, SummarySchema, input.guildID));
+      const raw = postProcessSummaryResult(await runWithTools(messages, SummarySchema, input.guildID, input.sanctionedMessageIDs));
       const anchorTimestamp = input.anchorTimestamp ?? Date.now();
       return await applyRecidivismEscalation(raw, input.guildID, input.targetUserID, anchorTimestamp);
     } catch (error) {
