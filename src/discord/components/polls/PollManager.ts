@@ -53,11 +53,6 @@ export class PollManager {
     optionId: number,
   ): Promise<boolean>;
   public async userVoteInteraction(
-    pollId: string,
-    userId: string,
-    optionId: number,
-  ): Promise<boolean>;
-  public async userVoteInteraction(
     pollOrPollId: string | PollDTO,
     userId: string,
     optionId: number,
@@ -75,7 +70,7 @@ export class PollManager {
     ));
     return hasVoted
       ? await this.removeUserVote(poll, userId, optionId)
-      : !!(await this.addUserVote(poll, userId, optionId));
+      : (await this.addUserVote(poll, userId, optionId));
   }
 
   public async addUserVote(
@@ -107,11 +102,6 @@ export class PollManager {
     optionId: number,
   ): Promise<boolean>;
   public async removeUserVote(
-    pollId: string,
-    userId: string,
-    optionId: number,
-  ): Promise<boolean>;
-  public async removeUserVote(
     pollOrPollId: string | PollDTO,
     userId: string,
     optionId: number,
@@ -129,7 +119,6 @@ export class PollManager {
   }
 
   public async updateEmbed(poll: PollDTO): Promise<EmbedBuilder>;
-  public async updateEmbed(pollId: string): Promise<EmbedBuilder | null>;
   public async updateEmbed(
     pollOrPollId: PollDTO | string,
   ): Promise<EmbedBuilder | null> {

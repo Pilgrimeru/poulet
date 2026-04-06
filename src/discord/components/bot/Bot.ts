@@ -123,9 +123,9 @@ export class Bot extends Client {
       for (const channel of guild.channels.cache.values()) {
         if (!channel.isVoiceBased()) continue;
         for (const member of channel.members.values()) {
-          voiceSessionManager.startSession(member.id, channel.id, guild.id);
+          await voiceSessionManager.startSession(member.id, channel.id, guild.id);
           if (member.voice.deaf) {
-            deafSessionManager.startSession(member.id, channel.id, guild.id);
+            await deafSessionManager.startSession(member.id, channel.id, guild.id);
           }
         }
       }

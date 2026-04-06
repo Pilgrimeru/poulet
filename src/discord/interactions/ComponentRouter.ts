@@ -36,14 +36,6 @@ export class ComponentRouter {
     this.prefixes = this.prefixes.filter((p) => p.prefix !== prefix);
   }
 
-  unregisterAllWithPrefix(prefix: string): void {
-    // unregisters all exact keys that start with prefix
-    for (const key of this.exact.keys()) {
-      if (key.startsWith(prefix)) this.exact.delete(key);
-    }
-    this.unregisterPrefix(prefix);
-  }
-
   async dispatch(interaction: MessageComponentInteraction): Promise<void> {
     const now = Date.now();
     const { customId } = interaction;

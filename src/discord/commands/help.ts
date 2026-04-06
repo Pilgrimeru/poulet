@@ -1,8 +1,11 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CommandInteraction, EmbedBuilder, MessageComponentInteraction } from "discord.js";
 import { config, i18n } from "@/app";
 import { bot } from "@/app/runtime";
-import { Command } from "@/discord/types";
 import { componentRouter } from "@/discord/interactions";
+import { Command } from "@/discord/types";
+import {
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, CommandInteraction, EmbedBuilder, MessageComponentInteraction,
+  MessageFlags
+} from "discord.js";
 
 const HELP_TTL = 120_000;
 
@@ -48,7 +51,7 @@ export default class HelpCommand extends Command {
       );
     }
 
-    await interaction.reply({ embeds: [createHelpPage(page)], ephemeral: true });
+    await interaction.reply({ embeds: [createHelpPage(page)], flags: MessageFlags.Ephemeral });
     if (totalPages === 1) return;
 
     await interaction.editReply({ components: [createHelpButtons(page)] });

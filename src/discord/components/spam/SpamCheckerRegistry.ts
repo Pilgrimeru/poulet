@@ -1,5 +1,5 @@
 import { SpamFilterRuleDTO } from "@/api/spamFilterRuleService";
-import { SpamChecker } from "./SpamChecker";
+import { SpamChecker } from "@/discord";
 
 type SpamFilterRunner = {
   id: string;

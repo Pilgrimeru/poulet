@@ -32,20 +32,20 @@ SQLite via Sequelize ORM. File at `database/database.sqlite`. Models sync with `
 ### Environment / config
 Bot config is loaded from `config.env` (not `.env`). Dashboard-next falls back to parent `config.env` if its own is missing.
 
-| Variable | Scope | Required |
-|---|---|---|
-| `TOKEN` | Bot | Yes |
-| `AUTO_DELETE` | Bot | No |
-| `LOCALE` | Bot | No (en\|fr) |
-| `MAIN_COLOR` | Bot | No (hex) |
-| `GUILD_ID` | Bot | No |
-| `DISCORD_CLIENT_ID` | Dashboard | Yes |
-| `DISCORD_CLIENT_SECRET` | Dashboard | Yes |
-| `DISCORD_REDIRECT_URI` | Dashboard | Yes |
-| `DASHBOARD_SESSION_SECRET` | Dashboard | Yes |
-| `DASHBOARD_INTERNAL_API_SECRET` | Dashboard | Yes |
-| `API_URL` | Dashboard | Yes |
-| `DATABASE_PATH` | Dashboard | Yes |
+| Variable                        | Scope     | Required    |
+|---------------------------------|-----------|-------------|
+| `TOKEN`                         | Bot       | Yes         |
+| `AUTO_DELETE`                   | Bot       | No          |
+| `LOCALE`                        | Bot       | No (en\|fr) |
+| `MAIN_COLOR`                    | Bot       | No (hex)    |
+| `GUILD_ID`                      | Bot       | No          |
+| `DISCORD_CLIENT_ID`             | Dashboard | Yes         |
+| `DISCORD_CLIENT_SECRET`         | Dashboard | Yes         |
+| `DISCORD_REDIRECT_URI`          | Dashboard | Yes         |
+| `DASHBOARD_SESSION_SECRET`      | Dashboard | Yes         |
+| `DASHBOARD_INTERNAL_API_SECRET` | Dashboard | Yes         |
+| `API_URL`                       | Dashboard | Yes         |
+| `DATABASE_PATH`                 | Dashboard | Yes         |
 
 ### Adding a command
 Extend `Command` (`src/discord/types/Command.ts`) and export as default class. The file is auto-loaded from `src/discord/commands/`.
