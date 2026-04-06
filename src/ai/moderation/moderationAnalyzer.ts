@@ -113,6 +113,15 @@ async function applyRecidivismEscalation(
   return { ...result, severity };
 }
 
+function forceMuteOnProvenRecidivism<T extends FlagAnalysisResult | SummaryResult>(result: T): T {
+  if (!result.isViolation) return result;
+  if (result.sanctionKind === "BAN_PENDING") return result;
+  if (result.similarSanctionIDs.length === 0) return result;
+  if (result.sanctionKind === "MUTE") return result;
+
+  return { ...result, sanctionKind: "MUTE" };
+}
+
 export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysisResult> {
   const contextText = input.contextMessages
     .map((message) => {
@@ -145,7 +154,9 @@ export async function analyzeFlag(input: FlagAnalysisInput): Promise<FlagAnalysi
   (messages[0] as SystemMessage).additional_kwargs = { cache_control: { type: "ephemeral" } };
 
   try {
-    return await runWithTools(messages, FlagAnalysisSchema, input.guildID, input.alreadySanctionedMessageIDs);
+    return forceMuteOnProvenRecidivism(
+      await runWithTools(messages, FlagAnalysisSchema, input.guildID, input.alreadySanctionedMessageIDs),
+    );
   } catch (error) {
     console.error("[ai] analyzeFlag failed", {
       reporterID: input.reporterID,
@@ -193,7 +204,9 @@ export async function summarizeReport(input: ReportAnalysisInput): Promise<Summa
     try {
       const raw = postProcessSummaryResult(await runWithTools(messages, SummarySchema, input.guildID, input.sanctionedMessageIDs));
       const anchorTimestamp = input.anchorTimestamp ?? Date.now();
-      return await applyRecidivismEscalation(raw, input.guildID, input.targetUserID, anchorTimestamp);
+      return forceMuteOnProvenRecidivism(
+        await applyRecidivismEscalation(raw, input.guildID, input.targetUserID, anchorTimestamp),
+      );
     } catch (error) {
       lastError = error;
       console.error(`[ai] summarizeReport failed (attempt ${attempt}/${MAX_SUMMARY_ATTEMPTS})`, error);
