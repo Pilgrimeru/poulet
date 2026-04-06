@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import {
   createSessionCookieValue,
   exchangeCodeForSession,
+  getAppUrl,
   readOAuthState,
   sessionCookieName,
   sessionCookieOptions,
@@ -18,9 +19,7 @@ export async function GET(req: Request) {
   const stateToken = cookieStore.get(stateCookieName())?.value;
   const oauthState = state && stateToken && state === stateToken ? await readOAuthState(state) : null;
 
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
-  const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
-  const origin = `${proto}://${host}`;
+  const origin = getAppUrl();
 
   if (!code || !oauthState) {
     const invalidResponse = NextResponse.redirect(new URL("/login?error=oauth", origin));

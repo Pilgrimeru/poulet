@@ -1,24 +1,35 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { readSessionCookieValue, sessionCookieName } from "@/lib/auth-session";
 
-const PUBLIC_PATHS = new Set(["/login"]);
+const SESSION_COOKIE = "poulet_dashboard_session";
 const INTERNAL_API_HEADER = "x-dashboard-internal-secret";
 
+const FALLBACK_ORIGIN = process.env["APP_URL"] ?? "http://localhost:3000";
+
+function getPublicOrigin(req: NextRequest): string {
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") ?? "http";
+  // Ignore internal binding addresses — use APP_URL fallback instead
+  if (host && !host.startsWith("0.0.0.0") && !host.startsWith("::")) {
+    return `${proto}://${host}`;
+  }
+  return FALLBACK_ORIGIN;
+}
+
 function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_PATHS.has(pathname)) return true;
+  if (pathname === "/login") return true;
   if (pathname.startsWith("/api/auth/")) return true;
   return false;
 }
 
-function isAuthorizedInternalApiRequest(req: NextRequest): boolean {
+function isInternalApiRequest(req: NextRequest): boolean {
   if (!req.nextUrl.pathname.startsWith("/api/")) return false;
-  const expectedSecret = process.env["DASHBOARD_INTERNAL_API_SECRET"] ?? process.env["TOKEN"];
+  const expectedSecret = process.env["DASHBOARD_INTERNAL_API_SECRET"];
   if (!expectedSecret) return false;
   return req.headers.get(INTERNAL_API_HEADER) === expectedSecret;
 }
 
-export async function proxy(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-pathname", pathname);
@@ -26,26 +37,25 @@ export async function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/favicon") ||
-    pathname.match(/\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|map)$/)
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp|css|js|map)$/.test(pathname)
   ) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  if (isAuthorizedInternalApiRequest(req)) {
+  if (isInternalApiRequest(req)) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  const session = await readSessionCookieValue(req.cookies.get(sessionCookieName())?.value);
-  const isAuthenticated = session !== null;
+  const hasSession = Boolean(req.cookies.get(SESSION_COOKIE));
 
   if (isPublicPath(pathname)) {
-    if (pathname === "/login" && isAuthenticated) {
-      return NextResponse.redirect(new URL("/", req.url));
+    if (pathname === "/login" && hasSession) {
+      return NextResponse.redirect(new URL("/", getPublicOrigin(req)));
     }
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  if (isAuthenticated) {
+  if (hasSession) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -53,7 +63,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const loginURL = new URL("/login", req.url);
+  const loginURL = new URL("/login", getPublicOrigin(req));
   loginURL.searchParams.set("next", `${pathname}${search}`);
   return NextResponse.redirect(loginURL);
 }

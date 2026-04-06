@@ -116,11 +116,19 @@ function discordAvatarURL(userID: string, avatar: string | null): string {
   return `https://cdn.discordapp.com/avatars/${userID}/${avatar}.${extension}?size=128`;
 }
 
+function getRedirectURI(): string {
+  return `${getRequiredEnv("APP_URL")}/api/auth/callback`;
+}
+
+export function getAppUrl(): string {
+  return getRequiredEnv("APP_URL");
+}
+
 export function getDiscordLoginURL(stateToken: string): string {
   const params = new URLSearchParams({
     client_id: getRequiredEnv("DISCORD_CLIENT_ID"),
     response_type: "code",
-    redirect_uri: getRequiredEnv("DISCORD_REDIRECT_URI"),
+    redirect_uri: getRedirectURI(),
     scope: "identify guilds",
     state: stateToken,
   });
@@ -167,7 +175,8 @@ export function stateCookieName(): string {
 }
 
 export function sessionCookieOptions(maxAge = SESSION_MAX_AGE_SECONDS) {
-  const secure = getOptionalEnv("NODE_ENV") === "production";
+  const appUrl = getOptionalEnv("APP_URL") ?? "";
+  const secure = appUrl.startsWith("https://");
   return {
     httpOnly: true,
     sameSite: "lax" as const,
@@ -187,7 +196,7 @@ export async function exchangeCodeForSession(code: string): Promise<DashboardSes
     client_secret: getRequiredEnv("DISCORD_CLIENT_SECRET"),
     grant_type: "authorization_code",
     code,
-    redirect_uri: getRequiredEnv("DISCORD_REDIRECT_URI"),
+    redirect_uri: getRedirectURI(),
   });
 
   const tokenResponse = await fetch(`${DISCORD_API_BASE.replace("/api/v10", "/api/oauth2/token")}`, {

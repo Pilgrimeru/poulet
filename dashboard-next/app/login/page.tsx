@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { normalizeNextPath } from "@/lib/auth";
 import { ErrorBanner, Panel, StatusBadge } from "@/components/ui";
 import styles from "./LoginPage.module.css";
 
@@ -8,7 +8,7 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
   const params = await searchParams;
-  const nextPath = typeof params.next === "string" ? params.next : "/";
+  const nextPath = normalizeNextPath(params.next ?? null);
   const hasError = params.error === "oauth";
 
   return (
@@ -22,9 +22,9 @@ export default async function LoginPage({
         {hasError && (
           <ErrorBanner message="La connexion Discord a échoué. Vérifie la configuration OAuth puis réessaie." />
         )}
-        <Link href={`/api/auth/login?next=${encodeURIComponent(nextPath)}`} className={styles.button}>
+        <a href={`/api/auth/login?next=${encodeURIComponent(nextPath)}`} className={styles.button}>
           Continuer avec Discord
-        </Link>
+        </a>
         <div className={styles.meta}>
           <span>Scopes: identify, guilds</span>
           <StatusBadge tone="accent">OAuth2</StatusBadge>

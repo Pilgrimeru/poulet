@@ -47,7 +47,7 @@ services:
       - HOSTNAME=0.0.0.0
       - DATABASE_PATH=/app/database/database.sqlite
       - ATTACHMENTS_PATH=/app/database/attachments
-      - DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/callback
+      - APP_URL=http://localhost:3000
     volumes:
       # Partager la même base de données que le bot
       - poulet-db:/app/database
