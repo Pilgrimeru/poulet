@@ -280,7 +280,8 @@
   .sidebar {
     width: 100%;
     min-width: 0;
-    max-height: none;
+    height: calc(100dvh - (60px + env(safe-area-inset-top)));
+    overflow-y: auto;
     border-right: none;
     border-bottom: none;
     background: var(--bg-primary);
@@ -288,10 +289,12 @@
 
   .section {
     padding: 10px 0 14px;
+    overflow: visible;
   }
 
   .list {
-    max-height: none;
+    overflow-y: visible;
+    flex: none;
     padding: 0 10px;
   }
 

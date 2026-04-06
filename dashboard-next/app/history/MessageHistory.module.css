@@ -205,6 +205,18 @@
     overflow-x: hidden;
   }
 
+  .mainMobile {
+    height: calc(100dvh - (60px + env(safe-area-inset-top)));
+    overflow-y: auto;
+  }
+
+  .stickyHeader {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-primary);
+  }
+
   .channelHeader {
     flex-wrap: wrap;
     align-items: flex-start;
@@ -212,10 +224,6 @@
     height: auto;
     min-height: 48px;
     padding: 12px 14px;
-  }
-
-  .mainMobile {
-    min-height: calc(100dvh - (60px + env(safe-area-inset-top)));
   }
 
   .guildInfo {

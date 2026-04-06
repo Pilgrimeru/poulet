@@ -101,6 +101,7 @@ function HistoryPageContent() {
 
       {showMobileMessages && (
         <main className={`${styles.main} ${isMobile ? styles.mainMobile : ""}`}>
+          <div className={isMobile ? styles.stickyHeader : undefined}>
           {isMobile && selectedChannelID ? (
             <div className={styles.mobileBackBar}>
               <button className={styles.mobileBackBtn} onClick={() => setMobileView("list")}>
@@ -156,6 +157,7 @@ function HistoryPageContent() {
               </div>
             </div>
           )}
+          </div>
           {!selectedChannelID ? <EmptyState title="Sélectionnez un salon" description="Choisissez un salon pour parcourir son historique." /> : null}
           {selectedChannelID && (!isMobile || showMobileFilters) && (
             <FilterBar filters={filters} onChange={setFilters} />
