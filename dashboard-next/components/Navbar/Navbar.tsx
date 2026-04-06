@@ -12,10 +12,13 @@ export function Navbar() {
   const mainItems = items.filter((item) => item.group !== "bottom");
   const bottomItems = items.filter((item) => item.group === "bottom");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const guildPickerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMobileOpen(false);
+    setGuildMenuOpen(false);
   }, [pathname, selectedGuild?.guildID]);
 
   useEffect(() => {
@@ -25,6 +28,29 @@ export function Navbar() {
       delete document.body.dataset.mobileNavOpen;
     };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!guildMenuOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!guildPickerRef.current?.contains(event.target as Node)) {
+        setGuildMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setGuildMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [guildMenuOpen]);
 
   if (hidden) {
     return null;
@@ -79,7 +105,25 @@ export function Navbar() {
         </button>
 
         <div className={styles.logoContainer}>
-          <div className={styles.guildPicker}>
+          <div
+            ref={guildPickerRef}
+            className={styles.guildPicker}
+            role="button"
+            tabIndex={0}
+            aria-haspopup="listbox"
+            aria-expanded={guildMenuOpen}
+            onClick={() => setGuildMenuOpen((value) => !value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setGuildMenuOpen((value) => !value);
+              }
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setGuildMenuOpen(true);
+              }
+            }}
+          >
             {selectedGuild?.iconURL ? (
               <img src={selectedGuild.iconURL} alt="" className={styles.guildPickerIcon} />
             ) : (
@@ -91,21 +135,37 @@ export function Navbar() {
               <span className={styles.guildPickerLabel}>Serveur</span>
               <span className={styles.guildPickerName}>{selectedGuild?.name || "Aucun serveur"}</span>
             </div>
-            <svg className={styles.guildPickerChevron} viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <svg className={`${styles.guildPickerChevron} ${guildMenuOpen ? styles.guildPickerChevronOpen : ""}`} viewBox="0 0 12 12" fill="none" aria-hidden="true">
               <path d="M3 4.5 6 7.5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <select
-              className={styles.guildPickerSelect}
-              value={selectedGuild?.guildID ?? ""}
-              onChange={(e) => onGuildChange(e.target.value)}
-              aria-label="Sélectionner un serveur"
-            >
-              {guilds.map((guild) => (
-                <option key={guild.guildID} value={guild.guildID}>
-                  {guild.name || guild.guildID}
-                </option>
-              ))}
-            </select>
+            {guildMenuOpen ? (
+              <div className={styles.guildPickerMenu} role="listbox" aria-label="Sélectionner un serveur">
+                {guilds.map((guild) => {
+                  const isSelected = guild.guildID === selectedGuild?.guildID;
+                  return (
+                    <button
+                      key={guild.guildID}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`${styles.guildPickerOption} ${isSelected ? styles.guildPickerOptionSelected : ""}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setGuildMenuOpen(false);
+                        onGuildChange(guild.guildID);
+                      }}
+                    >
+                      <span className={styles.guildPickerOptionLabel}>{guild.name || guild.guildID}</span>
+                      {isSelected ? (
+                        <svg className={styles.guildPickerOptionCheck} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M3.5 8.5 6.5 11.5 12.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
 

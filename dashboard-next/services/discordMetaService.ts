@@ -180,6 +180,27 @@ async function fetchGuild(guildID: string): Promise<DiscordGuild | null> {
   return discordGet<DiscordGuild>(`/guilds/${guildID}`, `guild:${guildID}`);
 }
 
+export async function listGuildEntriesFromDiscord(guildIDs: string[]): Promise<GuildEntry[]> {
+  const uniqueGuildIDs = [...new Set(guildIDs)].filter(Boolean);
+  if (uniqueGuildIDs.length === 0) return [];
+
+  const guilds = await mapWithConcurrency(uniqueGuildIDs, 5, async (guildID) => {
+    try {
+      const guild = await fetchGuild(guildID);
+      if (!guild) return null;
+      return {
+        guildID: guild.id,
+        name: guild.name,
+        iconURL: guildIconURL(guild.id, guild.icon),
+      } satisfies GuildEntry;
+    } catch {
+      return null;
+    }
+  });
+
+  return guilds.filter((guild): guild is GuildEntry => guild !== null);
+}
+
 async function fetchGuildChannels(guildID: string): Promise<DiscordChannel[] | null> {
   return discordGet<DiscordChannel[]>(`/guilds/${guildID}/channels`, `channels:${guildID}`);
 }

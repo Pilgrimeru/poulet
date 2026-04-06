@@ -141,7 +141,7 @@ function StatsSection({
           <ToggleField checked={settings.statsCountDeafTime} onChange={(value) => onPatch({ statsCountDeafTime: value })} />
         </SettingRow>
         <SettingRow name="Classement préféré" hint="Critère principal pour le classement des membres">
-          <SelectField value={settings.statsRankingPreference} onChange={(value) => onPatch({ statsRankingPreference: value as "voice" | "messages" })}>
+          <SelectField className={styles.channelSelect} value={settings.statsRankingPreference} onChange={(value) => onPatch({ statsRankingPreference: value as "voice" | "messages" })}>
             <option value="messages">Nombre de messages</option>
             <option value="voice">Temps vocal</option>
           </SelectField>
@@ -149,7 +149,7 @@ function StatsSection({
       </SettingsGroup>
       <SettingsGroup title="Rapport automatique">
         <SettingRow name="Fréquence d'envoi" hint="À quelle fréquence le rapport de stats est envoyé automatiquement">
-          <SelectField value={settings.statsAutoFrequency} onChange={(value) => onPatch({ statsAutoFrequency: value as GuildSettingsDTO["statsAutoFrequency"] })}>
+          <SelectField className={styles.channelSelect} value={settings.statsAutoFrequency} onChange={(value) => onPatch({ statsAutoFrequency: value as GuildSettingsDTO["statsAutoFrequency"] })}>
             <option value="disabled">Désactivé</option>
             <option value="daily">Quotidien</option>
             <option value="weekly">Hebdomadaire (lundi)</option>

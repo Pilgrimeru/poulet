@@ -217,6 +217,18 @@ async function toDTO(snapshot: MessageSnapshot): Promise<MessageSnapshotDTO> {
 }
 
 export async function getDistinctGuilds(): Promise<{ guildID: string; name: string; iconURL: string }[]> {
+  const guildMetas = await GuildMeta.findAll({
+    order: [["name", "ASC"]],
+  });
+
+  if (guildMetas.length > 0) {
+    return guildMetas.map((meta) => ({
+      guildID: meta.guildID,
+      name: meta.name ?? "",
+      iconURL: meta.iconURL ?? "",
+    }));
+  }
+
   const rows = await MessageSnapshot.findAll({
     attributes: [[fn("DISTINCT", col("guildID")), "guildID"]],
     raw: true,

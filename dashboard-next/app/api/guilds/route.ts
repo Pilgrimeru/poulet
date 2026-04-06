@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromCookies } from "@/lib/auth";
-import { hydrateGuildEntries } from "@/services/discordMetaService";
+import { hydrateGuildEntries, listGuildEntriesFromDiscord } from "@/services/discordMetaService";
 import { getDistinctGuilds } from "@/services/messageSnapshotService";
 
 export async function GET() {
@@ -10,10 +10,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const discordGuilds = await listGuildEntriesFromDiscord(session.guildIDs);
+    if (discordGuilds.length > 0) {
+      return NextResponse.json(discordGuilds);
+    }
+
     const guilds = await getDistinctGuilds();
-    const allowedGuildIDs = new Set(session.guildIDs);
-    const visibleGuilds = guilds.filter((guild) => allowedGuildIDs.has(guild.guildID));
-    return NextResponse.json(await hydrateGuildEntries(visibleGuilds));
+    return NextResponse.json(await hydrateGuildEntries(guilds));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
