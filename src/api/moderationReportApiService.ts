@@ -63,7 +63,8 @@ export const moderationReportApiService = {
     const params = new URLSearchParams();
     if (options?.status) params.set("status", options.status);
     const query = params.size > 0 ? `?${params.toString()}` : "";
-    return apiGet<ModerationReportDTO[]>(`/guilds/${guildID}/moderation-reports${query}`);
+    const result = await apiGet<{ items: ModerationReportDTO[] } | ModerationReportDTO[]>(`/guilds/${guildID}/moderation-reports${query}`);
+    return Array.isArray(result) ? result : result.items;
   },
 
   async update(guildID: string, reportID: string, patch: UpdateModerationReportInput): Promise<ModerationReportDTO> {

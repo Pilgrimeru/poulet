@@ -65,7 +65,8 @@ export const flaggedMessageApiService = {
     if (options?.targetUserID) params.set("targetUserId", options.targetUserID);
     if (options?.status) params.set("status", options.status);
     const query = params.size > 0 ? `?${params.toString()}` : "";
-    return apiGet<FlaggedMessageDTO[]>(`/guilds/${guildID}/flagged-messages${query}`);
+    const result = await apiGet<{ items: FlaggedMessageDTO[] } | FlaggedMessageDTO[]>(`/guilds/${guildID}/flagged-messages${query}`);
+    return Array.isArray(result) ? result : result.items;
   },
 
   async update(guildID: string, flagID: string, patch: UpdateFlaggedMessageInput): Promise<FlaggedMessageDTO> {

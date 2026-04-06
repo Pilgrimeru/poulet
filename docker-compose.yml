@@ -1,29 +1,83 @@
-version: "3.8"
-
 services:
-  sentibot:
-    build: .
-    container_name: sentibot
+  # Service principal : Bot Discord avec IA de modération
+  poulet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: poulet
+    restart: unless-stopped
+    env_file:
+      - config.env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/database/database.sqlite
+      - ATTACHMENTS_PATH=/app/database/attachments
+      - AI_LLM_CACHE_PATH=/app/cache/langchain-llm-cache.sqlite
+      - API_URL=http://dashboard:3000/api
     volumes:
-      - sentibot-db:/app/database
-    restart: always
+      # Persister la base de données SQLite
+      - poulet-db:/app/database
+      # Persister le cache de l'IA
+      - poulet-cache:/app/cache
+      # Persister les pièces jointes
+      - poulet-attachments:/app/database/attachments
+    depends_on:
+      - dashboard
+    networks:
+      - poulet-network
+    healthcheck:
+      test: ["CMD", "bun", "run", "--eval", "console.log('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # Service : Dashboard Next.js
   dashboard:
     build:
       context: ./dashboard-next
       dockerfile: Dockerfile
-    container_name: sentibot-dashboard
-    ports:
-      - "3000:3000"
-    volumes:
-      - sentibot-db:/app/database
+    container_name: poulet-dashboard
+    restart: unless-stopped
+    env_file:
+      - config.env
     environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
       - DATABASE_PATH=/app/database/database.sqlite
       - ATTACHMENTS_PATH=/app/database/attachments
-      - NODE_ENV=production
-    restart: always
-    depends_on:
-      - sentibot
+      - DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/callback
+    volumes:
+      # Partager la même base de données que le bot
+      - poulet-db:/app/database
+      # Partager les pièces jointes
+      - poulet-attachments:/app/database/attachments
+    ports:
+      - "3000:3000"
+    networks:
+      - poulet-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/auth/me"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+# Volumes nommés pour la persistance des données
 volumes:
-  sentibot-db:
+  poulet-db:
+    driver: local
+    name: poulet-database
+  poulet-cache:
+    driver: local
+    name: poulet-cache
+  poulet-attachments:
+    driver: local
+    name: poulet-attachments
+
+# Réseau dédié
+networks:
+  poulet-network:
+    driver: bridge
+    name: poulet-network

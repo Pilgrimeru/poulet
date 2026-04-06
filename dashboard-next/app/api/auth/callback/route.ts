@@ -18,20 +18,24 @@ export async function GET(req: Request) {
   const stateToken = cookieStore.get(stateCookieName())?.value;
   const oauthState = state && stateToken && state === stateToken ? await readOAuthState(state) : null;
 
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? url.host;
+  const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+  const origin = `${proto}://${host}`;
+
   if (!code || !oauthState) {
-    const invalidResponse = NextResponse.redirect(new URL("/login?error=oauth", url));
+    const invalidResponse = NextResponse.redirect(new URL("/login?error=oauth", origin));
     invalidResponse.cookies.set(stateCookieName(), "", { ...stateCookieOptions(), maxAge: 0 });
     return invalidResponse;
   }
 
   try {
     const session = await exchangeCodeForSession(code);
-    const response = NextResponse.redirect(new URL(oauthState.nextPath, url));
+    const response = NextResponse.redirect(new URL(oauthState.nextPath, origin));
     response.cookies.set(sessionCookieName(), await createSessionCookieValue(session), sessionCookieOptions());
     response.cookies.set(stateCookieName(), "", { ...stateCookieOptions(), maxAge: 0 });
     return response;
   } catch {
-    const failedResponse = NextResponse.redirect(new URL("/login?error=oauth", url));
+    const failedResponse = NextResponse.redirect(new URL("/login?error=oauth", origin));
     failedResponse.cookies.set(stateCookieName(), "", { ...stateCookieOptions(), maxAge: 0 });
     return failedResponse;
   }
