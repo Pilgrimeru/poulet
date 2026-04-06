@@ -200,6 +200,29 @@ export async function runWithTools<T extends Record<string, unknown>>(
       const parsed = parseStructuredContent(response, schema);
       if (parsed) return parsed;
       if (iteration === 0) {
+        console.warn("[ai] model ignored required tool call on first pass, retrying with submitFinalAnswer-only fallback");
+        const forcedFinalPrompt = new HumanMessage({
+          content: [
+            "Tu n'as appele aucun outil.",
+            "N'appelle maintenant que submitFinalAnswer.",
+            "Rends immediatement la decision finale complete au format attendu.",
+            "Si les preuves sont insuffisantes, conclus isViolation=false.",
+          ].join(" "),
+        });
+        const finalResponse = await finalAnswerOnlyChain.invoke([...messages, forcedFinalPrompt]) as AIMessage;
+        const finalToolCalls = finalResponse.tool_calls ?? [];
+        console.log(`[ai] ← fallback finalization tool calls: ${finalToolCalls.map((call) => call.name).join(", ") || "(aucun)"}`);
+
+        const finalCall = finalToolCalls.find((call) => call.name === FINAL_RESPONSE_TOOL_NAME);
+        if (finalCall) {
+          const normalized = normalizeStructuredPayload(finalCall.args);
+          console.log(`[ai] ← structured result: ${JSON.stringify(normalized).slice(0, 300)}`);
+          return finalizeSchemaOutput(schema.parse(normalized));
+        }
+
+        const fallbackParsed = parseStructuredContent(finalResponse, schema);
+        if (fallbackParsed) return fallbackParsed;
+
         throw new Error("The model did not call any tool despite tool_choice='required'");
       }
       throw new Error("The model returned neither tool calls nor a structured final answer");
