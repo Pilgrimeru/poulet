@@ -1,16 +1,19 @@
 import { guildSettingsService } from "@/api";
 import { Event } from "@/discord/types";
-import { MessageReaction, TextChannel, User } from "discord.js";
+import { MessageReaction, PartialMessageReaction, PartialUser, TextChannel, User } from "discord.js";
 
 // Track message IDs already forwarded to avoid duplicates (guildID:messageID)
 const forwarded = new Set<string>();
 
-export default new Event("messageReactionAdd", async (reaction: MessageReaction, user: User) => {
+export default new Event("messageReactionAdd", async (reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) => {
+  if (user.partial) {
+    try { user = await user.fetch(); } catch { return; }
+  }
   if (user.bot) return;
 
   // Fetch partial reaction/message if needed
   if (reaction.partial) {
-    try { await reaction.fetch(); } catch { return; }
+    try { reaction = await reaction.fetch(); } catch { return; }
   }
   if (reaction.message.partial) {
     try { await reaction.message.fetch(); } catch { return; }
