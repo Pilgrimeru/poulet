@@ -1206,7 +1206,7 @@
 
 @media (max-width: 760px) {
   .page {
-    overflow-y: auto;
+    overflow: hidden;
     overflow-x: hidden;
     background:
       linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary)) 0%, var(--bg-primary) 220px);
@@ -1351,7 +1351,8 @@
 
   .layoutMobile {
     display: block;
-    min-height: auto;
+    flex: 1;
+    min-height: 0;
     width: 100%;
     overflow-x: hidden;
   }
@@ -1359,32 +1360,37 @@
   .sidebarMobile {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0;
     border-bottom: none;
-    background: transparent;
-    overflow: visible;
-    padding-top: 2px;
+    background: var(--bg-primary);
+    height: 100%;
+    min-height: 0;
+    padding: 0 14px 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     min-width: 0;
   }
 
-  .sidebarMetaMobile {
+  .sidebarStickyMobile {
     position: sticky;
     top: 0;
-    z-index: 10;
-    padding: 14px 2px 0;
-    background: color-mix(in srgb, var(--bg-primary) 97%, transparent);
-    backdrop-filter: blur(14px);
+    z-index: 12;
+    flex-shrink: 0;
+    background: var(--bg-primary);
+    padding-top: 8px;
+  }
+
+  .sidebarMetaMobile {
+    padding: 0 2px 8px;
+    background: transparent;
   }
 
   .filterRowMobile {
-    position: sticky;
-    top: 32px;
-    z-index: 10;
-    padding: 8px 0 8px;
+    padding: 10px 0 12px;
     overflow-x: auto;
     scrollbar-width: none;
-    background: color-mix(in srgb, var(--bg-primary) 97%, transparent);
-    backdrop-filter: blur(14px);
+    background: transparent;
   }
 
   .filterRowMobile::-webkit-scrollbar {
@@ -1401,6 +1407,11 @@
 
   .list {
     gap: 12px;
+  }
+
+  .sidebarMobile .list {
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 
   .card {
@@ -1457,12 +1468,16 @@
   }
 
   .mainMobile {
+    height: 100%;
+    min-height: 0;
     min-width: 0;
     padding-left: 14px;
     padding-right: 14px;
     padding-top: 0;
     padding-bottom: 24px;
+    overflow-y: auto;
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     gap: 6px;
   }
 

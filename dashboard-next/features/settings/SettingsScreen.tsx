@@ -55,14 +55,16 @@ function SettingsGroup({ title, children }: Readonly<{ title: string; children: 
 function SettingRow({
   name,
   hint,
+  compactControl = false,
   children,
 }: Readonly<{
   name: string;
   hint?: string;
+  compactControl?: boolean;
   children: React.ReactNode;
 }>) {
   return (
-    <div className={styles.row}>
+    <div className={`${styles.row} ${compactControl ? styles.rowCompactControl : ""}`}>
       <div className={styles.rowLabel}>
         <div className={styles.rowName}>{name}</div>
         {hint ? <div className={styles.rowHint}>{hint}</div> : null}
@@ -137,7 +139,7 @@ function StatsSection({
     <>
       <SectionHeader title="Statistiques" description="Configurez ce qui est inclus dans les stats et les rapports automatiques." />
       <SettingsGroup title="Vocal">
-        <SettingRow name="Inclure le temps casque coupé" hint="Compte le temps passé en vocal avec le micro désactivé">
+        <SettingRow compactControl name="Inclure le temps casque coupé" hint="Compte le temps passé en vocal avec le micro désactivé">
           <ToggleField checked={settings.statsCountDeafTime} onChange={(value) => onPatch({ statsCountDeafTime: value })} />
         </SettingRow>
         <SettingRow name="Classement préféré" hint="Critère principal pour le classement des membres">
@@ -202,7 +204,7 @@ function SpamRuleCard({
       <div className={`${styles.ruleBodyWrapper} ${open ? styles.ruleBodyWrapperOpen : ""}`}>
         <div className={styles.ruleBodyInner}>
           <div className={styles.ruleBody}>
-            <SettingRow name="Activé"><ToggleField checked={rule.enabled} onChange={(value) => onUpdate({ enabled: value })} /></SettingRow>
+            <SettingRow compactControl name="Activé"><ToggleField checked={rule.enabled} onChange={(value) => onUpdate({ enabled: value })} /></SettingRow>
             <SettingRow name="Nom du filtre"><input className={styles.numberInput} style={{ width: 180, textAlign: "left" }} value={rule.name} onChange={(event) => onUpdate({ name: event.target.value })} /></SettingRow>
             <SettingRow name="Description"><input className={styles.numberInput} style={{ width: 220, textAlign: "left" }} value={rule.description} placeholder="Optionnel" onChange={(event) => onUpdate({ description: event.target.value })} /></SettingRow>
             <SettingRow name="Mode" hint={rule.mode === "blacklist" ? "Les salons listés sont concernés par ce filtre" : "Seuls les salons listés sont exemptés de ce filtre"}>
@@ -443,6 +445,22 @@ function SettingsInner() {
 
   return (
     <div className={styles.page}>
+      <header className={`${styles.header} ${styles.headerMobile}`}>
+        <h1 className={styles.title}>Paramètres</h1>
+        <div className={`${styles.tabs} ${styles.tabsMobile}`} role="tablist" aria-label="Sections des paramètres">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              role="tab"
+              aria-selected={section === item.id}
+              className={`${styles.tab} ${section === item.id ? styles.tabActive : ""}`}
+              onClick={() => setSection(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </header>
       <aside className={styles.sidebar}>
         <div className={styles.sidebarSection}>Paramètres</div>
         {navItems.map((item) => (

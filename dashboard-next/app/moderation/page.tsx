@@ -398,17 +398,19 @@ function ModerationPageContent() {
       <div className={`${styles.layout} ${isMobile ? styles.layoutMobile : ""}`}>
         {showMobileList && (
           <aside className={`${styles.sidebar} ${isMobile ? styles.sidebarMobile : ""}`} aria-label={tab === "appeals" ? "Liste des appels" : tab === "sanctions" ? "Liste des sanctions" : tab === "reports" ? "Liste des signalements" : "Liste des messages signalés"}>
-            <div className={`${styles.sidebarMeta} ${isMobile ? styles.sidebarMetaMobile : ""}`}>
-              <span className={styles.sidebarTitle}>{sidebarTitle}</span>
-              <span className={styles.sidebarCount}>{sidebarCount}</span>
-            </div>
-
-            {tab === "appeals" && (
-              <div className={`${styles.filterRow} ${isMobile ? styles.filterRowMobile : ""}`}>
-                <button className={`${styles.filterPill} ${appealFilter === "pending_review" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("pending_review")}>En attente</button>
-                <button className={`${styles.filterPill} ${appealFilter === "all" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("all")}>Tous</button>
+            <div className={isMobile ? styles.sidebarStickyMobile : undefined}>
+              <div className={`${styles.sidebarMeta} ${isMobile ? styles.sidebarMetaMobile : ""}`}>
+                <span className={styles.sidebarTitle}>{sidebarTitle}</span>
+                <span className={styles.sidebarCount}>{sidebarCount}</span>
               </div>
-            )}
+
+              {tab === "appeals" && (
+                <div className={`${styles.filterRow} ${isMobile ? styles.filterRowMobile : ""}`}>
+                  <button className={`${styles.filterPill} ${appealFilter === "pending_review" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("pending_review")}>En attente</button>
+                  <button className={`${styles.filterPill} ${appealFilter === "all" ? styles.filterPillActive : ""}`} onClick={() => setAppealFilter("all")}>Tous</button>
+                </div>
+              )}
+            </div>
 
             <div className={styles.list}>
               {tab === "appeals" && visibleAppeals.length === 0 && <div className={styles.listEmpty}>Aucun appel</div>}
