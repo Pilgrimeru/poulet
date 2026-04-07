@@ -11,6 +11,28 @@ import {
   ThreadChannel,
 } from "discord.js";
 
+const cooldowns = new Map<string, number>();
+const COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 heures
+
+export function isOnCooldown(channelId: string): boolean {
+  const last = cooldowns.get(channelId);
+  if (!last) return false;
+  return Date.now() - last < COOLDOWN_MS;
+}
+
+export function getRemainingCooldown(channelId: string): string {
+  const last = cooldowns.get(channelId);
+  if (!last) return "0m";
+  const remaining = COOLDOWN_MS - (Date.now() - last);
+  const h = Math.floor(remaining / 3600000);
+  const m = Math.floor((remaining % 3600000) / 60000);
+  return h > 0 ? `${h}h${m}m` : `${m}m`;
+}
+
+export function setCooldown(channelId: string): void {
+  cooldowns.set(channelId, Date.now());
+}
+
 function chunkText(input: string, maxLength: number): string[] {
   if (input.length <= maxLength) return [input];
   const chunks: string[] = [];
@@ -97,6 +119,14 @@ export default class ResumeCommand extends Command {
       });
       return;
     }
+    
+    if (isOnCooldown(interaction.user.id) && !isModerator(member)) {
+      await interaction.reply({
+        content: `⏳ Tu as déjà demandé un résumé récemment. Réessaie dans **${getRemainingCooldown(interaction.user.id)}**.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     const ephemeral = !wantsPublic;
     await interaction.deferReply({ flags: ephemeral ? MessageFlags.Ephemeral : undefined });
@@ -130,6 +160,8 @@ export default class ResumeCommand extends Command {
 
     const summary = await summarizeConversationFromTranscript(transcript);
     const blocks = chunkText(summary, 1900);
+
+    setCooldown(interaction.user.id);
 
     await interaction.editReply({
       content: `Résumé des 100 derniers messages dans ${channel}:\n\n${blocks[0]}`,
