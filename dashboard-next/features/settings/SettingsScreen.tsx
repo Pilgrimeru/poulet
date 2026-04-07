@@ -5,7 +5,7 @@ import type { ChannelEntry } from "@/types";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import styles from "@/app/settings/Settings.module.css";
-import { useGuildSettings, useSpamRules } from "./hooks";
+import { useChannelRules, useGuildSettings, useSpamRules } from "./hooks";
 import { fetchRoles } from "./api";
 import type { RoleEntry } from "@/services/discordMetaService";
 import type { GuildSettingsDTO, SettingsSection, SpamRuleDTO } from "./types";
@@ -426,6 +426,120 @@ function StarboardSection({
   );
 }
 
+function ChannelRuleCard({
+  rule,
+  channels,
+  onUpdate,
+  onDelete,
+}: Readonly<{
+  rule: { channelID: string; reactEmojis: string[]; reactFilter: ("all" | "images" | "links")[]; autoThread: boolean; oneMessageLimit: boolean };
+  channels: ChannelEntry[];
+  onUpdate: (patch: { reactEmojis?: string[]; reactFilter?: ("all" | "images" | "links")[]; autoThread?: boolean; oneMessageLimit?: boolean }) => void;
+  onDelete: () => void;
+}>) {
+  const channel = channels.find((c) => c.channelID === rule.channelID);
+  const channelLabel = channel ? `${channel.parentName ? `${channel.parentName} › ` : ""}#${channel.channelName}` : `#${rule.channelID}`;
+  const [open, setOpen] = useState(false);
+
+  function toggleReactFilter(filter: "all" | "images" | "links") {
+    if (filter === "all") {
+      onUpdate({ reactFilter: ["all"] });
+      return;
+    }
+    const current = rule.reactFilter.filter((f) => f !== "all");
+    const next = current.includes(filter) ? current.filter((f) => f !== filter) : [...current, filter];
+    onUpdate({ reactFilter: next.length === 0 ? ["all"] : next });
+  }
+
+  return (
+    <div className={styles.ruleCard}>
+      <div className={styles.ruleHeader} onClick={() => setOpen((v) => !v)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setOpen((v) => !v)}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className={styles.ruleHeaderName}>{channelLabel}</div>
+        </div>
+        <svg className={`${styles.ruleChevron} ${open ? styles.open : ""}`} viewBox="0 0 12 12" fill="none">
+          <path d="M3 4.5 6 7.5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <div className={`${styles.ruleBodyWrapper} ${open ? styles.ruleBodyWrapperOpen : ""}`}>
+        <div className={styles.ruleBodyInner}>
+          <div className={styles.ruleBody}>
+            <SettingRow compactControl name="Message unique" hint="Supprime les messages précédents quand un membre envoie un nouveau message dans ce salon">
+              <ToggleField checked={rule.oneMessageLimit} onChange={(value) => onUpdate({ oneMessageLimit: value })} />
+            </SettingRow>
+            <SettingRow compactControl name="Créer un fil automatiquement" hint="Crée un fil de discussion pour chaque nouveau message">
+              <ToggleField checked={rule.autoThread} onChange={(value) => onUpdate({ autoThread: value })} />
+            </SettingRow>
+            <SettingRow name="Réactions automatiques" hint="Type de messages qui déclenchent les réactions automatiques">
+              <div className={styles.modeToggle}>
+                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("all") ? styles.selected : ""}`} onClick={() => toggleReactFilter("all")}>Tous</button>
+                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("images") ? styles.selected : ""}`} onClick={() => toggleReactFilter("images")}>Images</button>
+                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("links") ? styles.selected : ""}`} onClick={() => toggleReactFilter("links")}>Liens</button>
+              </div>
+            </SettingRow>
+            <SettingRow name="Emojis de réaction" hint="Emojis ajoutés automatiquement aux messages (un par ligne)">
+              <textarea
+                className={styles.numberInput}
+                style={{ width: 160, textAlign: "left", resize: "vertical", minHeight: 60 }}
+                value={rule.reactEmojis.join("\n")}
+                placeholder="⭐&#10;👍"
+                onChange={(e) => onUpdate({ reactEmojis: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+              />
+            </SettingRow>
+          </div>
+          <div className={styles.ruleActions}>
+            <button className={styles.btnDanger} onClick={onDelete}>Retirer ce salon</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChannelsSection({ guildID, channels }: Readonly<{ guildID: string; channels: ChannelEntry[] }>) {
+  const { rules, saving, updateRule, removeRule } = useChannelRules(guildID);
+  const configuredChannelIDs = rules?.map((r) => r.channelID) ?? [];
+  const textChannels = channels.filter((c) => c.channelType === 0 || c.channelType === 5);
+  const availableChannels = textChannels.filter((c) => !configuredChannelIDs.includes(c.channelID));
+
+  if (rules === null) return <LoadingState label="Chargement des règles de salon…" />;
+
+  return (
+    <>
+      <SectionHeader title="Salons" description="Configurez des règles par salon : message unique, fils automatiques, réactions automatiques." />
+      {rules.length === 0 ? <EmptyState title="Aucune règle de salon configurée." /> : null}
+      <div className={styles.ruleList}>
+        {rules.map((rule) => (
+          <ChannelRuleCard
+            key={rule.channelID}
+            rule={rule}
+            channels={channels}
+            onUpdate={(patch) => updateRule(rule.channelID, patch)}
+            onDelete={() => removeRule(rule.channelID)}
+          />
+        ))}
+      </div>
+      {availableChannels.length > 0 && (
+        <SelectField className={styles.channelSelect} value="" onChange={(value) => value && updateRule(value, {})}>
+          <option value="">+ Ajouter un salon</option>
+          {availableChannels.map((c) => (
+            <option key={c.channelID} value={c.channelID}>
+              {c.parentName ? `${c.parentName} › ` : ""}#{c.channelName}
+            </option>
+          ))}
+        </SelectField>
+      )}
+      {Object.values(saving).some(Boolean) ? <div className={styles.saveBar}><span className={styles.saveBarText}>Sauvegarde en cours…</span></div> : null}
+    </>
+  );
+}
+
+function getSaveBarText(status: "idle" | "saving" | "saved" | "error"): string {
+  if (status === "saving") return "Sauvegarde en cours…";
+  if (status === "saved") return "✓ Paramètres sauvegardés";
+  return "Erreur de sauvegarde";
+}
+
 function SettingsInner() {
   const searchParams = useSearchParams();
   const guildID = searchParams.get("guild") ?? "";
@@ -441,6 +555,7 @@ function SettingsInner() {
     { id: "invite-log", label: "Invite Log", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg> },
     { id: "moderation", label: "Modération", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
     { id: "starboard", label: "Starboard", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg> },
+    { id: "channels", label: "Salons", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
   ];
 
   return (
@@ -476,8 +591,9 @@ function SettingsInner() {
         {section === "invite-log" ? <InviteLogSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "moderation" ? <ModerationSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "starboard" ? <StarboardSection settings={settings} channels={channels} onPatch={patch} /> : null}
+        {section === "channels" ? <ChannelsSection guildID={guildID} channels={channels} /> : null}
       </main>
-      {status !== "idle" ? <div className={styles.saveBar}><span className={styles.saveBarText}>{status === "saving" ? "Sauvegarde en cours…" : status === "saved" ? "✓ Paramètres sauvegardés" : "Erreur de sauvegarde"}</span></div> : null}
+      {status !== "idle" ? <div className={styles.saveBar}><span className={styles.saveBarText}>{getSaveBarText(status)}</span></div> : null}
     </div>
   );
 }

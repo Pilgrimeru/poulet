@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "pinecone@claude-plugins-official": true
   }
 }

@@ -29,4 +29,16 @@ export type SpamRuleDTO = {
   enabled: boolean;
 };
 
-export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation" | "starboard";
+export type ChannelRuleMessageFilter = "all" | "images" | "links";
+
+export type ChannelRuleDTO = {
+  id: string;
+  guildID: string;
+  channelID: string;
+  reactEmojis: string[];
+  reactFilter: ChannelRuleMessageFilter[];
+  autoThread: boolean;
+  oneMessageLimit: boolean;
+};
+
+export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation" | "starboard" | "channels";

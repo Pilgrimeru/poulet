@@ -1,6 +1,6 @@
 import type { ChannelEntry } from "@/types";
 import type { RoleEntry } from "@/services/discordMetaService";
-import type { GuildSettingsDTO, SpamRuleDTO } from "./types";
+import type { ChannelRuleDTO, GuildSettingsDTO, SpamRuleDTO } from "./types";
 
 export async function fetchSettings(guildID: string): Promise<GuildSettingsDTO> {
   const response = await fetch(`/api/guilds/${guildID}/settings`);
@@ -68,4 +68,24 @@ export async function createSpamRule(guildID: string): Promise<SpamRuleDTO> {
   });
   if (!response.ok) throw new Error("Failed to create spam rule");
   return response.json();
+}
+
+export async function fetchChannelRules(guildID: string): Promise<ChannelRuleDTO[]> {
+  const response = await fetch(`/api/guilds/${guildID}/channel-rules`);
+  if (!response.ok) throw new Error("Failed to fetch channel rules");
+  return response.json();
+}
+
+export async function upsertChannelRule(guildID: string, channelID: string, patch: Partial<Omit<ChannelRuleDTO, "id" | "guildID" | "channelID">>): Promise<ChannelRuleDTO> {
+  const response = await fetch(`/api/guilds/${guildID}/channel-rules/${channelID}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) throw new Error("Failed to upsert channel rule");
+  return response.json();
+}
+
+export async function deleteChannelRule(guildID: string, channelID: string): Promise<void> {
+  await fetch(`/api/guilds/${guildID}/channel-rules/${channelID}`, { method: "DELETE" });
 }
