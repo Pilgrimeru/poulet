@@ -327,6 +327,14 @@
   border-color: var(--accent);
 }
 
+.select option,
+.select optgroup,
+.channelSelect option,
+.channelSelect optgroup {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 /* ── Channel pill select ── */
 .channelSelect {
   composes: select;

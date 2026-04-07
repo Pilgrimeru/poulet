@@ -253,6 +253,12 @@
   color: var(--text-primary);
 }
 
+.select option,
+.select optgroup {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
 .toggle {
   position: relative;
   width: 46px;
