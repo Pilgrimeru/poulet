@@ -248,7 +248,7 @@
 .main {
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -287,12 +287,15 @@
   border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--bg-secondary) 98%, white 2%);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .detailHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   padding: 18px 28px;
   border-bottom: 1px solid var(--border-subtle);
@@ -304,6 +307,18 @@
   align-items: baseline;
   gap: 10px;
   min-width: 0;
+}
+
+.detailBackBtn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  border-radius: var(--radius-md);
 }
 
 .detailTitle {
@@ -345,6 +360,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* ─── User cards row ─────────────────────────────────────────────── */

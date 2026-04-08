@@ -16,7 +16,9 @@ import { componentRouter } from "@/discord/interactions";
 import { safeParseJSON } from "@/discord/utils/json";
 import {
   ActionRowBuilder,
+  ButtonBuilder,
   ButtonInteraction,
+  ButtonStyle,
   ChannelType,
   ChatInputCommandInteraction,
   EmbedBuilder,
@@ -476,6 +478,7 @@ async function sendModerationNotif(
   guild: NonNullable<ButtonInteraction["guild"]>,
   content: string,
   embed: EmbedBuilder,
+  components?: ActionRowBuilder<ButtonBuilder>[],
 ): Promise<void> {
   const settings = await guildSettingsService.getByGuildID(guild.id).catch(() => null);
   if (!settings?.moderationNotifChannelID) return;
@@ -483,7 +486,7 @@ async function sendModerationNotif(
   const channel = await guild.channels.fetch(settings.moderationNotifChannelID).catch(() => null);
   if (channel?.type !== ChannelType.GuildText) return;
 
-  await channel.send({ content, embeds: [embed] }).catch(() => undefined);
+  await channel.send({ content, embeds: [embed], components: components ?? [] }).catch(() => undefined);
 }
 
 async function handleReportDispute(interaction: ButtonInteraction): Promise<void> {
@@ -536,10 +539,28 @@ async function handleReportDispute(interaction: ButtonInteraction): Promise<void
     embed.setDescription(`[${MODERATION_MESSAGES.disputeNotifEmbed.linkLabel}](${deepLink})`);
   }
 
+  const disputeButtons = new ActionRowBuilder<ButtonBuilder>();
+  const ticketURL = `https://discord.com/channels/${interaction.guild.id}/${channel.id}`;
+  disputeButtons.addComponents(
+    new ButtonBuilder()
+      .setLabel(MODERATION_MESSAGES.disputeNotifEmbed.ticketLinkLabel)
+      .setURL(ticketURL)
+      .setStyle(ButtonStyle.Link),
+  );
+  if (deepLink) {
+    disputeButtons.addComponents(
+      new ButtonBuilder()
+        .setLabel(MODERATION_MESSAGES.disputeNotifEmbed.linkLabel)
+        .setURL(deepLink)
+        .setStyle(ButtonStyle.Link),
+    );
+  }
+
   await sendModerationNotif(
     interaction.guild,
     MODERATION_MESSAGES.disputeNotifContent(roleID),
     embed,
+    [disputeButtons],
   );
 }
 
@@ -618,11 +639,19 @@ async function handleAppeal(interaction: ButtonInteraction): Promise<void> {
     )
     .setTimestamp();
 
+  const appealButtons: ActionRowBuilder<ButtonBuilder>[] = [];
   if (deepLink) {
-    embed.setDescription(`[${MODERATION_MESSAGES.appealNotifEmbed.linkLabel}](${deepLink})`);
+    appealButtons.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setLabel(MODERATION_MESSAGES.appealNotifEmbed.linkLabel)
+          .setURL(deepLink)
+          .setStyle(ButtonStyle.Link),
+      ),
+    );
   }
 
-  await sendModerationNotif(guild, MODERATION_MESSAGES.appealNotifContent(roleID), embed);
+  await sendModerationNotif(guild, MODERATION_MESSAGES.appealNotifContent(roleID), embed, appealButtons);
 }
 
 // Registers all component interaction handlers (idempotent, safe for hot-reload)

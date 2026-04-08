@@ -167,10 +167,11 @@ function ModerationPageContent() {
 
   const visibleAppeals = useMemo(
     () => (appeals ?? []).filter((item) => {
+      if (appealFilter === "all") return true;
       const linked = sanctionsById.get(item.sanctionID);
       return !linked || linked.state !== "canceled";
     }),
-    [appeals, sanctionsById],
+    [appeals, appealFilter, sanctionsById],
   );
 
   const selectedAppeal = useMemo(() => visibleAppeals.find((item) => item.id === selectedAppealId) ?? visibleAppeals[0] ?? null, [visibleAppeals, selectedAppealId]);
@@ -491,15 +492,8 @@ function ModerationPageContent() {
 
         {showMobileDetail && (
         <main className={`${styles.main} ${isMobile ? styles.mainMobile : ""}`} role="tabpanel">
-          {isMobile && (
-            <div className={styles.mobileDetailTopbar}>
-              <button className={`${styles.btn} ${styles.btnGhost} ${styles.mobileBackBtn}`} onClick={handleBackToList}>
-                ← Retour
-              </button>
-            </div>
-          )}
             {tab === "appeals" && !selectedAppeal && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>✅</div>Aucun appel en attente.</div>}
-            {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} onNavigateToSanction={handleNavigateToSanction} />}
+            {tab === "appeals" && selectedAppeal && <AppealsSection guildID={guildID} appeal={selectedAppeal} linkedSanction={linkedSanction} sourceMeta={appealSourceMeta} onDecision={handleAppealDecision} onNavigateToSanction={handleNavigateToSanction} onBack={isMobile ? handleBackToList : undefined} />}
 
             {tab === "sanctions" && !selectedSanction && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🛡️</div>Aucune sanction enregistrée.</div>}
             {tab === "sanctions" && selectedSanction && sanctionDraft && (
@@ -518,14 +512,15 @@ function ModerationPageContent() {
                 onReopen={handleSanctionReopen}
                 onNavigateToReport={handleNavigateToReport}
                 onNavigateToFlag={handleNavigateToFlag}
+                onBack={isMobile ? handleBackToList : undefined}
               />
             )}
 
             {tab === "reports" && !selectedReport && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>📝</div>Aucun signalement disponible.</div>}
-            {tab === "reports" && selectedReport && <ReportsSection guildID={guildID} report={selectedReport} linkedSanction={linkedSanctionForReport} onNavigateToSanction={handleNavigateToSanction} />}
+            {tab === "reports" && selectedReport && <ReportsSection guildID={guildID} report={selectedReport} linkedSanction={linkedSanctionForReport} onNavigateToSanction={handleNavigateToSanction} onBack={isMobile ? handleBackToList : undefined} />}
 
             {tab === "flags" && !selectedFlag && <div className={styles.emptyState}><div className={styles.emptyStateIcon}>🚩</div>Aucun message signalé disponible.</div>}
-            {tab === "flags" && selectedFlag && <FlagsSection guildID={guildID} flag={selectedFlag} linkedSanction={linkedSanctionForFlag} allSanctions={sanctions} onNavigateToSanction={handleNavigateToSanction} />}
+            {tab === "flags" && selectedFlag && <FlagsSection guildID={guildID} flag={selectedFlag} linkedSanction={linkedSanctionForFlag} allSanctions={sanctions} onNavigateToSanction={handleNavigateToSanction} onBack={isMobile ? handleBackToList : undefined} />}
         </main>
         )}
       </div>

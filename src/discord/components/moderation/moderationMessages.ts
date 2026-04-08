@@ -69,6 +69,7 @@ export const MODERATION_MESSAGES = {
     title: "Contestation de résultat IA",
     reporterField: "Signaleur",
     targetField: "Utilisateur signalé",
+    ticketLinkLabel: "Voir le ticket",
     linkLabel: "Voir dans le dashboard",
   },
   appealNotifContent: (roleID: string | null) => roleID ? `<@&${roleID}> Un appel a été soumis et attend une révision.` : "Un appel a été soumis et attend une révision.",

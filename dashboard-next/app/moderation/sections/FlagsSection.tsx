@@ -24,12 +24,14 @@ export function FlagsSection({
   linkedSanction,
   allSanctions,
   onNavigateToSanction,
+  onBack,
 }: Readonly<{
   guildID: string;
   flag: FlaggedMessageItem;
   linkedSanction: SanctionItem | null;
   allSanctions: SanctionItem[];
   onNavigateToSanction: (sanctionID: string) => void;
+  onBack?: () => void;
 }>) {
   const flaggedMessage =
     flag.context?.find((message) => message.id === flag.messageID) ?? null;
@@ -43,6 +45,11 @@ export function FlagsSection({
   return (
     <section className={styles.detail} aria-label="Détail du message signalé">
       <header className={styles.detailHeader}>
+        {onBack && (
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.detailBackBtn}`} onClick={onBack}>
+            ←
+          </button>
+        )}
         <div className={styles.detailHeaderLeft}>
           <span className={styles.detailTitle}>Message signalé</span>
           <time className={styles.detailDate} dateTime={new Date(flag.createdAt).toISOString()}>

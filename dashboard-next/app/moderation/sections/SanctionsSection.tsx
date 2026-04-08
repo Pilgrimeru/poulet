@@ -35,6 +35,7 @@ export function SanctionsSection({
   onReopen,
   onNavigateToReport,
   onNavigateToFlag,
+  onBack,
 }: Readonly<{
   guildID: string;
   selectedSanction: SanctionItem;
@@ -50,12 +51,18 @@ export function SanctionsSection({
   onReopen: () => Promise<void>;
   onNavigateToReport: (reportID: string) => void;
   onNavigateToFlag: (flagID: string) => void;
+  onBack?: () => void;
 }>) {
   const isRevoked = selectedSanction.state === "canceled";
 
   return (
     <section className={styles.detail} aria-label="Détail de la sanction">
       <header className={styles.detailHeader}>
+        {onBack && (
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.detailBackBtn}`} onClick={onBack}>
+            ←
+          </button>
+        )}
         <div className={styles.detailHeaderLeft}>
           <span className={styles.detailTitle}>
             {TYPE_LABELS[selectedSanction.type]}

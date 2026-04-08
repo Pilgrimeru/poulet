@@ -23,11 +23,13 @@ export function ReportsSection({
   report,
   linkedSanction,
   onNavigateToSanction,
+  onBack,
 }: Readonly<{
   guildID: string;
   report: ModerationReportItem;
   linkedSanction: SanctionItem | null;
   onNavigateToSanction: (sanctionID: string) => void;
+  onBack?: () => void;
 }>) {
   const aiSummary = report.context?.aiSummary ?? null;
   const [copied, setCopied] = useState(false);
@@ -42,6 +44,11 @@ export function ReportsSection({
   return (
     <section className={styles.detail} aria-label="Détail du signalement">
       <header className={styles.detailHeader}>
+        {onBack && (
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.detailBackBtn}`} onClick={onBack}>
+            ←
+          </button>
+        )}
         <div className={styles.detailHeaderLeft}>
           <span className={styles.detailTitle}>Signalement</span>
           <time className={styles.detailDate} dateTime={new Date(report.createdAt).toISOString()}>

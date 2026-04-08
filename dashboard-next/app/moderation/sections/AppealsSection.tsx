@@ -30,6 +30,7 @@ export function AppealsSection({
   sourceMeta,
   onDecision,
   onNavigateToSanction,
+  onBack,
 }: Readonly<{
   guildID: string;
   appeal: AppealItem;
@@ -37,6 +38,7 @@ export function AppealsSection({
   sourceMeta: SourceMeta;
   onDecision: (decision: AppealDecision) => Promise<void>;
   onNavigateToSanction?: (sanctionID: string) => void;
+  onBack?: () => void;
 }>) {
   const [draft, setDraft] = useState<SanctionDraft | null>(
     linkedSanction ? toDraft(linkedSanction) : null,
@@ -90,6 +92,11 @@ export function AppealsSection({
   return (
     <section className={styles.detail} aria-label="Détail de l'appel">
       <header className={styles.detailHeader}>
+        {onBack && (
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.detailBackBtn}`} onClick={onBack}>
+            ←
+          </button>
+        )}
         <div className={styles.detailHeaderLeft}>
           <span className={styles.detailTitle}>
             {isResolved ? "Appel résolu" : "Appel en attente"}
