@@ -20,7 +20,6 @@ const config: Config = {
   AUTO_DELETE: Boolean(process.env["AUTO_DELETE"]),
   ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS: Boolean(process.env["ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS"]),
   LOCALE: process.env["LOCALE"] ?? "en",
-  GUILD_ID: process.env["GUILD_ID"],
   DASHBOARD_URL: process.env["DASHBOARD_URL"] ?? "",
   COLORS: {
     MAIN: parseEnvColor(process.env["MAIN_COLOR"], 0x69adc7),
@@ -28,3 +27,4 @@ const config: Config = {
 };
 
 export { config };
+

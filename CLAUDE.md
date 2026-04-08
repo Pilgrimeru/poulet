@@ -38,7 +38,6 @@ Bot config is loaded from `config.env` (not `.env`). Dashboard-next falls back t
 | `AUTO_DELETE`                   | Bot       | No          |
 | `LOCALE`                        | Bot       | No (en\|fr) |
 | `MAIN_COLOR`                    | Bot       | No (hex)    |
-| `GUILD_ID`                      | Bot       | No          |
 | `DISCORD_CLIENT_ID`             | Dashboard | Yes         |
 | `DISCORD_CLIENT_SECRET`         | Dashboard | Yes         |
 | `DISCORD_REDIRECT_URI`          | Dashboard | Yes         |
