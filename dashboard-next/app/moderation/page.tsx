@@ -45,7 +45,7 @@ function ModerationPageContent() {
   const [sanctionDraft, setSanctionDraft] = useState<SanctionDraft | null>(null);
   const [isEditingSanction, setIsEditingSanction] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
-  const [appealFilter, setAppealFilter] = useState<"pending_review" | "all">("pending_review");
+  const [appealFilter, setAppealFilter] = useState<"pending_review" | "all">(initialAppealId ? "all" : "pending_review");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const [limits, setLimits] = useState<Record<Tab, number>>({
@@ -126,7 +126,8 @@ function ModerationPageContent() {
       setMobileView("detail");
       return;
     }
-    setMobileView("list");
+    const hasInitialItem = initialAppealId ?? initialReportId;
+    setMobileView(hasInitialItem ? "detail" : "list");
   }, [isMobile]);
 
   useEffect(() => {
@@ -181,6 +182,7 @@ function ModerationPageContent() {
 
   useEffect(() => {
     if (!isMobile) return;
+    if (appeals === null) return;
     const hasSelection = (
       (tab === "appeals" && selectedAppeal) ||
       (tab === "sanctions" && selectedSanction) ||
@@ -189,7 +191,7 @@ function ModerationPageContent() {
     );
 
     if (!hasSelection) setMobileView("list");
-  }, [isMobile, selectedAppeal, selectedFlag, selectedReport, selectedSanction, tab]);
+  }, [isMobile, appeals, selectedAppeal, selectedFlag, selectedReport, selectedSanction, tab]);
 
   const linkedSanction = useMemo(() => selectedAppeal ? sanctionsById.get(selectedAppeal.sanctionID) ?? null : null, [sanctionsById, selectedAppeal]);
   const linkedSanctionForReport = useMemo(() => selectedReport?.sanctionID ? sanctionsById.get(selectedReport.sanctionID) ?? null : null, [sanctionsById, selectedReport]);
