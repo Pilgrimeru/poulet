@@ -105,6 +105,21 @@ export async function getAppealForGuild(guildID: string, appealID: string): Prom
   return row ? toDTO(row) : null;
 }
 
+export async function getLatestPendingAppealBySanctionForGuild(guildID: string, sanctionID: string): Promise<AppealDTO | null> {
+  const row = await Appeal.findOne({
+    where: { sanctionID, status: "pending_review" },
+    include: [
+      {
+        model: Sanction,
+        where: { guildID },
+        attributes: [],
+      },
+    ],
+    order: [["createdAt", "DESC"]],
+  });
+  return row ? toDTO(row) : null;
+}
+
 export async function updateAppeal(appealID: string, patch: UpdateAppealInput): Promise<AppealDTO | null> {
   const row = await Appeal.findOne({ where: { id: appealID } });
   if (!row) return null;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSanction, revokeSanction, updateSanction } from "@/services/sanctionService";
+import { getLatestPendingAppealBySanctionForGuild, updateAppeal } from "@/services/appealService";
 import { setMemberTimeout } from "@/services/discordMetaService";
 
 function appliesTimeout(type: string): boolean {
@@ -53,6 +54,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ guild
       }
 
       await setMemberTimeout(guildId, sanction.userID, effectiveDurationMs, moderationReason).catch(() => false);
+    }
+
+    if (previous.state !== "canceled" && sanction.state === "canceled") {
+      const pendingAppeal = await getLatestPendingAppealBySanctionForGuild(guildId, sanction.id);
+      if (pendingAppeal) {
+        await updateAppeal(pendingAppeal.id, {
+          status: "overturned",
+          reviewOutcome: "overturned",
+          resolutionReason: moderationReason,
+          reviewedAt: Date.now(),
+        });
+      }
     }
 
     return NextResponse.json(sanction);

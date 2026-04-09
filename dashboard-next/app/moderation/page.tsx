@@ -167,12 +167,8 @@ function ModerationPageContent() {
   const flagsBySanctionId = useMemo(() => new Map((flags ?? []).filter((item) => item.sanctionID).map((item) => [item.sanctionID as string, item])), [flags]);
 
   const visibleAppeals = useMemo(
-    () => (appeals ?? []).filter((item) => {
-      if (appealFilter === "all") return true;
-      const linked = sanctionsById.get(item.sanctionID);
-      return !linked || linked.state !== "canceled";
-    }),
-    [appeals, appealFilter, sanctionsById],
+    () => appeals ?? [],
+    [appeals],
   );
 
   const selectedAppeal = useMemo(() => visibleAppeals.find((item) => item.id === selectedAppealId) ?? visibleAppeals[0] ?? null, [visibleAppeals, selectedAppealId]);
@@ -306,6 +302,15 @@ function ModerationPageContent() {
     if (!selectedSanction) return;
     const updated = await patchSanction(guildID, selectedSanction.id, { state: "canceled" });
     setSanctions((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? []);
+    setAppeals((current) => current?.map((item) => item.sanctionID === updated.id && item.status === "pending_review"
+      ? {
+        ...item,
+        status: "overturned",
+        reviewOutcome: "overturned",
+        resolutionReason: "Sanction annulée depuis le dashboard",
+        reviewedAt: Date.now(),
+      }
+      : item) ?? []);
     setSanctionDraft(toDraft(updated));
     setConfirmRevoke(false);
   }, [guildID, selectedSanction]);
