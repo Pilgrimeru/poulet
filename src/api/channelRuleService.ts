@@ -1,14 +1,10 @@
 import { apiDelete, apiGet, apiPut } from "./client";
 import { createTimedCache } from "./cache";
 
-export type ChannelRuleMessageFilter = "all" | "images" | "links";
-
 export interface ChannelRuleDTO {
   id: string;
   guildID: string;
   channelID: string;
-  reactEmojis: string[];
-  reactFilter: ChannelRuleMessageFilter[];
   autoThread: boolean;
   oneMessageLimit: boolean;
 }

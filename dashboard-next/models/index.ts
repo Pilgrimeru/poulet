@@ -1,4 +1,5 @@
 import { Appeal } from "./Appeal";
+import "./AutoResponse";
 import "./ChannelMeta";
 import "./ChannelRule";
 import "./DeafSession";

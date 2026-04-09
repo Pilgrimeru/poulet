@@ -1,6 +1,6 @@
 import type { ChannelEntry } from "@/types";
 import type { RoleEntry } from "@/services/discordMetaService";
-import type { ChannelRuleDTO, GuildSettingsDTO, SpamRuleDTO } from "./types";
+import type { AutoResponseDTO, ChannelRuleDTO, GuildSettingsDTO, SpamRuleDTO } from "./types";
 
 export async function fetchSettings(guildID: string): Promise<GuildSettingsDTO> {
   const response = await fetch(`/api/guilds/${guildID}/settings`);
@@ -88,4 +88,34 @@ export async function upsertChannelRule(guildID: string, channelID: string, patc
 
 export async function deleteChannelRule(guildID: string, channelID: string): Promise<void> {
   await fetch(`/api/guilds/${guildID}/channel-rules/${channelID}`, { method: "DELETE" });
+}
+
+export async function fetchAutoResponses(guildID: string): Promise<AutoResponseDTO[]> {
+  const response = await fetch(`/api/guilds/${guildID}/auto-responses`);
+  if (!response.ok) throw new Error("Failed to fetch auto-responses");
+  return response.json();
+}
+
+export async function createAutoResponse(guildID: string): Promise<AutoResponseDTO> {
+  const response = await fetch(`/api/guilds/${guildID}/auto-responses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) throw new Error("Failed to create auto-response");
+  return response.json();
+}
+
+export async function patchAutoResponse(guildID: string, id: string, patch: Partial<AutoResponseDTO>): Promise<AutoResponseDTO> {
+  const response = await fetch(`/api/guilds/${guildID}/auto-responses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) throw new Error("Failed to update auto-response");
+  return response.json();
+}
+
+export async function deleteAutoResponse(guildID: string, id: string): Promise<void> {
+  await fetch(`/api/guilds/${guildID}/auto-responses/${id}`, { method: "DELETE" });
 }

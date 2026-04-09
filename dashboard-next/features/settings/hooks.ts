@@ -2,8 +2,8 @@
 
 import type { ChannelEntry } from "@/types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createSpamRule, deleteChannelRule, deleteSpamRule, fetchAllChannels, fetchChannelRules, fetchSettings, fetchSpamRules, patchSettings, patchSpamRule, upsertChannelRule } from "./api";
-import type { ChannelRuleDTO, GuildSettingsDTO, SpamRuleDTO } from "./types";
+import { createAutoResponse, createSpamRule, deleteAutoResponse, deleteChannelRule, deleteSpamRule, fetchAllChannels, fetchAutoResponses, fetchChannelRules, fetchSettings, fetchSpamRules, patchAutoResponse, patchSettings, patchSpamRule, upsertChannelRule } from "./api";
+import type { AutoResponseDTO, ChannelRuleDTO, GuildSettingsDTO, SpamRuleDTO } from "./types";
 
 export function useGuildSettings(guildID: string) {
   const [settings, setSettings] = useState<GuildSettingsDTO | null>(null);
@@ -117,7 +117,7 @@ export function useChannelRules(guildID: string) {
       if (!current) return current;
       const exists = current.find((r) => r.channelID === channelID);
       if (exists) return current.map((r) => r.channelID === channelID ? { ...r, ...patch } : r);
-      return [...current, { id: "", guildID, channelID, reactEmojis: [], reactFilter: ["all" as const], autoThread: false, oneMessageLimit: false, ...patch }];
+      return [...current, { id: "", guildID, channelID, autoThread: false, oneMessageLimit: false, ...patch }];
     });
     scheduleSave(channelID, patch);
   }
@@ -128,4 +128,50 @@ export function useChannelRules(guildID: string) {
   }
 
   return { rules, saving, updateRule, removeRule };
+}
+
+export function useAutoResponses(guildID: string) {
+  const [rules, setRules] = useState<AutoResponseDTO[] | null>(null);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    if (!guildID) return;
+    fetchAutoResponses(guildID).then(setRules).catch(() => setRules([]));
+  }, [guildID]);
+
+  function scheduleSave(rule: AutoResponseDTO) {
+    clearTimeout(timers.current[rule.id]);
+    timers.current[rule.id] = setTimeout(async () => {
+      setSaving((current) => ({ ...current, [rule.id]: true }));
+      try {
+        const updated = await patchAutoResponse(guildID, rule.id, rule);
+        setRules((current) => current?.map((r) => r.id === updated.id ? updated : r) ?? null);
+      } finally {
+        setSaving((current) => ({ ...current, [rule.id]: false }));
+      }
+    }, 600);
+  }
+
+  function updateRule(id: string, patch: Partial<AutoResponseDTO>) {
+    setRules((current) => {
+      if (!current) return current;
+      const next = current.map((r) => r.id === id ? { ...r, ...patch } : r);
+      const updated = next.find((r) => r.id === id);
+      if (updated) scheduleSave(updated);
+      return next;
+    });
+  }
+
+  async function addRule() {
+    const rule = await createAutoResponse(guildID);
+    setRules((current) => [...(current ?? []), rule]);
+  }
+
+  async function removeRule(id: string) {
+    await deleteAutoResponse(guildID, id);
+    setRules((current) => current?.filter((r) => r.id !== id) ?? null);
+  }
+
+  return { rules, saving, updateRule, addRule, removeRule };
 }

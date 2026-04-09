@@ -5,10 +5,10 @@ import type { ChannelEntry } from "@/types";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import styles from "@/app/settings/Settings.module.css";
-import { useChannelRules, useGuildSettings, useSpamRules } from "./hooks";
+import { useAutoResponses, useChannelRules, useGuildSettings, useSpamRules } from "./hooks";
 import { fetchRoles } from "./api";
 import type { RoleEntry } from "@/services/discordMetaService";
-import type { GuildSettingsDTO, SettingsSection, SpamRuleDTO } from "./types";
+import type { AutoResponseDTO, GuildSettingsDTO, SettingsSection, SpamRuleDTO, TriggerGroup } from "./types";
 
 function ChannelSelect({
   channels,
@@ -432,24 +432,14 @@ function ChannelRuleCard({
   onUpdate,
   onDelete,
 }: Readonly<{
-  rule: { channelID: string; reactEmojis: string[]; reactFilter: ("all" | "images" | "links")[]; autoThread: boolean; oneMessageLimit: boolean };
+  rule: { channelID: string; autoThread: boolean; oneMessageLimit: boolean };
   channels: ChannelEntry[];
-  onUpdate: (patch: { reactEmojis?: string[]; reactFilter?: ("all" | "images" | "links")[]; autoThread?: boolean; oneMessageLimit?: boolean }) => void;
+  onUpdate: (patch: { autoThread?: boolean; oneMessageLimit?: boolean }) => void;
   onDelete: () => void;
 }>) {
   const channel = channels.find((c) => c.channelID === rule.channelID);
   const channelLabel = channel ? `${channel.parentName ? `${channel.parentName} › ` : ""}#${channel.channelName}` : `#${rule.channelID}`;
   const [open, setOpen] = useState(false);
-
-  function toggleReactFilter(filter: "all" | "images" | "links") {
-    if (filter === "all") {
-      onUpdate({ reactFilter: ["all"] });
-      return;
-    }
-    const current = rule.reactFilter.filter((f) => f !== "all");
-    const next = current.includes(filter) ? current.filter((f) => f !== filter) : [...current, filter];
-    onUpdate({ reactFilter: next.length === 0 ? ["all"] : next });
-  }
 
   return (
     <div className={styles.ruleCard}>
@@ -470,22 +460,6 @@ function ChannelRuleCard({
             <SettingRow compactControl name="Créer un fil automatiquement" hint="Crée un fil de discussion pour chaque nouveau message">
               <ToggleField checked={rule.autoThread} onChange={(value) => onUpdate({ autoThread: value })} />
             </SettingRow>
-            <SettingRow name="Réactions automatiques" hint="Type de messages qui déclenchent les réactions automatiques">
-              <div className={styles.modeToggle}>
-                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("all") ? styles.selected : ""}`} onClick={() => toggleReactFilter("all")}>Tous</button>
-                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("images") ? styles.selected : ""}`} onClick={() => toggleReactFilter("images")}>Images</button>
-                <button className={`${styles.modeToggleBtn} ${rule.reactFilter.includes("links") ? styles.selected : ""}`} onClick={() => toggleReactFilter("links")}>Liens</button>
-              </div>
-            </SettingRow>
-            <SettingRow name="Emojis de réaction" hint="Emojis ajoutés automatiquement aux messages (un par ligne)">
-              <textarea
-                className={styles.numberInput}
-                style={{ width: 160, textAlign: "left", resize: "vertical", minHeight: 60 }}
-                value={rule.reactEmojis.join("\n")}
-                placeholder="⭐&#10;👍"
-                onChange={(e) => onUpdate({ reactEmojis: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
-              />
-            </SettingRow>
           </div>
           <div className={styles.ruleActions}>
             <button className={styles.btnDanger} onClick={onDelete}>Retirer ce salon</button>
@@ -493,6 +467,221 @@ function ChannelRuleCard({
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Auto-réponses
+// ---------------------------------------------------------------------------
+
+function TriggerGroupEditor({
+  group,
+  index,
+  onChange,
+  onRemove,
+}: Readonly<{
+  group: TriggerGroup;
+  index: number;
+  onChange: (g: TriggerGroup) => void;
+  onRemove: () => void;
+}>) {
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".04em" }}>
+          {index === 0 ? "Si…" : "OU si…"}
+        </span>
+        <button className={styles.btnDanger} style={{ padding: "3px 10px", fontSize: 12 }} onClick={onRemove}>Supprimer</button>
+      </div>
+
+      <SettingRow compactControl name="Mots-clés" hint="Séparés par des virgules (ex: bonjour, salut)">
+        <input
+          className={styles.numberInput}
+          style={{ width: 200, textAlign: "left" }}
+          value={group.keywords.join(", ")}
+          placeholder="mot1, mot2…"
+          onChange={(e) => onChange({ ...group, keywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+        />
+      </SettingRow>
+
+      {group.keywords.length > 1 && (
+        <SettingRow compactControl name="Logique mots-clés" hint="Comment combiner les mots-clés entre eux (ET / OU)">
+          <div className={styles.modeToggle}>
+            <button className={`${styles.modeToggleBtn} ${group.keywordMode === "any" ? styles.selected : ""}`} onClick={() => onChange({ ...group, keywordMode: "any" })}>OU</button>
+            <button className={`${styles.modeToggleBtn} ${group.keywordMode === "all" ? styles.selected : ""}`} onClick={() => onChange({ ...group, keywordMode: "all" })}>ET</button>
+          </div>
+        </SettingRow>
+      )}
+
+      <SettingRow compactControl name="Expression régulière" hint="Regex testée sur le contenu du message (ex: ^bonjour)">
+        <input
+          className={styles.numberInput}
+          style={{ width: 200, textAlign: "left" }}
+          value={group.regex ?? ""}
+          placeholder="^bonjour.*"
+          onChange={(e) => onChange({ ...group, regex: e.target.value.trim() || null })}
+        />
+      </SettingRow>
+
+      <SettingRow compactControl name="Pièce jointe" hint="Filtrer selon la présence d'une pièce jointe">
+        <SelectField
+          className={styles.channelSelect}
+          value={group.hasAttachment === null ? "any" : group.hasAttachment ? "yes" : "no"}
+          onChange={(v) => onChange({ ...group, hasAttachment: v === "any" ? null : v === "yes" })}
+        >
+          <option value="any">Peu importe</option>
+          <option value="yes">Avec pièce jointe</option>
+          <option value="no">Sans pièce jointe</option>
+        </SelectField>
+      </SettingRow>
+    </div>
+  );
+}
+
+function AutoResponseCard({
+  rule,
+  channels,
+  onUpdate,
+  onDelete,
+}: Readonly<{
+  rule: AutoResponseDTO;
+  channels: ChannelEntry[];
+  onUpdate: (patch: Partial<AutoResponseDTO>) => void;
+  onDelete: () => void;
+}>) {
+  const [open, setOpen] = useState(false);
+
+  function updateGroup(index: number, group: TriggerGroup) {
+    const next = rule.triggerGroups.map((g, i) => i === index ? group : g);
+    onUpdate({ triggerGroups: next });
+  }
+
+  function addGroup() {
+    onUpdate({
+      triggerGroups: [...rule.triggerGroups, { keywords: [], keywordMode: "any", regex: null, hasAttachment: null }],
+    });
+  }
+
+  function removeGroup(index: number) {
+    onUpdate({ triggerGroups: rule.triggerGroups.filter((_, i) => i !== index) });
+  }
+
+  return (
+    <div className={styles.ruleCard}>
+      <div className={styles.ruleHeader} onClick={() => setOpen((v) => !v)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setOpen((v) => !v)}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className={styles.ruleHeaderName}>{rule.name}</div>
+          <div className={styles.ruleHeaderDesc}>
+            {rule.triggerGroups.length === 0 ? "Aucun déclencheur" : `${rule.triggerGroups.length} groupe(s) de déclencheur`}
+            {rule.responseEmojis.length > 0 ? ` · ${rule.responseEmojis.join(" ")}` : ""}
+            {rule.responseMessage ? " · message" : ""}
+          </div>
+        </div>
+        <StatusBadge tone={rule.enabled ? "success" : "neutral"}>{rule.enabled ? "Actif" : "Inactif"}</StatusBadge>
+        <svg className={`${styles.ruleChevron} ${open ? styles.open : ""}`} viewBox="0 0 12 12" fill="none">
+          <path d="M3 4.5 6 7.5l3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+
+      <div className={`${styles.ruleBodyWrapper} ${open ? styles.ruleBodyWrapperOpen : ""}`}>
+        <div className={styles.ruleBodyInner}>
+          <div className={styles.ruleBody}>
+            <SettingRow compactControl name="Activé"><ToggleField checked={rule.enabled} onChange={(v) => onUpdate({ enabled: v })} /></SettingRow>
+            <SettingRow name="Nom"><input className={styles.numberInput} style={{ width: 200, textAlign: "left" }} value={rule.name} onChange={(e) => onUpdate({ name: e.target.value })} /></SettingRow>
+
+            {/* Trigger groups */}
+            <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Déclencheurs</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                Chaque groupe est combiné en OU. À l&apos;intérieur d&apos;un groupe, toutes les conditions sont en ET.
+              </div>
+              {rule.triggerGroups.map((group, i) => (
+                <TriggerGroupEditor key={i} group={group} index={i} onChange={(g) => updateGroup(i, g)} onRemove={() => removeGroup(i)} />
+              ))}
+              <button className={styles.btnPrimary} style={{ alignSelf: "flex-start", fontSize: 12, padding: "4px 12px" }} onClick={addGroup}>
+                + Ajouter un groupe de déclencheur
+              </button>
+            </div>
+
+            {/* Channel scoping */}
+            <SettingRow name="Salons ciblés" hint="Tous les salons, whitelist ou blacklist">
+              <div className={styles.modeToggle}>
+                <button className={`${styles.modeToggleBtn} ${rule.channelMode === "all" ? styles.selected : ""}`} onClick={() => onUpdate({ channelMode: "all" })}>Tous</button>
+                <button className={`${styles.modeToggleBtn} ${rule.channelMode === "whitelist" ? styles.selected : ""}`} onClick={() => onUpdate({ channelMode: "whitelist" })}>Whitelist</button>
+                <button className={`${styles.modeToggleBtn} ${rule.channelMode === "blacklist" ? styles.selected : ""}`} onClick={() => onUpdate({ channelMode: "blacklist" })}>Blacklist</button>
+              </div>
+            </SettingRow>
+
+            {rule.channelMode !== "all" && (
+              <SettingRow name={rule.channelMode === "whitelist" ? "Salons autorisés" : "Salons exclus"} hint={`${rule.channelIDs.length} salon(s) · mode ${rule.channelMode}`}>
+                <ChannelTokenList
+                  channelIDs={rule.channelIDs}
+                  channels={channels}
+                  onRemove={(id) => onUpdate({ channelIDs: rule.channelIDs.filter((c) => c !== id) })}
+                  onAdd={(id) => onUpdate({ channelIDs: [...rule.channelIDs, id] })}
+                  addLabel="+ Ajouter un salon"
+                />
+              </SettingRow>
+            )}
+
+            {/* Actions */}
+            <SettingRow name="Emojis de réaction" hint="Emojis ajoutés en réaction au message (un par ligne)">
+              <textarea
+                className={styles.numberInput}
+                style={{ width: 160, textAlign: "left", resize: "vertical", minHeight: 60 }}
+                value={rule.responseEmojis.join("\n")}
+                placeholder="⭐&#10;👍"
+                onChange={(e) => onUpdate({ responseEmojis: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+              />
+            </SettingRow>
+
+            <SettingRow name="Message de réponse" hint="Laissez vide pour ne pas envoyer de message">
+              <textarea
+                className={styles.numberInput}
+                style={{ width: 220, textAlign: "left", resize: "vertical", minHeight: 60 }}
+                value={rule.responseMessage ?? ""}
+                placeholder="Votre message…"
+                onChange={(e) => onUpdate({ responseMessage: e.target.value.trim() || null })}
+              />
+            </SettingRow>
+
+            {rule.responseMessage && (
+              <SettingRow compactControl name="Mode d'envoi" hint="Répondre au message ou envoyer dans le salon">
+                <div className={styles.modeToggle}>
+                  <button className={`${styles.modeToggleBtn} ${rule.responseReply ? styles.selected : ""}`} onClick={() => onUpdate({ responseReply: true })}>Reply</button>
+                  <button className={`${styles.modeToggleBtn} ${!rule.responseReply ? styles.selected : ""}`} onClick={() => onUpdate({ responseReply: false })}>Standalone</button>
+                </div>
+              </SettingRow>
+            )}
+          </div>
+          <div className={styles.ruleActions}>
+            <button className={styles.btnDanger} onClick={onDelete}>Supprimer cette règle</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AutoResponsesSection({ guildID, channels }: Readonly<{ guildID: string; channels: ChannelEntry[] }>) {
+  const { rules, saving, updateRule, addRule, removeRule } = useAutoResponses(guildID);
+  if (rules === null) return <LoadingState label="Chargement des règles…" />;
+
+  return (
+    <>
+      <SectionHeader
+        title="Auto-réponses"
+        description="Définissez des règles qui déclenchent automatiquement une réaction ou un message selon des conditions complexes (mots-clés, regex, pièces jointes)."
+      />
+      {rules.length === 0 ? <EmptyState title="Aucune règle d'auto-réponse configurée." /> : null}
+      <div className={styles.ruleList}>
+        {rules.map((rule) => (
+          <AutoResponseCard key={rule.id} rule={rule} channels={channels} onUpdate={(patch) => updateRule(rule.id, patch)} onDelete={() => removeRule(rule.id)} />
+        ))}
+      </div>
+      <button className={styles.btnPrimary} onClick={addRule}>+ Nouvelle règle</button>
+      {Object.values(saving).some(Boolean) ? <div className={styles.saveBar}><span className={styles.saveBarText}>Sauvegarde en cours…</span></div> : null}
+    </>
   );
 }
 
@@ -506,7 +695,7 @@ function ChannelsSection({ guildID, channels }: Readonly<{ guildID: string; chan
 
   return (
     <>
-      <SectionHeader title="Salons" description="Configurez des règles par salon : message unique, fils automatiques, réactions automatiques." />
+      <SectionHeader title="Salons" description="Configurez des règles par salon : message unique, fils automatiques." />
       {rules.length === 0 ? <EmptyState title="Aucune règle de salon configurée." /> : null}
       <div className={styles.ruleList}>
         {rules.map((rule) => (
@@ -556,6 +745,7 @@ function SettingsInner() {
     { id: "moderation", label: "Modération", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
     { id: "starboard", label: "Starboard", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg> },
     { id: "channels", label: "Salons", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
+    { id: "auto-responses", label: "Auto-réponses", icon: <svg className={styles.sidebarIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg> },
   ];
 
   return (
@@ -592,6 +782,7 @@ function SettingsInner() {
         {section === "moderation" ? <ModerationSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "starboard" ? <StarboardSection settings={settings} channels={channels} onPatch={patch} /> : null}
         {section === "channels" ? <ChannelsSection guildID={guildID} channels={channels} /> : null}
+        {section === "auto-responses" ? <AutoResponsesSection guildID={guildID} channels={channels} /> : null}
       </main>
       {status !== "idle" ? <div className={styles.saveBar}><span className={styles.saveBarText}>{getSaveBarText(status)}</span></div> : null}
     </div>

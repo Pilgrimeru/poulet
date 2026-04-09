@@ -6,6 +6,7 @@ import {
   spamFilterRuleService,
 } from "@/api";
 import { ChannelRuleDTO } from "@/api/channelRuleService";
+import { autoResponseService, AutoResponseDTO, TriggerGroup } from "@/api/autoResponseService";
 import { resolveSpamCheckers } from "@/discord/components";
 import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationMessages";
 import { Event } from "@/discord/types";
@@ -13,7 +14,6 @@ import { ChannelType, Message } from "discord.js";
 
 const regexInviteLink =
   /\b(https?:\/\/)?(discord\.gg|discordapp\.com\/invite)\/\w+\b/gm;
-const regexLink = /(http|https):\/\/[^\s]+/;
 
 export default new Event("messageCreate", async (message: Message) => {
   if (message.author.bot || !message.guild) return;
@@ -81,8 +81,12 @@ export default new Event("messageCreate", async (message: Message) => {
   if (message.channelId === guildSettings.emoteChannelID) emoteChannel(message);
 
   if (channelRule) {
-    void applyAutoReact(message, channelRule);
     void applyAutoThread(message, channelRule);
+  }
+
+  const autoResponses = await autoResponseService.getByGuildID(guildID);
+  for (const rule of autoResponses) {
+    applyAutoResponse(message, rule).catch(() => undefined);
   }
 });
 
@@ -110,25 +114,68 @@ async function applyOneMessageLimit(message: Message, guildID: string, rule: Cha
   return true;
 }
 
-async function applyAutoReact(message: Message, rule: ChannelRuleDTO): Promise<void> {
-  if (rule.reactEmojis.length === 0) return;
+/**
+ * Checks whether a message matches a trigger group.
+ * All active conditions in the group must match (AND logic).
+ */
+function matchesTriggerGroup(message: Message, group: TriggerGroup): boolean {
+  const content = message.content.toLowerCase();
 
-  const hasImage = message.attachments.some((a) => a.contentType?.startsWith("image/"));
-  const hasLink = regexLink.test(message.content);
-  const filter = rule.reactFilter;
+  // Keywords
+  if (group.keywords.length > 0) {
+    const lowerKeywords = group.keywords.map((k) => k.toLowerCase());
+    const keywordsMatch =
+      group.keywordMode === "all"
+        ? lowerKeywords.every((k) => content.includes(k))
+        : lowerKeywords.some((k) => content.includes(k));
+    if (!keywordsMatch) return false;
+  }
 
-  const shouldReact =
-    filter.includes("all") ||
-    (filter.includes("images") && hasImage) ||
-    (filter.includes("links") && hasLink);
+  // Regex
+  if (group.regex) {
+    try {
+      if (!new RegExp(group.regex, "i").test(message.content)) return false;
+    } catch {
+      // invalid regex — skip condition
+    }
+  }
 
-  if (!shouldReact) return;
+  // Attachment
+  if (group.hasAttachment !== null) {
+    const has = message.attachments.size > 0;
+    if (has !== group.hasAttachment) return false;
+  }
 
-  for (const emoji of rule.reactEmojis) {
-    // Custom emoji format: <:name:id> or <a:name:id> → extract name:id for react()
+  return true;
+}
+
+async function applyAutoResponse(message: Message, rule: AutoResponseDTO): Promise<void> {
+  if (!rule.enabled) return;
+
+  // Channel scoping
+  if (rule.channelMode === "whitelist" && !rule.channelIDs.includes(message.channelId)) return;
+  if (rule.channelMode === "blacklist" && rule.channelIDs.includes(message.channelId)) return;
+
+  // Trigger groups: OR between groups (at least one group must fully match)
+  const triggered =
+    rule.triggerGroups.length === 0 ||
+    rule.triggerGroups.some((group) => matchesTriggerGroup(message, group));
+  if (!triggered) return;
+
+  // React with emojis
+  for (const emoji of rule.responseEmojis) {
     const customMatch = /^<a?:(\w+):(\d+)>$/.exec(emoji);
     const emojiResolvable = customMatch ? `${customMatch[1]}:${customMatch[2]}` : emoji;
     await message.react(emojiResolvable).catch(() => undefined);
+  }
+
+  // Send a message
+  if (rule.responseMessage) {
+    if (rule.responseReply) {
+      await message.reply({ content: rule.responseMessage }).catch(() => undefined);
+    } else if (message.channel.isSendable()) {
+      await message.channel.send({ content: rule.responseMessage }).catch(() => undefined);
+    }
   }
 }
 

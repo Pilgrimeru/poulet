@@ -1,5 +1,5 @@
 import { config } from "@/app";
-import { type ChannelRuleMessageFilter, channelRuleService } from "@/api";
+import { channelRuleService } from "@/api";
 import { ScopedSettingsIds } from "@/discord/commands/settings/ids";
 import {
   ActionRowBuilder,
@@ -7,15 +7,9 @@ import {
   ChannelSelectMenuInteraction,
   ChannelType,
   EmbedBuilder,
-  MessageFlags,
-  ModalBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
-  TextInputBuilder,
-  TextInputStyle,
 } from "discord.js";
-
-const SETTINGS_CR_EMOJIS_MODAL_PREFIX = "settings:cr:modal:emojis:";
 
 export async function renderChannelRulesHome(guildID: string, ids: ScopedSettingsIds) {
   const rules = await channelRuleService.getRulesByGuildID(guildID);
@@ -33,7 +27,6 @@ export async function renderChannelRulesHome(guildID: string, ids: ScopedSetting
     ...rules.slice(0, 23).map((rule) => ({
       label: `#${rule.channelID}`,
       description: [
-        rule.reactEmojis.length > 0 ? `React: ${rule.reactEmojis.join(" ")}` : null,
         rule.autoThread ? "Thread auto" : null,
         rule.oneMessageLimit ? "1 msg/user" : null,
       ]
@@ -87,45 +80,23 @@ export async function renderChannelRuleSelector(_guildID: string, ids: ScopedSet
 export async function renderChannelRuleEditor(guildID: string, channelID: string, ids: ScopedSettingsIds) {
   const rule = await channelRuleService.getRuleByChannel(guildID, channelID);
 
-  const emojis = rule?.reactEmojis ?? [];
-  const filter = rule?.reactFilter ?? ["all"];
   const autoThread = rule?.autoThread ?? false;
   const oneMessageLimit = rule?.oneMessageLimit ?? false;
-
-  const filterLabels: Record<ChannelRuleMessageFilter, string> = {
-    all: "tous les messages",
-    images: "images",
-    links: "liens",
-  };
 
   const embed = new EmbedBuilder()
     .setColor(config.COLORS.MAIN)
     .setTitle(`Regles - <#${channelID}>`)
     .setDescription(
       [
-        `**Reactions auto:** ${emojis.length > 0 ? `${emojis.join(" ")} (filtre: ${filter.map((f) => filterLabels[f]).join(", ")})` : "desactivee"}`,
         `**Thread auto:** ${autoThread ? "active" : "desactive"}`,
         `**1 message par user:** ${oneMessageLimit ? "active" : "desactive"}`,
       ].join("\n"),
     );
 
-  const filterMenu = new StringSelectMenuBuilder()
-    .setCustomId(`${ids.CR_FILTER_PREFIX}${channelID}`)
-    .setPlaceholder("Filtre des reactions")
-    .setMinValues(1)
-    .setMaxValues(3)
-    .addOptions([
-      { label: "Tous les messages texte", description: "Reagir a tous les messages", value: "all", default: filter.includes("all") },
-      { label: "Images uniquement", description: "Reagir aux messages avec images", value: "images", default: filter.includes("images") },
-      { label: "Liens uniquement", description: "Reagir aux messages avec liens", value: "links", default: filter.includes("links") },
-    ]);
-
   const actionMenu = new StringSelectMenuBuilder()
     .setCustomId(`${ids.CR_ACTIONS_PREFIX}${channelID}`)
     .setPlaceholder("Actions sur le salon")
     .addOptions([
-      { label: "Definir les emojis de reaction", description: "Ajouter ou modifier les emojis auto", value: "emojis" },
-      { label: "Supprimer les reactions auto", description: "Retirer tous les emojis configures", value: "clear_emojis" },
       { label: autoThread ? "Desactiver thread auto" : "Activer thread auto", description: "Creer un thread sous chaque message", value: "toggle_thread" },
       { label: oneMessageLimit ? "Desactiver 1 msg/user" : "Activer 1 msg/user", description: "Supprimer les messages si le precedent existe encore", value: "toggle_one_msg" },
       { label: "Supprimer toutes les regles", description: "Retirer la configuration de ce salon", value: "delete" },
@@ -136,44 +107,8 @@ export async function renderChannelRuleEditor(guildID: string, channelID: string
     embeds: [embed],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(actionMenu),
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(filterMenu),
     ],
   };
-}
-
-async function openEmojisModal(interaction: StringSelectMenuInteraction, guildID: string, channelID: string, ids: ScopedSettingsIds) {
-  const rule = await channelRuleService.getRuleByChannel(guildID, channelID);
-  const currentEmojis = rule?.reactEmojis.join(" ") ?? "";
-
-  const modal = new ModalBuilder()
-    .setCustomId(`${SETTINGS_CR_EMOJIS_MODAL_PREFIX}${channelID}`)
-    .setTitle("Configurer les reactions auto");
-
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("emojis")
-        .setLabel("Emojis (separes par des espaces)")
-        .setRequired(true)
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ex: 👍 <:MonEmoji:1486113309861220352>")
-        .setValue(currentEmojis),
-    ),
-  );
-
-  await interaction.showModal(modal);
-  const submitted = await interaction.awaitModalSubmit({
-    time: 120000,
-    filter: (i) => i.customId === `${SETTINGS_CR_EMOJIS_MODAL_PREFIX}${channelID}` && i.user.id === interaction.user.id,
-  }).catch(() => undefined);
-  if (!submitted) return;
-
-  const raw = submitted.fields.getTextInputValue("emojis").trim();
-  const emojis = raw.split(/\s+/).filter(Boolean).slice(0, 10);
-
-  await channelRuleService.upsertRule(guildID, channelID, { reactEmojis: emojis });
-  await submitted.reply({ content: `Reactions mises a jour: ${emojis.join(" ")}`, flags: MessageFlags.Ephemeral });
-  await interaction.editReply(await renderChannelRuleEditor(guildID, channelID, ids));
 }
 
 export async function onChannelRuleAction(
@@ -184,15 +119,6 @@ export async function onChannelRuleAction(
 ) {
   const action = interaction.values[0];
 
-  if (action === "emojis") {
-    await openEmojisModal(interaction, guildID, channelID, ids);
-    return;
-  }
-  if (action === "clear_emojis") {
-    await channelRuleService.upsertRule(guildID, channelID, { reactEmojis: [] });
-    await interaction.update(await renderChannelRuleEditor(guildID, channelID, ids));
-    return;
-  }
   if (action === "toggle_thread") {
     const rule = await channelRuleService.getRuleByChannel(guildID, channelID);
     await channelRuleService.upsertRule(guildID, channelID, { autoThread: !(rule?.autoThread ?? false) });
@@ -211,17 +137,6 @@ export async function onChannelRuleAction(
     return;
   }
   await interaction.update(await renderChannelRulesHome(guildID, ids));
-}
-
-export async function onChannelRuleFilter(
-  interaction: StringSelectMenuInteraction,
-  guildID: string,
-  channelID: string,
-  ids: ScopedSettingsIds,
-) {
-  const filter = interaction.values as ChannelRuleMessageFilter[];
-  await channelRuleService.upsertRule(guildID, channelID, { reactFilter: filter });
-  await interaction.update(await renderChannelRuleEditor(guildID, channelID, ids));
 }
 
 export async function onChannelSelect(

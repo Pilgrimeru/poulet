@@ -1,7 +1,9 @@
 export { channelMetaService } from "./channelMetaService";
 export { guildMetaService } from "./guildMetaService";
 export { channelRuleService } from "./channelRuleService";
-export type { ChannelRuleDTO, ChannelRuleMessageFilter } from "./channelRuleService";
+export type { ChannelRuleDTO } from "./channelRuleService";
+export { autoResponseService } from "./autoResponseService";
+export type { AutoResponseDTO, TriggerGroup, ChannelMode } from "./autoResponseService";
 export { guildSettingsService } from "./guildSettingsService";
 export type { GuildSettingsDTO } from "./guildSettingsService";
 export { messageHistoryService } from "./messageHistoryService";

@@ -1,5 +1,5 @@
 import { onMainMenuSelection, onRuleAction, onRuleChannels } from "@/discord/commands/settings/antiSpam";
-import { onChannelRuleAction, onChannelRuleFilter, onChannelSelect } from "@/discord/commands/settings/channelRules";
+import { onChannelRuleAction, onChannelSelect } from "@/discord/commands/settings/channelRules";
 import { onInviteLogAction, onInviteLogChannelSelect } from "@/discord/commands/settings/inviteLog";
 import { onModerationAction, onModerationChannelSelect, onModerationRoleSelect } from "@/discord/commands/settings/moderationSettings";
 import { onStarboardAction, onStarboardChannelSelect } from "@/discord/commands/settings/starboard";
@@ -145,13 +145,6 @@ export default class SettingsCommand extends Command {
       return onChannelRuleAction(i, guildID, channelID, ids);
     });
 
-    componentRouter.registerPrefix(ids.CR_FILTER_PREFIX, (i) => {
-      if (!i.isStringSelectMenu()) return;
-      const channelID = i.customId.slice(ids.CR_FILTER_PREFIX.length);
-      if (!channelID) return;
-      return onChannelRuleFilter(i, guildID, channelID, ids);
-    });
-
     // Starboard handlers
     componentRouter.register(ids.SB_ACTIONS, (i) => {
       if (!i.isStringSelectMenu()) return;
@@ -182,7 +175,6 @@ export default class SettingsCommand extends Command {
     componentRouter.unregister(ids.MOD_ROLE_SELECT);
     componentRouter.unregister(ids.CR_CHANNEL_SELECT);
     componentRouter.unregisterPrefix(ids.CR_ACTIONS_PREFIX);
-    componentRouter.unregisterPrefix(ids.CR_FILTER_PREFIX);
     componentRouter.unregister(ids.SB_ACTIONS);
     componentRouter.unregister(ids.SB_CHANNEL_SELECT);
   }

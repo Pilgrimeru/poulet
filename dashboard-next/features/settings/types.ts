@@ -29,16 +29,34 @@ export type SpamRuleDTO = {
   enabled: boolean;
 };
 
-export type ChannelRuleMessageFilter = "all" | "images" | "links";
-
 export type ChannelRuleDTO = {
   id: string;
   guildID: string;
   channelID: string;
-  reactEmojis: string[];
-  reactFilter: ChannelRuleMessageFilter[];
   autoThread: boolean;
   oneMessageLimit: boolean;
 };
 
-export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation" | "starboard" | "channels";
+export type TriggerGroup = {
+  keywords: string[];
+  keywordMode: "any" | "all";
+  regex: string | null;
+  hasAttachment: boolean | null;
+};
+
+export type ChannelMode = "all" | "whitelist" | "blacklist";
+
+export type AutoResponseDTO = {
+  id: string;
+  guildID: string;
+  name: string;
+  enabled: boolean;
+  triggerGroups: TriggerGroup[];
+  channelMode: ChannelMode;
+  channelIDs: string[];
+  responseEmojis: string[];
+  responseMessage: string | null;
+  responseReply: boolean;
+};
+
+export type SettingsSection = "stats" | "spam" | "invite-log" | "moderation" | "starboard" | "channels" | "auto-responses";
