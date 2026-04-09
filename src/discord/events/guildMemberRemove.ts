@@ -4,6 +4,25 @@ import { guildSettingsService, userMetaService } from "@/api";
 import { memberEventService } from "@/api/memberEventService";
 import { memberInviteService } from "@/api/memberInviteService";
 
+function formatTimeOnServer(joinedTimestamp: number | null | undefined): string {
+  if (!joinedTimestamp) return "Inconnu";
+
+  const elapsedMs = Date.now() - joinedTimestamp;
+  if (elapsedMs <= 0) return "moins d'une minute";
+
+  const totalMinutes = Math.floor(elapsedMs / 60_000);
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+
+  if (days > 0) parts.push(`${days} jour${days > 1 ? "s" : ""}`);
+  if (hours > 0) parts.push(`${hours} heure${hours > 1 ? "s" : ""}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+
+  return parts.slice(0, 2).join(" ");
+}
+
 export default new Event(
   "guildMemberRemove",
   async (member: GuildMember | PartialGuildMember) => {
@@ -24,8 +43,9 @@ export default new Event(
     memberInviteService.remove(member.guild.id, member.user.id).catch(() => undefined);
 
     const inviterValue = stored
-      ? `<@${stored.inviterID}> (${stored.inviterTag}) · Code : ${stored.code}`
+      ? `<@${stored.inviterID}> (${stored.inviterTag})`
       : "Inconnu";
+    const timeOnServer = formatTimeOnServer(member.joinedTimestamp);
 
     const embed = new EmbedBuilder()
       .setColor(0xe03030)
@@ -34,6 +54,7 @@ export default new Event(
       .addFields(
         { name: "Utilisateur", value: `${member} (${tag})`, inline: true },
         { name: "Avait été invité par", value: inviterValue, inline: true },
+        { name: "Membre depuis", value: timeOnServer, inline: true },
       )
       .setTimestamp();
 
