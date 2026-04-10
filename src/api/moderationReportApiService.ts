@@ -59,9 +59,11 @@ export const moderationReportApiService = {
     return apiGet<ModerationReportDTO | null>(`/guilds/${guildID}/moderation-reports?channelId=${encodeURIComponent(channelID)}`);
   },
 
-  async list(guildID: string, options?: { status?: string }): Promise<ModerationReportDTO[]> {
+  async list(guildID: string, options?: { status?: string; reporterID?: string; createdSince?: number }): Promise<ModerationReportDTO[]> {
     const params = new URLSearchParams();
     if (options?.status) params.set("status", options.status);
+    if (options?.reporterID) params.set("reporterId", options.reporterID);
+    if (typeof options?.createdSince === "number") params.set("createdSince", String(options.createdSince));
     const query = params.size > 0 ? `?${params.toString()}` : "";
     const result = await apiGet<{ items: ModerationReportDTO[] } | ModerationReportDTO[]>(`/guilds/${guildID}/moderation-reports${query}`);
     return Array.isArray(result) ? result : result.items;

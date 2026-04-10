@@ -1,4 +1,5 @@
 import { ModerationReport } from "../models/ModerationReport";
+import { Op } from "sequelize";
 import type { ContextMessage } from "./flaggedMessageService";
 
 export type { ContextMessage } from "./flaggedMessageService";
@@ -123,7 +124,7 @@ export async function updateReport(
 
 export async function listReports(
   guildID: string,
-  options?: { status?: string; limit?: number; offset?: number },
+  options?: { status?: string; reporterID?: string; createdSince?: number; limit?: number; offset?: number },
 ): Promise<{ items: ModerationReportDTO[]; total: number; hasMore: boolean }> {
   const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
   const offset = Math.max(0, options?.offset ?? 0);
@@ -131,6 +132,8 @@ export async function listReports(
     where: {
       guildID,
       ...(options?.status ? { status: options.status } : {}),
+      ...(options?.reporterID ? { reporterID: options.reporterID } : {}),
+      ...(typeof options?.createdSince === "number" ? { createdAt: { [Op.gte]: options.createdSince } } : {}),
     },
     order: [["createdAt", "DESC"]],
     limit,

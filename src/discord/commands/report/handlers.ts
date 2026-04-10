@@ -27,6 +27,7 @@ import {
   ModalBuilder,
   PermissionFlagsBits,
   TextChannel,
+  Guild,
   TextInputBuilder,
   TextInputStyle,
   User,
@@ -37,6 +38,101 @@ import { decodeTicketMeta, openTicket } from "./ticket";
 const APPEAL_MODAL_PREFIX = "appeal:modal:";
 
 type StoredReportAnalysis = SummaryResult;
+const DEFAULT_REPORT_DAILY_LIMIT = 5;
+const REPORT_ABUSE_REASON = "Abus du système de signalement (trop de signalements non fondés en une journée).";
+
+function getStartOfCurrentDayTimestamp(): number {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now.getTime();
+}
+
+function isNoneLikeAnalysis(input: unknown): boolean {
+  if (!input || typeof input !== "object") return false;
+  const summary = input as { isViolation?: unknown; severity?: unknown };
+  if (summary.isViolation === false) return true;
+  return typeof summary.severity === "string" && summary.severity.toUpperCase() === "NONE";
+}
+
+async function getReporterDailyReportCount(guildID: string, reporterID: string, since: number): Promise<number> {
+  const [flags, reports] = await Promise.all([
+    flaggedMessageApiService.list(guildID, { reporterID, createdSince: since }).catch(() => []),
+    moderationReportApiService.list(guildID, { reporterID, createdSince: since }).catch(() => []),
+  ]);
+  return flags.length + reports.length;
+}
+
+async function getReporterDailyNoneCount(guildID: string, reporterID: string, since: number): Promise<number> {
+  const [flags, reports] = await Promise.all([
+    flaggedMessageApiService.list(guildID, { reporterID, createdSince: since, status: "dismissed" }).catch(() => []),
+    moderationReportApiService.list(guildID, { reporterID, createdSince: since, status: "dismissed" }).catch(() => []),
+  ]);
+  const flagNoneCount = flags.filter((flag) => isNoneLikeAnalysis(flag.aiAnalysis)).length;
+  const reportNoneCount = reports.filter((report) => isNoneLikeAnalysis(report.context?.aiSummary)).length;
+  return flagNoneCount + reportNoneCount;
+}
+
+async function getReportDailyLimit(guildID: string): Promise<number> {
+  const settings = await guildSettingsService.getByGuildID(guildID).catch(() => null);
+  return Math.max(1, Number(settings?.reportDailyLimit) || DEFAULT_REPORT_DAILY_LIMIT);
+}
+
+async function hasModeratorBypassRole(guild: Guild, reporterID: string): Promise<boolean> {
+  const moderatorRoleID = config.MODERATOR_ROLE_ID?.trim();
+  if (!moderatorRoleID) return false;
+  const member = await guild.members.fetch(reporterID).catch(() => null);
+  return member?.roles.cache.has(moderatorRoleID) ?? false;
+}
+
+async function enforceDailyReporterLimit(guild: Guild, reporterID: string): Promise<{ allowed: true } | { allowed: false; limit: number }> {
+  if (await hasModeratorBypassRole(guild, reporterID)) {
+    return { allowed: true };
+  }
+  const [limit, todayStart] = [await getReportDailyLimit(guild.id), getStartOfCurrentDayTimestamp()];
+  const reportCount = await getReporterDailyReportCount(guild.id, reporterID, todayStart);
+  if (reportCount >= limit) return { allowed: false, limit };
+  return { allowed: true };
+}
+
+async function applyReportAbuseWarn(opts: { guildID: string; reporterID: string; moderatorID: string; channel: TextChannel }): Promise<boolean> {
+  const todayStart = getStartOfCurrentDayTimestamp();
+  const limit = await getReportDailyLimit(opts.guildID);
+  const noneCount = await getReporterDailyNoneCount(opts.guildID, opts.reporterID, todayStart);
+  if (noneCount < limit) return false;
+
+  const existingSanctions = await sanctionApiService.list(opts.guildID, { userID: opts.reporterID, state: "created" }).catch(() => []);
+  const alreadyWarnedToday = existingSanctions.some((sanction) =>
+    sanction.type === "WARN" &&
+    sanction.reason === REPORT_ABUSE_REASON &&
+    sanction.createdAt >= todayStart,
+  );
+  if (alreadyWarnedToday) return false;
+
+  const sanction = await sanctionApiService.create({
+    guildID: opts.guildID,
+    userID: opts.reporterID,
+    moderatorID: opts.moderatorID,
+    type: "WARN",
+    severity: "LOW",
+    nature: "Manipulation",
+    reason: REPORT_ABUSE_REASON,
+    state: "created",
+    durationMs: null,
+  });
+
+  const reporter = await opts.channel.client.users.fetch(opts.reporterID).catch(() => null);
+  if (reporter) {
+    const embed = new EmbedBuilder()
+      .setColor(config.COLORS.MAIN)
+      .setTitle("Avertissement pour abus de signalements")
+      .setDescription(REPORT_ABUSE_REASON)
+      .setTimestamp();
+    await opts.channel.send({ content: `${reporter}`, embeds: [embed] }).catch(() => undefined);
+    await reporter.send({ content: `${MODERATION_MESSAGES.interactionReplies.reportAbuseSanctioned}\n\nMotif: ${REPORT_ABUSE_REASON}` }).catch(() => undefined);
+  }
+
+  return Boolean(sanction.id);
+}
 
 async function hasReporterTextMessageSince(
   channel: TextChannel,
@@ -90,6 +186,14 @@ export async function executeOpenTicket(
     await interaction.reply({ content: "Tu ne peux pas signaler un bot.", flags: MessageFlags.Ephemeral });
     return;
   }
+  const limitCheck = await enforceDailyReporterLimit(interaction.guild, interaction.user.id);
+  if (!limitCheck.allowed) {
+    await interaction.reply({
+      content: MODERATION_MESSAGES.interactionReplies.reportDailyLimitReached(limitCheck.limit),
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const channel = await openTicket(interaction.guild, interaction.user, target, interaction.channelId);
   await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.ticketCreated(`${channel}`) });
@@ -100,6 +204,11 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
   if (!guild) return;
   const targetMessage = interaction.targetMessage;
   const target = targetMessage.author;
+  const limitCheck = await enforceDailyReporterLimit(guild, interaction.user.id);
+  if (!limitCheck.allowed) {
+    await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.reportDailyLimitReached(limitCheck.limit) });
+    return;
+  }
 
   const contextMessages = await collectContextMessages(targetMessage);
   const alreadySanctionedMessageIDs = await getAlreadySanctionedMessageIDs(guild.id, target.id);
@@ -168,6 +277,12 @@ export async function handleFlaggedMessage(interaction: MessageContextMenuComman
 
   if (!analysis.isViolation) {
     await flaggedMessageApiService.update(guild.id, flagged.id, { status: "dismissed" });
+    await applyReportAbuseWarn({
+      guildID: guild.id,
+      reporterID: interaction.user.id,
+      moderatorID: interaction.client.user.id,
+      channel: targetMessage.channel as TextChannel,
+    });
     await interaction.editReply({ content: MODERATION_MESSAGES.interactionReplies.noAutomaticViolation });
     return;
   }
@@ -317,6 +432,12 @@ async function handleReportConfirm(interaction: ButtonInteraction): Promise<void
     await moderationReportApiService.update(interaction.guild.id, report.id, {
       status: "dismissed",
       context: { messages: report.context?.messages ?? [], aiSummary: analysis },
+    });
+    await applyReportAbuseWarn({
+      guildID: interaction.guild.id,
+      reporterID: report.reporterID,
+      moderatorID: interaction.client.user.id,
+      channel,
     });
     await channel.send(MODERATION_MESSAGES.channelPosts.reportConfirmedNoSanction);
     setTimeout(() => void channel.delete().catch(() => undefined), 30_000);

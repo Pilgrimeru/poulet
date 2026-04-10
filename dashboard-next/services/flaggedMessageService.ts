@@ -1,4 +1,5 @@
 import { FlaggedMessage } from "../models/FlaggedMessage";
+import { Op } from "sequelize";
 
 export interface ContextMessage {
   id: string;
@@ -97,7 +98,7 @@ export async function createFlaggedMessage(input: CreateFlaggedMessageInput): Pr
 
 export async function listFlaggedMessages(
   guildID: string,
-  options?: { targetUserID?: string; status?: string; limit?: number; offset?: number },
+  options?: { targetUserID?: string; reporterID?: string; status?: string; createdSince?: number; limit?: number; offset?: number },
 ): Promise<{ items: FlaggedMessageDTO[]; total: number; hasMore: boolean }> {
   const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
   const offset = Math.max(0, options?.offset ?? 0);
@@ -105,7 +106,9 @@ export async function listFlaggedMessages(
     where: {
       guildID,
       ...(options?.targetUserID ? { targetUserID: options.targetUserID } : {}),
+      ...(options?.reporterID ? { reporterID: options.reporterID } : {}),
       ...(options?.status ? { status: options.status } : {}),
+      ...(typeof options?.createdSince === "number" ? { createdAt: { [Op.gte]: options.createdSince } } : {}),
     },
     order: [["createdAt", "DESC"]],
     limit,

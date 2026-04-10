@@ -9,6 +9,7 @@ export type GuildSettingsDTO = {
   sanctionDurationMs: number | null;
   moderationNotifChannelID: string;
   moderationModRoleID: string;
+  reportDailyLimit: number;
   starboardChannelID: string;
   starboardEmoji: string;
   starboardThreshold: number;

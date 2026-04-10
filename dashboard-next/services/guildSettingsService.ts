@@ -14,6 +14,7 @@ export type GuildSettingsDTO = {
   sanctionDurationMs: number | null;
   moderationNotifChannelID: string;
   moderationModRoleID: string;
+  reportDailyLimit: number;
   starboardChannelID: string;
   starboardEmoji: string;
   starboardThreshold: number;
@@ -46,6 +47,7 @@ async function ensureColumns(): Promise<void> {
     { name: "sanctionDurationMs", type: DataTypes.BIGINT, defaultValue: null, allowNull: true },
     { name: "moderationNotifChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "moderationModRoleID", type: DataTypes.STRING, defaultValue: "" },
+    { name: "reportDailyLimit", type: DataTypes.INTEGER, defaultValue: 5 },
     { name: "starboardChannelID", type: DataTypes.STRING, defaultValue: "" },
     { name: "starboardEmoji", type: DataTypes.STRING, defaultValue: "⭐" },
     { name: "starboardThreshold", type: DataTypes.INTEGER, defaultValue: 5 },
@@ -81,6 +83,7 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
       sanctionDurationMs: null,
       moderationNotifChannelID: "",
       moderationModRoleID: "",
+      reportDailyLimit: 5,
       starboardChannelID: "",
       starboardEmoji: "⭐",
       starboardThreshold: 5,
@@ -105,6 +108,7 @@ async function loadOrCreate(guildID: string): Promise<GuildSettingsDTO> {
     sanctionDurationMs: row.sanctionDurationMs === null || row.sanctionDurationMs === undefined ? null : Number(row.sanctionDurationMs),
     moderationNotifChannelID: row.moderationNotifChannelID ?? "",
     moderationModRoleID: row.moderationModRoleID ?? "",
+    reportDailyLimit: Math.max(1, Number(row.reportDailyLimit) || 5),
     starboardChannelID: row.starboardChannelID ?? "",
     starboardEmoji: row.starboardEmoji || "⭐",
     starboardThreshold: Number(row.starboardThreshold) || 5,
@@ -135,6 +139,10 @@ export async function updateByGuildID(
     sanctionDurationMs: patch.sanctionDurationMs ?? current.sanctionDurationMs,
     moderationNotifChannelID: patch.moderationNotifChannelID ?? current.moderationNotifChannelID,
     moderationModRoleID: patch.moderationModRoleID ?? current.moderationModRoleID,
+    reportDailyLimit:
+      patch.reportDailyLimit === undefined
+        ? current.reportDailyLimit
+        : Math.max(1, Number(patch.reportDailyLimit) || 1),
     starboardChannelID: patch.starboardChannelID ?? current.starboardChannelID,
     starboardEmoji: patch.starboardEmoji ?? current.starboardEmoji,
     starboardThreshold: patch.starboardThreshold ?? current.starboardThreshold,
@@ -152,6 +160,7 @@ export async function updateByGuildID(
     sanctionDurationMs: next.sanctionDurationMs,
     moderationNotifChannelID: next.moderationNotifChannelID,
     moderationModRoleID: next.moderationModRoleID,
+    reportDailyLimit: next.reportDailyLimit,
     starboardChannelID: next.starboardChannelID,
     starboardEmoji: next.starboardEmoji,
     starboardThreshold: next.starboardThreshold,

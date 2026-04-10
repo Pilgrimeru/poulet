@@ -315,6 +315,16 @@ function ModerationSection({
             <StatusBadge tone="success">{formatSanctionDurationLabel(settings.sanctionDurationMs)}</StatusBadge>
           </div>
         </SettingRow>
+        <SettingRow
+          name="Limite de signalements par jour"
+          hint="Nombre maximal de signalements qu'un utilisateur peut déposer par jour avant blocage"
+        >
+          <NumberField
+            value={settings.reportDailyLimit}
+            min={1}
+            onChange={(value) => onPatch({ reportDailyLimit: Math.max(1, Number(value) || 1) })}
+          />
+        </SettingRow>
       </SettingsGroup>
       <SettingsGroup title="Notifications">
         <SettingRow

@@ -81,6 +81,8 @@ export const MODERATION_MESSAGES = {
   },
   interactionReplies: {
     ticketCreated: (channelRef: string) => `Ton ticket a été créé : ${channelRef}`,
+    reportDailyLimitReached: (limit: number) => `Tu as atteint la limite de ${limit} signalements aujourd'hui. Réessaie demain.`,
+    reportAbuseSanctioned: "Tu as multiplié les signalements sans infraction confirmée aujourd'hui. Un avertissement pour abus d'usage a été appliqué.",
     duplicateFlag: "Ce message a déjà été pris en compte dans une sanction existante. Il ne peut pas être sanctionné une seconde fois.",
     noAutomaticViolation: "Aucune violation suffisamment claire n'a été détectée pour une sanction automatique.",
     unidentifiedVictim: (channelRef: string) => `La victime n'est pas identifiable avec assez de certitude. Un ticket a été créé : ${channelRef}`,

@@ -19,6 +19,7 @@ const config: Config = {
   TOKEN: process.env["TOKEN"] ?? "",
   AUTO_DELETE: Boolean(process.env["AUTO_DELETE"]),
   ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS: Boolean(process.env["ALLOW_DUPLICATE_SANCTIONED_MESSAGE_REPORTS"]),
+  MODERATOR_ROLE_ID: process.env["MODERATOR_ROLE_ID"] ?? "",
   LOCALE: process.env["LOCALE"] ?? "en",
   DASHBOARD_URL: process.env["DASHBOARD_URL"] ?? "",
   COLORS: {
