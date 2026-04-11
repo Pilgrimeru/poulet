@@ -12,9 +12,6 @@ import { MODERATION_MESSAGES } from "@/discord/components/moderation/moderationM
 import { Event } from "@/discord/types";
 import { ChannelType, Message } from "discord.js";
 
-const regexInviteLink =
-  /\b(https?:\/\/)?(discord\.gg|discordapp\.com\/invite)\/\w+\b/gm;
-
 export default new Event("messageCreate", async (message: Message) => {
   if (message.author.bot || !message.guild) return;
   const guildID = message.guild.id;
@@ -26,13 +23,6 @@ export default new Event("messageCreate", async (message: Message) => {
   for (const filter of spamCheckers) {
     if (!filter.checker.check(message)) return;
   }
-  if (!inviteVerification(message)) return;
-
-  if (message.content.match(regexInviteLink)) {
-    await message.delete();
-    return;
-  }
-
   // Apply channel rules (one-message limit may delete the message and stop processing)
   const channelRule = await channelRuleService.getRuleByChannel(guildID, message.channelId);
   if (channelRule) {
@@ -197,10 +187,3 @@ function emoteChannel(message: Message): void {
   }
 }
 
-function inviteVerification(message: Message): boolean {
-  if (message.content.match(regexInviteLink)) {
-    void message.delete();
-    return false;
-  }
-  return true;
-}
