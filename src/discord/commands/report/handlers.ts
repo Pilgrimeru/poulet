@@ -402,11 +402,15 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   }
 
   const meta = decodeTicketMeta(channel.topic);
-  if (meta && interaction.user.id !== meta.reporterID) {
+  if (!meta) {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketMetadataNotFound, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.user.id !== meta.reporterID) {
     await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanSubmit, flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
+  if (!(await hasReporterTextMessageSince(channel, meta.reporterID, interaction.message.createdTimestamp))) {
     await interaction.reply({
       content: MODERATION_MESSAGES.interactionReplies.addDetailsBeforeRevise,
       flags: MessageFlags.Ephemeral,
@@ -421,8 +425,8 @@ async function handleReportRevise(interaction: ButtonInteraction): Promise<void>
   const transcript = await ticketMessagesToTranscript(interaction.guild, ticketMessages);
   const summary = await summarizeReport({
     guildID: interaction.guild.id,
-    reporterID: meta!.reporterID,
-    targetUserID: meta!.targetUserID,
+    reporterID: meta.reporterID,
+    targetUserID: meta.targetUserID,
     transcript,
     anchorTimestamp: ticketMessages[0]?.createdAt ?? Date.now(),
   });
@@ -452,11 +456,15 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   }
 
   const meta = decodeTicketMeta(channel.topic);
-  if (meta && interaction.user.id !== meta.reporterID) {
+  if (!meta) {
+    await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.ticketMetadataNotFound, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.user.id !== meta.reporterID) {
     await interaction.reply({ content: MODERATION_MESSAGES.interactionReplies.onlyReporterCanFollowUp, flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!(await hasReporterTextMessageSince(channel, meta!.reporterID, interaction.message.createdTimestamp))) {
+  if (!(await hasReporterTextMessageSince(channel, meta.reporterID, interaction.message.createdTimestamp))) {
     await interaction.reply({
       content: MODERATION_MESSAGES.interactionReplies.replyBeforeFollowUp,
       flags: MessageFlags.Ephemeral,
@@ -465,7 +473,7 @@ async function handleReportFollowUp(interaction: ButtonInteraction): Promise<voi
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const { reportId: id, summary } = await processTicketAnalysis(interaction.guild, channel, meta!);
+  const { reportId: id, summary } = await processTicketAnalysis(interaction.guild, channel, meta);
   const result = await sendAnalysisResult(channel, id, summary, true);
   await interaction.editReply({
     content: result.kind === "follow_up"

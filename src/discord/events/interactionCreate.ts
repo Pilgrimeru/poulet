@@ -11,7 +11,23 @@ export default new Event("interactionCreate", async (interaction) => {
   } else if (interaction.isUserContextMenuCommand() || interaction.isMessageContextMenuCommand()) {
     await processContextMenu(interaction);
   } else if (interaction.isMessageComponent()) {
-    await componentRouter.dispatch(interaction);
+    const handled = await componentRouter.dispatch(interaction);
+    if (!handled && !interaction.replied && !interaction.deferred) {
+      console.warn("[interactionCreate] unhandled component interaction", { customId: interaction.customId });
+      await interaction.reply({
+        content: "Cette interaction n'est plus disponible ou n'est pas reconnue.",
+        flags: MessageFlags.Ephemeral,
+      }).catch((error) => console.error("[interactionCreate] failed to reply to unhandled component", error));
+    }
+  } else if (interaction.isModalSubmit()) {
+    const handled = await componentRouter.dispatch(interaction);
+    if (!handled && !interaction.replied && !interaction.deferred) {
+      console.warn("[interactionCreate] unhandled modal interaction", { customId: interaction.customId });
+      await interaction.reply({
+        content: "Cette interaction n'est plus disponible ou n'est pas reconnue.",
+        flags: MessageFlags.Ephemeral,
+      }).catch((error) => console.error("[interactionCreate] failed to reply to unhandled modal", error));
+    }
   }
 });
 
