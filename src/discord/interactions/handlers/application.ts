@@ -339,18 +339,37 @@ function registerScopedHandlers(
         if (form.submissionChannelID) {
           const channel = await bot.channels.fetch(form.submissionChannelID).catch(() => null);
           if (channel?.isTextBased() && channel.type !== ChannelType.GroupDM) {
+            const dashboardURL = config.DASHBOARD_URL;
+            const deepLink = dashboardURL
+              ? `${dashboardURL}/applications?guild=${guildID}&tab=submissions&formId=${form.id}&submissionId=${result.id}`
+              : null;
+
+            const actionRow = deepLink
+              ? [
+                new ActionRowBuilder<ButtonBuilder>().addComponents(
+                  new ButtonBuilder()
+                    .setLabel("Voir la candidature")
+                    .setURL(deepLink)
+                    .setStyle(ButtonStyle.Link),
+                ),
+              ]
+              : [];
+
             await channel
               .send({
                 embeds: [
                   new EmbedBuilder()
                     .setTitle("Nouvelle candidature")
                     .setDescription(
-                      `<@${userID}> a soumis une candidature pour **${form.name}**`,
+                      deepLink
+                        ? `<@${userID}> a soumis une candidature pour **${form.name}**.\n[Ouvrir dans le dashboard](${deepLink})`
+                        : `<@${userID}> a soumis une candidature pour **${form.name}**`,
                     )
                     .setColor(config.COLORS.MAIN)
                     .setTimestamp()
                     .toJSON(),
                 ],
+                components: actionRow,
               })
               .catch(() => undefined);
           }

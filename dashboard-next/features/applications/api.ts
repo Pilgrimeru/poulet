@@ -82,6 +82,19 @@ export async function fetchSubmissions(
   return res.json() as Promise<{ items: ApplicationSubmissionItem[]; total: number; hasMore: boolean }>;
 }
 
+export async function fetchSubmission(
+  guildID: string,
+  formID: string,
+  submissionID: string,
+): Promise<ApplicationSubmissionItem | null> {
+  const res = await fetch(`/api/guilds/${guildID}/applications/${formID}/submissions/${submissionID}`, {
+    cache: "no-store",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Failed to fetch submission");
+  return res.json() as Promise<ApplicationSubmissionItem>;
+}
+
 export async function reviewSubmission(
   guildID: string,
   formID: string,

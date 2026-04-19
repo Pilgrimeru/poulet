@@ -6,6 +6,7 @@ import {
   deleteForm,
   fetchDiscordChannels,
   fetchDiscordRoles,
+  fetchSubmission,
   fetchForms,
   fetchSubmissions,
   reviewSubmission,
@@ -51,15 +52,18 @@ export default function ApplicationsPage() {
 function ApplicationsPageContent() {
   const searchParams = useSearchParams();
   const guildID = searchParams.get("guild") ?? "";
+  const initialTab = (searchParams.get("tab") as ApplicationTab | null) ?? "forms";
+  const initialFormId = searchParams.get("formId");
+  const initialSubmissionId = searchParams.get("submissionId");
 
-  const [tab, setTab] = useState<ApplicationTab>("forms");
+  const [tab, setTab] = useState<ApplicationTab>(initialTab);
   const [forms, setForms] = useState<ApplicationFormItem[] | null>(null);
   const [submissions, setSubmissions] = useState<ApplicationSubmissionItem[] | null>(null);
   const [submissionsTotal, setSubmissionsTotal] = useState(0);
   const [submissionsHasMore, setSubmissionsHasMore] = useState(false);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
-  const [submissionFormFilter, setSubmissionFormFilter] = useState<string | null>(null);
+  const [submissionFormFilter, setSubmissionFormFilter] = useState<string | null>(initialFormId);
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState<SubmissionStatus | "all">("pending");
   const [roles, setRoles] = useState<DiscordRole[]>([]);
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
@@ -77,8 +81,19 @@ function ApplicationsPageContent() {
     if (!guildID) return;
     const data = await fetchForms(guildID);
     setForms(data);
-    if (!selectedFormId && data.length > 0) setSelectedFormId(data[0]!.id);
-  }, [guildID, selectedFormId]);
+    if (!selectedFormId && data.length > 0) {
+      const preferredFormId = initialFormId && data.some((form) => form.id === initialFormId)
+        ? initialFormId
+        : data[0]!.id;
+      setSelectedFormId(preferredFormId);
+    }
+    if (!submissionFormFilter && data.length > 0) {
+      const preferredFormId = initialFormId && data.some((form) => form.id === initialFormId)
+        ? initialFormId
+        : data[0]!.id;
+      setSubmissionFormFilter(preferredFormId);
+    }
+  }, [guildID, initialFormId, selectedFormId, submissionFormFilter]);
 
   const loadSubmissions = useCallback(async () => {
     if (!guildID || !submissionFormFilter) return;
@@ -86,13 +101,25 @@ function ApplicationsPageContent() {
       status: submissionStatusFilter === "all" ? undefined : submissionStatusFilter,
       limit: 50,
     });
-    setSubmissions(data.items);
+    let items = data.items;
+    if (initialSubmissionId && !items.some((item) => item.id === initialSubmissionId)) {
+      const initialSubmission = await fetchSubmission(guildID, submissionFormFilter, initialSubmissionId).catch(() => null);
+      if (initialSubmission) {
+        items = [initialSubmission, ...items.filter((item) => item.id !== initialSubmission.id)];
+      }
+    }
+    setSubmissions(items);
     setSubmissionsTotal(data.total);
     setSubmissionsHasMore(data.hasMore);
-    if (data.items.length > 0 && !selectedSubmissionId) {
-      setSelectedSubmissionId(data.items[0]!.id);
+    setSelectedSubmissionId((current) => {
+      if (current && items.some((item) => item.id === current)) return current;
+      if (initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) return initialSubmissionId;
+      return items[0]?.id ?? null;
+    });
+    if (isMobile && initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) {
+      setMobileView("detail");
     }
-  }, [guildID, submissionFormFilter, submissionStatusFilter, selectedSubmissionId]);
+  }, [guildID, initialSubmissionId, isMobile, submissionFormFilter, submissionStatusFilter]);
 
   useEffect(() => {
     if (!guildID) return;
@@ -139,9 +166,12 @@ function ApplicationsPageContent() {
 
   useEffect(() => {
     if (tab === "submissions" && forms && forms.length > 0 && !submissionFormFilter) {
-      setSubmissionFormFilter(forms[0]!.id);
+      const preferredFormId = initialFormId && forms.some((form) => form.id === initialFormId)
+        ? initialFormId
+        : forms[0]!.id;
+      setSubmissionFormFilter(preferredFormId);
     }
-  }, [tab, forms, submissionFormFilter]);
+  }, [forms, initialFormId, submissionFormFilter, tab]);
 
   const handleCreateForm = useCallback(async () => {
     if (!guildID) return;

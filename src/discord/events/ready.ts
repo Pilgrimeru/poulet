@@ -1,3 +1,4 @@
+import type { PendingRoleItem } from "@/api";
 import {
   appealApiService,
   applicationService,
@@ -9,17 +10,15 @@ import {
   userMetaService,
   voiceSessionService,
 } from "@/api";
-import type { PendingRoleItem } from "@/api";
 import { memberEventService } from "@/api/memberEventService";
-import { bot } from "@/app/runtime";
 import { config } from "@/app/config";
+import { bot } from "@/app/runtime";
 import { startStatsReportScheduler } from "@/discord/components";
 import { flushPendingSessions } from "@/discord/components/stats/sessionBacklog";
 import { registerApplicationHandlers, registerPollHandlers } from "@/discord/interactions";
 import { Event } from "@/discord/types";
-import { formatDuration } from "@/discord/utils/formatTime";
 import { cacheGuildInvites } from "@/services/inviteTrackerService";
-import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder, Guild, GuildMember } from "discord.js";
 
 export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
@@ -276,7 +275,7 @@ function getApplicationRoleSyncKey(item: PendingRoleItem): string {
 }
 
 async function applyRoleChanges(
-  member: import("discord.js").GuildMember,
+  member: GuildMember,
   roleIDs: string[],
   mode: "add" | "remove",
   reason: string,
@@ -330,7 +329,7 @@ async function applyRoleChanges(
   return ok;
 }
 
-async function applyAcceptedRoles(item: PendingRoleItem, member: import("discord.js").GuildMember | null): Promise<boolean> {
+async function applyAcceptedRoles(item: PendingRoleItem, member: GuildMember | null): Promise<boolean> {
   let ok = true;
   if (member) {
     ok = await applyRoleChanges(member, item.form.acceptRoleIDs, "add", "Candidature acceptée");
@@ -348,7 +347,7 @@ async function applyAcceptedRoles(item: PendingRoleItem, member: import("discord
   return ok;
 }
 
-async function applyRejectedRoles(item: PendingRoleItem, member: import("discord.js").GuildMember | null): Promise<boolean> {
+async function applyRejectedRoles(item: PendingRoleItem, member: GuildMember | null): Promise<boolean> {
   let ok = true;
   if (member) {
     ok = await applyRoleChanges(member, item.form.rejectRoleIDs, "add", "Candidature refusée");
@@ -361,15 +360,11 @@ async function applyRejectedRoles(item: PendingRoleItem, member: import("discord
     ok = false;
   }
   const notes = item.submission.reviewerNotes ? `\n\n${item.submission.reviewerNotes}` : "";
-  const cooldownInfo =
-    item.form.cooldownMs > 0
-      ? `\n\nTu pourras postuler à nouveau dans **${formatDuration(item.form.cooldownMs)}**.`
-      : "";
-  await member?.send(`❌ Ta candidature pour **${item.form.name}** a été **refusée**.${notes}${cooldownInfo}`).catch(() => undefined);
+  await member?.send(`❌ Ta candidature pour **${item.form.name}** a été **refusée**.${notes}`).catch(() => undefined);
   return ok;
 }
 
-async function processRoleItem(guild: import("discord.js").Guild, item: PendingRoleItem): Promise<void> {
+async function processRoleItem(guild: Guild, item: PendingRoleItem): Promise<void> {
   const key = getApplicationRoleSyncKey(item);
   const failure = applicationRoleSyncFailures.get(key);
   if (failure && Date.now() < failure.nextRetryAt) {
@@ -439,7 +434,7 @@ async function syncOverturnedAppeals(): Promise<void> {
       const sanction = await sanctionApiService
         .get(guild.id, appeal.sanctionID)
         .catch(() => null);
-      if (!sanction || sanction.state !== "created") continue;
+      if (sanction?.state !== "created") continue;
 
       const member = await guild.members
         .fetch(sanction.userID)
