@@ -37,7 +37,7 @@ export function MultiValueSelect({
           {selectedOptions.map((option) => (
             <div key={option.value} className={styles.multiValueItem}>
               <span className={styles.multiValueLabel}>{option.label}</span>
-              <button type="button" className={styles.multiValueRemove} onClick={() => onChange(value.filter((id) => id !== option.value))}>
+              <button type="button" className={styles.multiValueRemove} onClick={() => onChange(uniqueValue.filter((id) => id !== option.value))}>
                 Retirer
               </button>
             </div>

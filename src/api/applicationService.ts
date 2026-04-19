@@ -120,11 +120,11 @@ export const applicationService = {
     formID: string,
     userID: string,
   ): Promise<ApplicationSubmissionDTO | null> {
-    const params = new URLSearchParams({ status: "pending" });
+    const params = new URLSearchParams({ status: "pending", userId: userID });
     const result = await apiGet<{ items: ApplicationSubmissionDTO[] }>(
       `/guilds/${guildID}/applications/${formID}/submissions?${params.toString()}&limit=1`,
     ).catch(() => null);
-    return result?.items.find((s) => s.userID === userID) ?? null;
+    return result?.items[0] ?? null;
   },
 
   async getLatestRejectedSubmission(
@@ -132,11 +132,11 @@ export const applicationService = {
     formID: string,
     userID: string,
   ): Promise<ApplicationSubmissionDTO | null> {
-    const params = new URLSearchParams({ status: "rejected" });
+    const params = new URLSearchParams({ status: "rejected", userId: userID });
     const result = await apiGet<{ items: ApplicationSubmissionDTO[] }>(
-      `/guilds/${guildID}/applications/${formID}/submissions?${params.toString()}&limit=50`,
+      `/guilds/${guildID}/applications/${formID}/submissions?${params.toString()}&limit=1`,
     ).catch(() => null);
-    return result?.items.find((s) => s.userID === userID) ?? null;
+    return result?.items[0] ?? null;
   },
 
   // Sessions

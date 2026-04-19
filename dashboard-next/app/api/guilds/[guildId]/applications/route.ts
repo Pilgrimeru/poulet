@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createForm, listForms } from "@/services/applicationFormService";
 import type { Question, QuestionType } from "@/services/applicationFormService";
+import { hasGuildAccess } from "@/lib/apiAuth";
 
 const VALID_TYPES: QuestionType[] = ["open_text", "single_choice", "multiple_choice"];
 
@@ -20,6 +21,9 @@ function validateQuestion(q: unknown, index: number): string | null {
 export async function GET(request: Request, context: { params: Promise<{ guildId: string }> }) {
   try {
     const { guildId } = await context.params;
+    if (!await hasGuildAccess(request, guildId)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const isActiveParam = searchParams.get("isActive");
     const isActive = isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined;
@@ -32,6 +36,9 @@ export async function GET(request: Request, context: { params: Promise<{ guildId
 export async function POST(request: Request, context: { params: Promise<{ guildId: string }> }) {
   try {
     const { guildId } = await context.params;
+    if (!await hasGuildAccess(request, guildId)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
     const { name, description, questions, acceptRoleIDs, removeRoleIDs, rejectRoleIDs,
       welcomeChannelID, submissionChannelID, cooldownMs, sessionTimeoutMs, isActive } =

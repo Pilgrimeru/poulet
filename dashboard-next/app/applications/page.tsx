@@ -95,29 +95,44 @@ function ApplicationsPageContent() {
     }
   }, [guildID, initialFormId, selectedFormId, submissionFormFilter]);
 
-  const loadSubmissions = useCallback(async () => {
+  const loadSubmissions = useCallback(async (offset = 0) => {
     if (!guildID || !submissionFormFilter) return;
     const data = await fetchSubmissions(guildID, submissionFormFilter, {
       status: submissionStatusFilter === "all" ? undefined : submissionStatusFilter,
       limit: 50,
+      offset,
     });
     let items = data.items;
-    if (initialSubmissionId && !items.some((item) => item.id === initialSubmissionId)) {
+    if (offset === 0 && initialSubmissionId && !items.some((item) => item.id === initialSubmissionId)) {
       const initialSubmission = await fetchSubmission(guildID, submissionFormFilter, initialSubmissionId).catch(() => null);
       if (initialSubmission) {
         items = [initialSubmission, ...items.filter((item) => item.id !== initialSubmission.id)];
       }
     }
-    setSubmissions(items);
+
+    if (offset === 0) {
+      setSubmissions(items);
+    } else {
+      setSubmissions((prev) => {
+        const base = prev ?? [];
+        const seen = new Set(base.map((item) => item.id));
+        const appended = items.filter((item) => !seen.has(item.id));
+        return [...base, ...appended];
+      });
+    }
+
     setSubmissionsTotal(data.total);
     setSubmissionsHasMore(data.hasMore);
-    setSelectedSubmissionId((current) => {
-      if (current && items.some((item) => item.id === current)) return current;
-      if (initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) return initialSubmissionId;
-      return items[0]?.id ?? null;
-    });
-    if (isMobile && initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) {
-      setMobileView("detail");
+
+    if (offset === 0) {
+      setSelectedSubmissionId((current) => {
+        if (current && items.some((item) => item.id === current)) return current;
+        if (initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) return initialSubmissionId;
+        return items[0]?.id ?? null;
+      });
+      if (isMobile && initialSubmissionId && items.some((item) => item.id === initialSubmissionId)) {
+        setMobileView("detail");
+      }
     }
   }, [guildID, initialSubmissionId, isMobile, submissionFormFilter, submissionStatusFilter]);
 
@@ -160,7 +175,7 @@ function ApplicationsPageContent() {
 
   useEffect(() => {
     if (tab === "submissions" && submissionFormFilter) {
-      loadSubmissions().catch(() => setSubmissions([]));
+      loadSubmissions(0).catch(() => setSubmissions([]));
     }
   }, [tab, submissionFormFilter, submissionStatusFilter]);
 
@@ -353,7 +368,14 @@ function ApplicationsPageContent() {
               ))}
               {tab === "submissions" && submissionsHasMore && (
                 <div className={styles.loadMoreWrap}>
-                  <button className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`} onClick={() => loadSubmissions()}>
+                  <button
+                    className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`}
+                    onClick={() => {
+                      void loadSubmissions(submissions?.length ?? 0).catch((loadError) => {
+                        console.error("Failed to load more submissions", loadError);
+                      });
+                    }}
+                  >
                     Charger plus
                   </button>
                 </div>

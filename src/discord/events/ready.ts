@@ -20,6 +20,9 @@ import { Event } from "@/discord/types";
 import { cacheGuildInvites } from "@/services/inviteTrackerService";
 import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder, Guild, GuildMember } from "discord.js";
 
+const pendingWelcomeMessagePatches = new Map<string, { messageID: string; nextRetryAt: number }>();
+const WELCOME_PATCH_RETRY_MS = 10 * 60_000;
+
 export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
 
@@ -232,6 +235,27 @@ async function syncWelcomeMessages(): Promise<void> {
   for (const guild of bot.guilds.cache.values()) {
     const forms = await applicationService.listFormsNeedingWelcomePost(guild.id).catch(() => []);
     for (const form of forms) {
+      const patchKey = `${guild.id}:${form.id}`;
+      const pendingPatch = pendingWelcomeMessagePatches.get(patchKey);
+      if (pendingPatch) {
+        if (Date.now() < pendingPatch.nextRetryAt) {
+          continue;
+        }
+        const patched = await applicationService
+          .patchForm(guild.id, form.id, { welcomeMessageID: pendingPatch.messageID })
+          .then(() => true)
+          .catch(() => false);
+        if (patched) {
+          pendingWelcomeMessagePatches.delete(patchKey);
+        } else {
+          pendingWelcomeMessagePatches.set(patchKey, {
+            messageID: pendingPatch.messageID,
+            nextRetryAt: Date.now() + WELCOME_PATCH_RETRY_MS,
+          });
+        }
+        continue;
+      }
+
       if (!form.welcomeChannelID) continue;
       const channel = await guild.channels.fetch(form.welcomeChannelID).catch(() => null);
       if (!channel?.isTextBased()) continue;
@@ -259,9 +283,17 @@ async function syncWelcomeMessages(): Promise<void> {
         .catch(() => null);
 
       if (message) {
-        await applicationService
-          .patchForm(guild.id, form.id, { welcomeMessageID: message.id } as never)
-          .catch(() => undefined);
+        const patched = await applicationService
+          .patchForm(guild.id, form.id, { welcomeMessageID: message.id })
+          .then(() => true)
+          .catch(() => false);
+
+        if (!patched) {
+          pendingWelcomeMessagePatches.set(patchKey, {
+            messageID: message.id,
+            nextRetryAt: Date.now() + WELCOME_PATCH_RETRY_MS,
+          });
+        }
       }
     }
   }

@@ -14,9 +14,15 @@ export async function GET(request: Request, context: Ctx) {
     const { guildId, formId } = await context.params;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") as SubmissionStatus | null;
+    const userID = searchParams.get("userId") ?? undefined;
     const limit = Number(searchParams.get("limit") ?? 50);
     const offset = Number(searchParams.get("offset") ?? 0);
-    return NextResponse.json(await listSubmissions(guildId, formId, { status: status ?? undefined, limit, offset }));
+    return NextResponse.json(await listSubmissions(guildId, formId, {
+      status: status ?? undefined,
+      userID,
+      limit,
+      offset,
+    }));
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

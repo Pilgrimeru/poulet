@@ -86,10 +86,11 @@ export async function createSubmission(
 export async function listSubmissions(
   guildID: string,
   formID: string,
-  options?: { status?: SubmissionStatus; limit?: number; offset?: number },
+  options?: { status?: SubmissionStatus; userID?: string; limit?: number; offset?: number },
 ): Promise<{ items: ApplicationSubmissionDTO[]; total: number; hasMore: boolean }> {
   const where: Record<string, unknown> = { guildID, formID };
   if (options?.status) where["status"] = options.status;
+  if (options?.userID) where["userID"] = options.userID;
   const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
   const offset = Math.max(0, options?.offset ?? 0);
 

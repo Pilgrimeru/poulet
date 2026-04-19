@@ -112,7 +112,11 @@ function renderChoiceQuestion(
     new StringSelectMenuBuilder()
       .setCustomId(`${prefix}answer:${step}`)
       .setPlaceholder(question.placeholder ?? "Sélectionne une réponse")
-      .setMinValues(isMulti ? (question.minValues ?? 1) : 1)
+      .setMinValues(
+        question.required
+          ? (isMulti ? (question.minValues ?? 1) : 1)
+          : (isMulti ? (question.minValues ?? 0) : 0),
+      )
       .setMaxValues(isMulti ? (question.maxValues ?? (question.options?.length ?? 1)) : 1)
       .addOptions(
         (question.options ?? []).slice(0, 25).map((opt) => ({
@@ -124,6 +128,16 @@ function renderChoiceQuestion(
 
   const navRow = buildNavigationRow(prefix, step, form.questions.length);
   const components: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [selectRow];
+  if (!question.required) {
+    components.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`${prefix}skip:${step}`)
+          .setLabel("Passer")
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    );
+  }
   if (navRow.components.length > 0)
     components.push(navRow as unknown as ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>);
 
@@ -178,6 +192,16 @@ function registerScopedHandlers(
   const ttl = form.sessionTimeoutMs;
 
   const unregister = () => componentRouter.unregisterPrefix(prefix);
+  let isClosed = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  const closeSession = async (): Promise<void> => {
+    if (isClosed) return;
+    isClosed = true;
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    unregister();
+    await applicationService.deleteSession(guildID, sessionID).catch(() => undefined);
+  };
 
   componentRouter.registerPrefix(
     prefix,
@@ -217,6 +241,13 @@ function registerScopedHandlers(
         if (!question) { await interaction.deferUpdate(); return; }
 
         const answer = interaction.fields.getTextInputValue("answer").trim();
+        if (question.required && !answer) {
+          await interaction.reply({
+            content: "Cette question est obligatoire. Merci d'écrire une réponse non vide.",
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
 
         const session = await applicationService.getSession(guildID, formID, userID).catch(() => null);
         if (!session) { await interaction.deferUpdate(); return; }
@@ -280,6 +311,41 @@ function registerScopedHandlers(
         return;
       }
 
+      if (suffix.startsWith("skip:") && interaction instanceof ButtonInteraction) {
+        const step = Number(suffix.slice("skip:".length));
+        const question = form.questions[step];
+        if (!question || question.required) {
+          await interaction.deferUpdate();
+          return;
+        }
+
+        const session = await applicationService.getSession(guildID, formID, userID).catch(() => null);
+        if (!session) { await interaction.deferUpdate(); return; }
+
+        const newAnswers = { ...session.answers };
+        delete newAnswers[question.id];
+        const nextStep = step + 1;
+        const updated = await applicationService.updateSession(guildID, session.id, {
+          answers: newAnswers,
+          currentStep: nextStep,
+        }).catch(() => null);
+
+        await interaction.deferUpdate();
+        if (!updated) return;
+
+        if (nextStep >= form.questions.length) {
+          await originalInteraction.editReply(renderConfirmation(form, updated, prefix));
+        } else {
+          const nextQ = form.questions[nextStep]!;
+          if (nextQ.type === "open_text") {
+            await originalInteraction.editReply(renderOpenTextQuestion(form, updated, nextStep, prefix));
+          } else {
+            await originalInteraction.editReply(renderChoiceQuestion(form, nextStep, nextQ, prefix));
+          }
+        }
+        return;
+      }
+
       // Back navigation
       if (suffix === "back" && interaction instanceof ButtonInteraction) {
         await interaction.deferUpdate();
@@ -314,8 +380,7 @@ function registerScopedHandlers(
             return null;
           });
 
-        unregister();
-        await applicationService.deleteSession(guildID, sessionID).catch(() => undefined);
+        await closeSession();
 
         if (result === "conflict") {
           await originalInteraction.editReply({
@@ -386,8 +451,7 @@ function registerScopedHandlers(
       // Cancel
       if (suffix === "cancel" && interaction instanceof ButtonInteraction) {
         await interaction.deferUpdate();
-        unregister();
-        await applicationService.deleteSession(guildID, sessionID).catch(() => undefined);
+        await closeSession();
         await originalInteraction.editReply({
           content: "❌ Candidature annulée.",
           embeds: [],
@@ -400,9 +464,11 @@ function registerScopedHandlers(
   );
 
   // Session timeout cleanup
-  setTimeout(async () => {
-    unregister();
-    await applicationService.deleteSession(guildID, sessionID).catch(() => undefined);
+  timeoutHandle = setTimeout(async () => {
+    if (isClosed) return;
+    const session = await applicationService.getSession(guildID, formID, userID).catch(() => null);
+    if (!session || session.id !== sessionID) return;
+    await closeSession();
     await originalInteraction
       .editReply({
         content: "⏰ Ta session de candidature a expiré. Clique à nouveau sur le bouton pour recommencer.",
