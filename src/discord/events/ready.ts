@@ -1,5 +1,6 @@
 import {
   appealApiService,
+  applicationService,
   channelMetaService,
   deafSessionService,
   guildMetaService,
@@ -8,14 +9,17 @@ import {
   userMetaService,
   voiceSessionService,
 } from "@/api";
+import type { PendingRoleItem } from "@/api";
 import { memberEventService } from "@/api/memberEventService";
 import { bot } from "@/app/runtime";
+import { config } from "@/app/config";
 import { startStatsReportScheduler } from "@/discord/components";
 import { flushPendingSessions } from "@/discord/components/stats/sessionBacklog";
-import { registerPollHandlers } from "@/discord/interactions";
+import { registerApplicationHandlers, registerPollHandlers } from "@/discord/interactions";
 import { Event } from "@/discord/types";
+import { formatDuration } from "@/discord/utils/formatTime";
 import { cacheGuildInvites } from "@/services/inviteTrackerService";
-import { ActivityType } from "discord.js";
+import { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 
 export default new Event("clientReady", () => {
   console.log(`${bot.user!.username} ready!`);
@@ -90,6 +94,8 @@ export default new Event("clientReady", () => {
   );
   startStatsReportScheduler();
   registerPollHandlers();
+  registerApplicationHandlers();
+
   void syncOverturnedAppeals();
   let appealSyncChain = Promise.resolve();
   setInterval(() => {
@@ -98,6 +104,34 @@ export default new Event("clientReady", () => {
       () => syncOverturnedAppeals(),
     );
   }, 60_000);
+
+  syncWelcomeMessages().catch((err: unknown) =>
+    console.error("[applications] Erreur welcome sync:", err),
+  );
+  let welcomeSyncChain = Promise.resolve();
+  setInterval(() => {
+    welcomeSyncChain = welcomeSyncChain.then(
+      () => syncWelcomeMessages(),
+      () => syncWelcomeMessages(),
+    );
+  }, 30_000);
+
+  syncApplicationRoles().catch((err: unknown) =>
+    console.error("[applications] Erreur role sync:", err),
+  );
+  let roleSyncChain = Promise.resolve();
+  setInterval(() => {
+    roleSyncChain = roleSyncChain.then(
+      () => syncApplicationRoles(),
+      () => syncApplicationRoles(),
+    );
+  }, 30_000);
+
+  setInterval(() => {
+    for (const guild of bot.guilds.cache.values()) {
+      applicationService.deleteExpiredSessions(guild.id).catch(() => undefined);
+    }
+  }, 5 * 60_000);
 
   // Purge old message snapshots on startup then every 24h
   void messageSnapshotService.purgeOldSnapshots().then((n) => {
@@ -193,6 +227,205 @@ async function seedUserMetas(): Promise<void> {
   }
 
   console.log(`[userMeta] ${rows.length} membre(s) seedé(s).`);
+}
+
+async function syncWelcomeMessages(): Promise<void> {
+  for (const guild of bot.guilds.cache.values()) {
+    const forms = await applicationService.listFormsNeedingWelcomePost(guild.id).catch(() => []);
+    for (const form of forms) {
+      if (!form.welcomeChannelID) continue;
+      const channel = await guild.channels.fetch(form.welcomeChannelID).catch(() => null);
+      if (!channel?.isTextBased()) continue;
+
+      const message = await channel
+        .send({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle(form.name)
+              .setDescription(
+                form.description || "Clique sur le bouton ci-dessous pour commencer ta candidature.",
+              )
+              .setColor(config.COLORS.MAIN)
+              .toJSON(),
+          ],
+          components: [
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`apply:${form.id}`)
+                .setLabel("Commencer ma candidature")
+                .setStyle(ButtonStyle.Primary),
+            ),
+          ],
+        })
+        .catch(() => null);
+
+      if (message) {
+        await applicationService
+          .patchForm(guild.id, form.id, { welcomeMessageID: message.id } as never)
+          .catch(() => undefined);
+      }
+    }
+  }
+}
+
+const applicationRoleSyncFailures = new Map<string, { nextRetryAt: number; lastReason: string }>();
+const APPLICATION_ROLE_SYNC_RETRY_MS = 10 * 60_000;
+
+function getApplicationRoleSyncKey(item: PendingRoleItem): string {
+  return `${item.submission.guildID}:${item.submission.formID}:${item.submission.id}`;
+}
+
+async function applyRoleChanges(
+  member: import("discord.js").GuildMember,
+  roleIDs: string[],
+  mode: "add" | "remove",
+  reason: string,
+): Promise<boolean> {
+  let ok = true;
+
+  for (const roleID of roleIDs) {
+    const role = member.guild.roles.cache.get(roleID) ?? await member.guild.roles.fetch(roleID).catch(() => null);
+    if (!role) {
+      console.error("[applications] role sync failed: role not found", {
+        guildID: member.guild.id,
+        userID: member.id,
+        roleID,
+        mode,
+      });
+      ok = false;
+      continue;
+    }
+
+    if (member.guild.members.me && role.position >= member.guild.members.me.roles.highest.position) {
+      console.error("[applications] role sync failed: role above bot hierarchy", {
+        guildID: member.guild.id,
+        userID: member.id,
+        roleID,
+        roleName: role.name,
+        mode,
+      });
+      ok = false;
+      continue;
+    }
+
+    try {
+      if (mode === "add") {
+        await member.roles.add(roleID, reason);
+      } else {
+        await member.roles.remove(roleID, reason);
+      }
+    } catch (error) {
+      console.error("[applications] role sync failed: discord role mutation error", {
+        guildID: member.guild.id,
+        userID: member.id,
+        roleID,
+        roleName: role.name,
+        mode,
+        error,
+      });
+      ok = false;
+    }
+  }
+
+  return ok;
+}
+
+async function applyAcceptedRoles(item: PendingRoleItem, member: import("discord.js").GuildMember | null): Promise<boolean> {
+  let ok = true;
+  if (member) {
+    ok = await applyRoleChanges(member, item.form.acceptRoleIDs, "add", "Candidature acceptée");
+    ok = (await applyRoleChanges(member, item.form.removeRoleIDs, "remove", "Candidature acceptée")) && ok;
+  } else {
+    console.error("[applications] role sync failed: member not found for accepted submission", {
+      guildID: item.submission.guildID,
+      userID: item.submission.userID,
+      submissionID: item.submission.id,
+    });
+    ok = false;
+  }
+  const notes = item.submission.reviewerNotes ? `\n\n${item.submission.reviewerNotes}` : "";
+  await member?.send(`✅ Ta candidature pour **${item.form.name}** a été **acceptée** !${notes}`).catch(() => undefined);
+  return ok;
+}
+
+async function applyRejectedRoles(item: PendingRoleItem, member: import("discord.js").GuildMember | null): Promise<boolean> {
+  let ok = true;
+  if (member) {
+    ok = await applyRoleChanges(member, item.form.rejectRoleIDs, "add", "Candidature refusée");
+  } else {
+    console.error("[applications] role sync failed: member not found for rejected submission", {
+      guildID: item.submission.guildID,
+      userID: item.submission.userID,
+      submissionID: item.submission.id,
+    });
+    ok = false;
+  }
+  const notes = item.submission.reviewerNotes ? `\n\n${item.submission.reviewerNotes}` : "";
+  const cooldownInfo =
+    item.form.cooldownMs > 0
+      ? `\n\nTu pourras postuler à nouveau dans **${formatDuration(item.form.cooldownMs)}**.`
+      : "";
+  await member?.send(`❌ Ta candidature pour **${item.form.name}** a été **refusée**.${notes}${cooldownInfo}`).catch(() => undefined);
+  return ok;
+}
+
+async function processRoleItem(guild: import("discord.js").Guild, item: PendingRoleItem): Promise<void> {
+  const key = getApplicationRoleSyncKey(item);
+  const failure = applicationRoleSyncFailures.get(key);
+  if (failure && Date.now() < failure.nextRetryAt) {
+    return;
+  }
+
+  const member = await guild.members.fetch(item.submission.userID).catch(() => null);
+  let ok = false;
+  if (item.submission.status === "accepted") {
+    ok = await applyAcceptedRoles(item, member);
+  } else if (item.submission.status === "rejected") {
+    ok = await applyRejectedRoles(item, member);
+  }
+  if (!ok) {
+    const reason = member
+      ? "role mutation failed"
+      : "member not found";
+    const previous = applicationRoleSyncFailures.get(key);
+    if (previous?.lastReason !== reason || !previous) {
+      console.warn("[applications] role sync postponed after failure", {
+        guildID: guild.id,
+        submissionID: item.submission.id,
+        formID: item.submission.formID,
+        userID: item.submission.userID,
+        retryInMs: APPLICATION_ROLE_SYNC_RETRY_MS,
+        reason,
+      });
+    }
+    applicationRoleSyncFailures.set(key, {
+      nextRetryAt: Date.now() + APPLICATION_ROLE_SYNC_RETRY_MS,
+      lastReason: reason,
+    });
+    return;
+  }
+
+  applicationRoleSyncFailures.delete(key);
+
+  await applicationService
+    .markRolesApplied(guild.id, item.submission.formID, item.submission.id)
+    .catch((error: unknown) => {
+      console.error("[applications] failed to mark roles as applied", {
+        guildID: guild.id,
+        submissionID: item.submission.id,
+        formID: item.submission.formID,
+        error,
+      });
+    });
+}
+
+async function syncApplicationRoles(): Promise<void> {
+  for (const guild of bot.guilds.cache.values()) {
+    const items = await applicationService.listPendingRoles(guild.id).catch(() => [] as PendingRoleItem[]);
+    for (const item of items) {
+      await processRoleItem(guild, item);
+    }
+  }
 }
 
 async function syncOverturnedAppeals(): Promise<void> {

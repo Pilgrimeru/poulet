@@ -3,6 +3,8 @@ export * from "./ErrorBanner";
 export * from "./FieldRow";
 export * from "./IconButton";
 export * from "./LoadingState";
+export * from "./MultiRoleSelect";
+export * from "./MultiValueSelect";
 export * from "./NumberField";
 export * from "./PageHeader";
 export * from "./Panel";

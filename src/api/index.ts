@@ -24,3 +24,5 @@ export type { FlaggedMessageDTO, ContextMessage } from "./flaggedMessageApiServi
 export { moderationReportApiService } from "./moderationReportApiService";
 export type { ModerationReportDTO, ReportContext } from "./moderationReportApiService";
 export { userMetaService } from "./userMetaService";
+export { applicationService } from "./applicationService";
+export type { ApplicationFormDTO, ApplicationSubmissionDTO, ApplicationSessionDTO, PendingRoleItem, Question, QuestionType, SubmissionStatus } from "./applicationService";

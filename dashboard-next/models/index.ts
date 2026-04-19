@@ -1,4 +1,7 @@
 import { Appeal } from "./Appeal";
+import "./ApplicationForm";
+import "./ApplicationSession";
+import "./ApplicationSubmission";
 import "./AutoResponse";
 import "./ChannelMeta";
 import "./ChannelRule";

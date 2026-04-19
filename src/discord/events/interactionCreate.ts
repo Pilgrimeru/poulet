@@ -11,7 +11,36 @@ export default new Event("interactionCreate", async (interaction) => {
   } else if (interaction.isUserContextMenuCommand() || interaction.isMessageContextMenuCommand()) {
     await processContextMenu(interaction);
   } else if (interaction.isMessageComponent()) {
-    await componentRouter.dispatch(interaction);
+    console.info("[interactionCreate] component", {
+      kind: interaction.componentType,
+      customId: interaction.customId,
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      channelId: interaction.channelId,
+    });
+    const handled = await componentRouter.dispatch(interaction);
+    if (!handled && !interaction.replied && !interaction.deferred) {
+      console.warn("[interactionCreate] unhandled component interaction", { customId: interaction.customId });
+      await interaction.reply({
+        content: "Cette interaction n'est plus disponible ou n'est pas reconnue.",
+        flags: MessageFlags.Ephemeral,
+      }).catch((error) => console.error("[interactionCreate] failed to reply to unhandled component", error));
+    }
+  } else if (interaction.isModalSubmit()) {
+    console.info("[interactionCreate] modal", {
+      customId: interaction.customId,
+      userId: interaction.user.id,
+      guildId: interaction.guildId,
+      channelId: interaction.channelId,
+    });
+    const handled = await componentRouter.dispatch(interaction);
+    if (!handled && !interaction.replied && !interaction.deferred) {
+      console.warn("[interactionCreate] unhandled modal interaction", { customId: interaction.customId });
+      await interaction.reply({
+        content: "Cette interaction n'est plus disponible ou n'est pas reconnue.",
+        flags: MessageFlags.Ephemeral,
+      }).catch((error) => console.error("[interactionCreate] failed to reply to unhandled modal", error));
+    }
   }
 });
 
