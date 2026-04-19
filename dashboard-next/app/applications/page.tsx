@@ -26,6 +26,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import styles from "./Applications.module.css";
 
+const MOBILE_BREAKPOINT = 760;
+
 const STATUS_LABELS: Record<SubmissionStatus, string> = {
   pending: "En attente",
   accepted: "Acceptée",
@@ -62,6 +64,8 @@ function ApplicationsPageContent() {
   const [roles, setRoles] = useState<DiscordRole[]>([]);
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
   const selectedForm = forms?.find((f) => f.id === selectedFormId) ?? null;
   const selectedSubmission = submissions?.find((s) => s.id === selectedSubmissionId) ?? null;
@@ -97,6 +101,31 @@ function ApplicationsPageContent() {
       setChannels(c);
     }).catch(() => undefined);
   }, [guildID]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const sync = () => setIsMobile(media.matches);
+    sync();
+
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileView("detail");
+      return;
+    }
+    setMobileView("list");
+  }, [isMobile, tab]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const hasSelection = tab === "forms" ? !!selectedForm : !!selectedSubmission;
+    if (!hasSelection) setMobileView("list");
+  }, [isMobile, selectedForm, selectedSubmission, tab]);
 
   useEffect(() => {
     loadForms().catch(() => setForms([]));
@@ -162,6 +191,9 @@ function ApplicationsPageContent() {
     return <div className={styles.emptyState}>Sélectionne un serveur dans la barre du haut.</div>;
   }
 
+  const showMobileList = !isMobile || mobileView === "list";
+  const showMobileDetail = !isMobile || mobileView === "detail";
+
   return (
     <div className={styles.page}>
       {error && (
@@ -171,10 +203,10 @@ function ApplicationsPageContent() {
         </div>
       )}
 
-      <header className={styles.header}>
+      <header className={`${styles.header} ${isMobile ? styles.headerMobile : ""}`}>
         <div className={styles.headerLeft}>
           <h1 className={styles.title}>Candidatures</h1>
-          <div className={styles.tabs} role="tablist">
+          <div className={`${styles.tabs} ${isMobile ? styles.tabsMobile : ""}`} role="tablist">
             <button
               role="tab"
               aria-selected={tab === "forms"}
@@ -195,7 +227,7 @@ function ApplicationsPageContent() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className={`${styles.headerActions} ${isMobile ? styles.headerActionsMobile : ""}`}>
           {tab === "forms" && (
             <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleCreateForm}>
               + Nouveau formulaire
@@ -220,112 +252,122 @@ function ApplicationsPageContent() {
         </div>
       </header>
 
-      <div className={styles.layout}>
-        {/* Sidebar */}
-        <aside className={styles.sidebar}>
-          {tab === "forms" && (
-            <>
-              <div className={styles.sidebarMeta}>
-                <span className={styles.sidebarTitle}>Formulaires</span>
-                <span className={styles.sidebarCount}>{forms?.length ?? 0}</span>
-              </div>
-              <div className={styles.list}>
-                {forms === null && <div className={styles.listEmpty}>Chargement…</div>}
-                {forms?.length === 0 && <div className={styles.listEmpty}>Aucun formulaire</div>}
-                {forms?.map((form) => (
-                  <button
-                    key={form.id}
-                    className={`${styles.sidebarItem} ${selectedFormId === form.id ? styles.sidebarItemActive : ""}`}
-                    onClick={() => setSelectedFormId(form.id)}
-                  >
-                    <span className={styles.sidebarItemName}>{form.name}</span>
-                    <span className={styles.sidebarItemMeta}>
-                      <span className={`${styles.statusBadge} ${form.isActive ? styles.statusActive : styles.statusInactive}`}>
-                        {form.isActive ? "Actif" : "Inactif"}
-                      </span>
-                      {" · "}
-                      {form.questions.length} question{form.questions.length !== 1 ? "s" : ""}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+      <div className={`${styles.layout} ${isMobile ? styles.layoutMobile : ""}`}>
+        {showMobileList && (
+          <aside className={`${styles.sidebar} ${isMobile ? styles.sidebarMobile : ""}`}>
+            <div className={isMobile ? styles.sidebarStickyMobile : undefined}>
+              {tab === "forms" && (
+                <div className={`${styles.sidebarMeta} ${isMobile ? styles.sidebarMetaMobile : ""}`}>
+                  <span className={styles.sidebarTitle}>Formulaires</span>
+                  <span className={styles.sidebarCount}>{forms?.length ?? 0}</span>
+                </div>
+              )}
 
-          {tab === "submissions" && (
-            <>
-              <div className={styles.sidebarMeta}>
-                <span className={styles.sidebarTitle}>Candidatures</span>
-                <span className={styles.sidebarCount}>{submissionsTotal}</span>
-              </div>
-              <div className={styles.filterRow}>
-                {(["pending", "accepted", "rejected", "all"] as const).map((s) => (
-                  <button
-                    key={s}
-                    className={`${styles.filterPill} ${submissionStatusFilter === s ? styles.filterPillActive : ""}`}
-                    onClick={() => { setSubmissionStatusFilter(s); setSelectedSubmissionId(null); setSubmissions(null); }}
-                  >
-                    {s === "all" ? "Toutes" : STATUS_LABELS[s as SubmissionStatus]}
-                  </button>
-                ))}
-              </div>
-              <div className={styles.list}>
-                {submissions === null && <div className={styles.listEmpty}>Chargement…</div>}
-                {submissions?.length === 0 && <div className={styles.listEmpty}>Aucune candidature</div>}
-                {submissions?.map((sub) => (
-                  <SubmissionListItem
-                    key={sub.id}
-                    guildID={guildID}
-                    submission={sub}
-                    active={selectedSubmissionId === sub.id}
-                    onClick={() => setSelectedSubmissionId(sub.id)}
-                  />
-                ))}
-                {submissionsHasMore && (
-                  <div style={{ padding: "8px 16px" }}>
-                    <button className={`${styles.btn} ${styles.btnGhost}`} style={{ width: "100%" }} onClick={() => loadSubmissions()}>
-                      Charger plus
-                    </button>
+              {tab === "submissions" && (
+                <>
+                  <div className={`${styles.sidebarMeta} ${isMobile ? styles.sidebarMetaMobile : ""}`}>
+                    <span className={styles.sidebarTitle}>Candidatures</span>
+                    <span className={styles.sidebarCount}>{submissionsTotal}</span>
                   </div>
-                )}
+                  <div className={`${styles.filterRow} ${isMobile ? styles.filterRowMobile : ""}`}>
+                    {(["pending", "accepted", "rejected", "all"] as const).map((s) => (
+                      <button
+                        key={s}
+                        className={`${styles.filterPill} ${submissionStatusFilter === s ? styles.filterPillActive : ""}`}
+                        onClick={() => { setSubmissionStatusFilter(s); setSelectedSubmissionId(null); setSubmissions(null); }}
+                      >
+                        {s === "all" ? "Toutes" : STATUS_LABELS[s as SubmissionStatus]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className={styles.list}>
+              {tab === "forms" && forms === null && <div className={styles.listEmpty}>Chargement…</div>}
+              {tab === "forms" && forms?.length === 0 && <div className={styles.listEmpty}>Aucun formulaire</div>}
+              {tab === "forms" && forms?.map((form) => (
+                <button
+                  key={form.id}
+                  className={`${styles.sidebarItem} ${!isMobile && selectedFormId === form.id ? styles.sidebarItemActive : ""}`}
+                  onClick={() => {
+                    setSelectedFormId(form.id);
+                    if (isMobile) setMobileView("detail");
+                  }}
+                >
+                  <span className={styles.sidebarItemName}>{form.name}</span>
+                  <span className={styles.sidebarItemMeta}>
+                    <span className={`${styles.statusBadge} ${form.isActive ? styles.statusActive : styles.statusInactive}`}>
+                      {form.isActive ? "Actif" : "Inactif"}
+                    </span>
+                    {" · "}
+                    {form.questions.length} question{form.questions.length !== 1 ? "s" : ""}
+                  </span>
+                </button>
+              ))}
+
+              {tab === "submissions" && submissions === null && <div className={styles.listEmpty}>Chargement…</div>}
+              {tab === "submissions" && submissions?.length === 0 && <div className={styles.listEmpty}>Aucune candidature</div>}
+              {tab === "submissions" && submissions?.map((sub) => (
+                <SubmissionListItem
+                  key={sub.id}
+                  guildID={guildID}
+                  submission={sub}
+                  active={!isMobile && selectedSubmissionId === sub.id}
+                  onClick={() => {
+                    setSelectedSubmissionId(sub.id);
+                    if (isMobile) setMobileView("detail");
+                  }}
+                />
+              ))}
+              {tab === "submissions" && submissionsHasMore && (
+                <div className={styles.loadMoreWrap}>
+                  <button className={`${styles.btn} ${styles.btnGhost} ${styles.loadMoreBtn}`} onClick={() => loadSubmissions()}>
+                    Charger plus
+                  </button>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
+        {showMobileDetail && (
+          <main className={`${styles.main} ${isMobile ? styles.mainMobile : ""}`}>
+            {tab === "forms" && !selectedForm && forms !== null && (
+              <div className={styles.emptyState}>
+                {forms.length === 0
+                  ? "Crée ton premier formulaire de candidature."
+                  : "Sélectionne un formulaire."}
               </div>
-            </>
-          )}
-        </aside>
+            )}
+            {tab === "forms" && selectedForm && (
+              <FormEditor
+                form={selectedForm}
+                roles={roles}
+                channels={channels}
+                onSave={(patch) => handleSaveForm(selectedForm.id, patch)}
+                onDelete={() => handleDeleteForm(selectedForm.id)}
+                onBack={isMobile ? () => setMobileView("list") : undefined}
+              />
+            )}
 
-        {/* Main panel */}
-        <main className={styles.main}>
-          {tab === "forms" && !selectedForm && forms !== null && (
-            <div className={styles.emptyState}>
-              {forms.length === 0
-                ? "Crée ton premier formulaire de candidature."
-                : "Sélectionne un formulaire."}
-            </div>
-          )}
-          {tab === "forms" && selectedForm && (
-            <FormEditor
-              form={selectedForm}
-              roles={roles}
-              channels={channels}
-              onSave={(patch) => handleSaveForm(selectedForm.id, patch)}
-              onDelete={() => handleDeleteForm(selectedForm.id)}
-            />
-          )}
-
-          {tab === "submissions" && !selectedSubmission && submissions !== null && (
-            <div className={styles.emptyState}>
-              {submissions.length === 0 ? "Aucune candidature pour ce formulaire." : "Sélectionne une candidature."}
-            </div>
-          )}
-          {tab === "submissions" && selectedSubmission && (
-            <SubmissionDetail
-              guildID={guildID}
-              submission={selectedSubmission}
-              form={forms?.find((f) => f.id === selectedSubmission.formID) ?? null}
-              onReview={handleReview}
-            />
-          )}
-        </main>
+            {tab === "submissions" && !selectedSubmission && submissions !== null && (
+              <div className={styles.emptyState}>
+                {submissions.length === 0 ? "Aucune candidature pour ce formulaire." : "Sélectionne une candidature."}
+              </div>
+            )}
+            {tab === "submissions" && selectedSubmission && (
+              <SubmissionDetail
+                guildID={guildID}
+                submission={selectedSubmission}
+                form={forms?.find((f) => f.id === selectedSubmission.formID) ?? null}
+                onReview={handleReview}
+                onBack={isMobile ? () => setMobileView("list") : undefined}
+              />
+            )}
+          </main>
+        )}
       </div>
     </div>
   );
@@ -378,9 +420,10 @@ interface FormEditorProps {
   channels: DiscordChannel[];
   onSave: (patch: Partial<ApplicationFormItem>) => Promise<void>;
   onDelete: () => Promise<void>;
+  onBack?: () => void;
 }
 
-function FormEditor({ form, roles, channels, onSave, onDelete }: FormEditorProps) {
+function FormEditor({ form, roles, channels, onSave, onDelete, onBack }: FormEditorProps) {
   const [draft, setDraft] = useState<ApplicationFormItem>({ ...form });
   const [optionBuffers, setOptionBuffers] = useState<Record<string, string>>(
     () => Object.fromEntries(form.questions.map((question) => [question.id, (question.options ?? []).join("\n")])),
@@ -460,6 +503,13 @@ function FormEditor({ form, roles, channels, onSave, onDelete }: FormEditorProps
 
   return (
     <div className={styles.formEditor}>
+      {onBack && (
+        <div className={styles.mobileDetailTopbar}>
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.mobileBackBtn}`} onClick={onBack}>
+            ← Retour
+          </button>
+        </div>
+      )}
       <div className={styles.formEditorHeader}>
         <h2 className={styles.formEditorTitle}>{draft.name || "Sans titre"}</h2>
         <div className={styles.formEditorActions}>
@@ -658,11 +708,13 @@ function SubmissionDetail({
   submission,
   form,
   onReview,
+  onBack,
 }: {
   guildID: string;
   submission: ApplicationSubmissionItem;
   form: ApplicationFormItem | null;
   onReview: (id: string, status: "accepted" | "rejected", notes: string) => Promise<void>;
+  onBack?: () => void;
 }) {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -686,6 +738,13 @@ function SubmissionDetail({
 
   return (
     <div className={styles.submissionDetail}>
+      {onBack && (
+        <div className={styles.mobileDetailTopbar}>
+          <button className={`${styles.btn} ${styles.btnGhost} ${styles.mobileBackBtn}`} onClick={onBack}>
+            ← Retour
+          </button>
+        </div>
+      )}
       <div className={styles.submissionHeader}>
         <div>
           <UserCard guildID={guildID} userID={submission.userID} label="Candidat" />
