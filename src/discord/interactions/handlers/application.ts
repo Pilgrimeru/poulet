@@ -1,9 +1,9 @@
-import { applicationService } from "@/api";
 import type { ApplicationFormDTO, ApplicationSessionDTO, Question } from "@/api";
-import { bot } from "@/app/runtime";
+import { applicationService } from "@/api";
 import { config } from "@/app/config";
-import { componentRouter } from "@/discord/interactions/ComponentRouter";
+import { bot } from "@/app/runtime";
 import type { AnyDispatchableInteraction } from "@/discord/interactions/ComponentRouter";
+import { componentRouter } from "@/discord/interactions/ComponentRouter";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -76,7 +76,7 @@ function renderOpenTextQuestion(
   step: number,
   prefix: string,
 ) {
-  const question = form.questions[step]!;
+  const question = form.questions[step];
   const hasAnswer = session.answers[question.id] !== undefined;
 
   const embed = buildQuestionEmbed(form, step, question);
@@ -179,6 +179,50 @@ function renderConfirmation(form: ApplicationFormDTO, session: ApplicationSessio
   return { embeds: [embed.toJSON()], components: [row] };
 }
 
+type ApplicationView = ReturnType<typeof renderOpenTextQuestion> | ReturnType<typeof renderChoiceQuestion> | ReturnType<typeof renderConfirmation>;
+type ApplicationProgressInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+
+function renderStep(
+  form: ApplicationFormDTO,
+  session: ApplicationSessionDTO,
+  step: number,
+  prefix: string,
+): ApplicationView {
+  if (step >= form.questions.length) {
+    return renderConfirmation(form, session, prefix);
+  }
+
+  const question = form.questions[step];
+  return question.type === "open_text"
+    ? renderOpenTextQuestion(form, session, step, prefix)
+    : renderChoiceQuestion(form, step, question, prefix);
+}
+
+async function updateApplicationView(
+  interaction: ApplicationProgressInteraction,
+  view: ApplicationView,
+): Promise<void> {
+  if (interaction instanceof ModalSubmitInteraction) {
+    if (!interaction.isFromMessage()) {
+      throw new Error("Application modal submit interaction is not bound to a message.");
+    }
+    await interaction.update(view);
+    return;
+  }
+
+  await interaction.update(view);
+}
+
+async function deferAndEditApplicationView(
+  interaction: ApplicationProgressInteraction,
+  view: ApplicationView | { content: string; embeds: []; components: [] },
+): Promise<void> {
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate();
+  }
+  await interaction.editReply(view);
+}
+
 function registerScopedHandlers(
   formID: string,
   guildID: string,
@@ -186,7 +230,6 @@ function registerScopedHandlers(
   nonce: string,
   sessionID: string,
   form: ApplicationFormDTO,
-  originalInteraction: ButtonInteraction,
 ): void {
   const prefix = `apply:${formID}:${userID}:${nonce}:`;
   const ttl = form.sessionTimeoutMs;
@@ -258,21 +301,8 @@ function registerScopedHandlers(
           answers: newAnswers,
           currentStep: nextStep,
         }).catch(() => null);
-
-        await interaction.deferUpdate();
-
-        if (!updated) return;
-
-        if (nextStep >= form.questions.length) {
-          await originalInteraction.editReply(renderConfirmation(form, updated, prefix));
-        } else {
-          const nextQ = form.questions[nextStep]!;
-          if (nextQ.type === "open_text") {
-            await originalInteraction.editReply(renderOpenTextQuestion(form, updated, nextStep, prefix));
-          } else {
-            await originalInteraction.editReply(renderChoiceQuestion(form, nextStep, nextQ, prefix));
-          }
-        }
+        if (!updated) { await interaction.deferUpdate(); return; }
+        await updateApplicationView(interaction, renderStep(form, updated, nextStep, prefix));
         return;
       }
 
@@ -294,20 +324,8 @@ function registerScopedHandlers(
           answers: newAnswers,
           currentStep: nextStep,
         }).catch(() => null);
-
-        await interaction.deferUpdate();
-        if (!updated) return;
-
-        if (nextStep >= form.questions.length) {
-          await originalInteraction.editReply(renderConfirmation(form, updated, prefix));
-        } else {
-          const nextQ = form.questions[nextStep]!;
-          if (nextQ.type === "open_text") {
-            await originalInteraction.editReply(renderOpenTextQuestion(form, updated, nextStep, prefix));
-          } else {
-            await originalInteraction.editReply(renderChoiceQuestion(form, nextStep, nextQ, prefix));
-          }
-        }
+        if (!updated) { await interaction.deferUpdate(); return; }
+        await updateApplicationView(interaction, renderStep(form, updated, nextStep, prefix));
         return;
       }
 
@@ -329,20 +347,8 @@ function registerScopedHandlers(
           answers: newAnswers,
           currentStep: nextStep,
         }).catch(() => null);
-
-        await interaction.deferUpdate();
-        if (!updated) return;
-
-        if (nextStep >= form.questions.length) {
-          await originalInteraction.editReply(renderConfirmation(form, updated, prefix));
-        } else {
-          const nextQ = form.questions[nextStep]!;
-          if (nextQ.type === "open_text") {
-            await originalInteraction.editReply(renderOpenTextQuestion(form, updated, nextStep, prefix));
-          } else {
-            await originalInteraction.editReply(renderChoiceQuestion(form, nextStep, nextQ, prefix));
-          }
-        }
+        if (!updated) { await interaction.deferUpdate(); return; }
+        await updateApplicationView(interaction, renderStep(form, updated, nextStep, prefix));
         return;
       }
 
@@ -357,13 +363,7 @@ function registerScopedHandlers(
           currentStep: prevStep,
         }).catch(() => null);
         if (!updated) return;
-
-        const q = form.questions[prevStep]!;
-        if (q.type === "open_text") {
-          await originalInteraction.editReply(renderOpenTextQuestion(form, updated, prevStep, prefix));
-        } else {
-          await originalInteraction.editReply(renderChoiceQuestion(form, prevStep, q, prefix));
-        }
+        await deferAndEditApplicationView(interaction, renderStep(form, updated, prevStep, prefix));
         return;
       }
 
@@ -383,7 +383,7 @@ function registerScopedHandlers(
         await closeSession();
 
         if (result === "conflict") {
-          await originalInteraction.editReply({
+          await deferAndEditApplicationView(interaction, {
             content: "Tu as déjà une candidature en attente de révision.",
             embeds: [],
             components: [],
@@ -392,7 +392,7 @@ function registerScopedHandlers(
         }
 
         if (!result) {
-          await originalInteraction.editReply({
+          await deferAndEditApplicationView(interaction, {
             content: "Une erreur est survenue lors de l'envoi. Réessaie plus tard.",
             embeds: [],
             components: [],
@@ -440,7 +440,7 @@ function registerScopedHandlers(
           }
         }
 
-        await originalInteraction.editReply({
+        await deferAndEditApplicationView(interaction, {
           content: "✅ Ta candidature a bien été envoyée ! Nous te répondrons dès que possible.",
           embeds: [],
           components: [],
@@ -450,14 +450,12 @@ function registerScopedHandlers(
 
       // Cancel
       if (suffix === "cancel" && interaction instanceof ButtonInteraction) {
-        await interaction.deferUpdate();
         await closeSession();
-        await originalInteraction.editReply({
+        await deferAndEditApplicationView(interaction, {
           content: "❌ Candidature annulée.",
           embeds: [],
           components: [],
         });
-        return;
       }
     },
     ttl,
@@ -467,15 +465,8 @@ function registerScopedHandlers(
   timeoutHandle = setTimeout(async () => {
     if (isClosed) return;
     const session = await applicationService.getSession(guildID, formID, userID).catch(() => null);
-    if (!session || session.id !== sessionID) return;
+    if (session?.id !== sessionID) return;
     await closeSession();
-    await originalInteraction
-      .editReply({
-        content: "⏰ Ta session de candidature a expiré. Clique à nouveau sur le bouton pour recommencer.",
-        embeds: [],
-        components: [],
-      })
-      .catch(() => undefined);
   }, ttl);
 }
 
@@ -494,18 +485,9 @@ async function startSession(
   }
 
   const nonce = genNonce();
-  registerScopedHandlers(form.id, guildID, userID, nonce, session.id, form, originalInteraction);
-
-  const firstQuestion = form.questions[0]!;
-  if (firstQuestion.type === "open_text") {
-    await originalInteraction.editReply(
-      renderOpenTextQuestion(form, session, 0, `apply:${form.id}:${userID}:${nonce}:`),
-    );
-  } else {
-    await originalInteraction.editReply(
-      renderChoiceQuestion(form, 0, firstQuestion, `apply:${form.id}:${userID}:${nonce}:`),
-    );
-  }
+  const prefix = `apply:${form.id}:${userID}:${nonce}:`;
+  registerScopedHandlers(form.id, guildID, userID, nonce, session.id, form);
+  await originalInteraction.editReply(renderStep(form, session, 0, prefix));
 }
 
 async function handleStartApplication(interaction: ButtonInteraction, formID: string): Promise<void> {
@@ -517,7 +499,7 @@ async function handleStartApplication(interaction: ButtonInteraction, formID: st
   if (!guildID) return;
 
   const form = await applicationService.getForm(guildID, formID).catch(() => null);
-  if (!form || !form.isActive) {
+  if (!form?.isActive) {
     await interaction.editReply({ content: "Ce formulaire n'est plus disponible." });
     return;
   }
@@ -596,16 +578,9 @@ async function handleStartApplication(interaction: ButtonInteraction, formID: st
         }
 
         const nonce = genNonce();
-        registerScopedHandlers(form.id, guildID, userID, nonce, session.id, form, interaction);
-
-        const q = form.questions[session.currentStep];
-        if (!q) {
-          await interaction.editReply(renderConfirmation(form, session, `apply:${form.id}:${userID}:${nonce}:`));
-        } else if (q.type === "open_text") {
-          await interaction.editReply(renderOpenTextQuestion(form, session, session.currentStep, `apply:${form.id}:${userID}:${nonce}:`));
-        } else {
-          await interaction.editReply(renderChoiceQuestion(form, session.currentStep, q, `apply:${form.id}:${userID}:${nonce}:`));
-        }
+        const prefix = `apply:${form.id}:${userID}:${nonce}:`;
+        registerScopedHandlers(form.id, guildID, userID, nonce, session.id, form);
+        await interaction.editReply(renderStep(form, session, session.currentStep, prefix));
       },
       10 * 60_000,
     );
@@ -650,7 +625,7 @@ export function registerApplicationHandlers(): void {
     // Only handle the entry button (2 segments: "apply" and formId)
     const parts = interaction.customId.split(":");
     if (parts.length !== 2) return;
-    const formID = parts[1]!;
+    const formID = parts[1];
     await handleStartApplication(interaction, formID).catch((err: unknown) => {
       console.error("[application] Erreur handleStartApplication:", err);
     });
